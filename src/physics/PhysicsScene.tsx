@@ -2,6 +2,7 @@ import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
 import { AnchorPoint } from '../scene/AnchorPoint'
 import { ANCHOR_POSITION, useStrawMobileStore } from '../state/store'
 import { getBodyRef } from './bodyRefRegistry'
+import { ENVIRONMENT_COLLISION_GROUPS } from './collisionGroups'
 import { JointsLayer } from './JointsLayer'
 import { PhysicsShape } from './PhysicsShape'
 
@@ -24,7 +25,7 @@ function FixedAnchorBody() {
 function GroundBody() {
   return (
     <RigidBody type="fixed" position={[0, GROUND_Y, 0]} colliders={false}>
-      <CuboidCollider args={[40, 0.5, 40]} />
+      <CuboidCollider args={[40, 0.5, 40]} collisionGroups={ENVIRONMENT_COLLISION_GROUPS} />
     </RigidBody>
   )
 }
