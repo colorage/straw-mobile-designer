@@ -10,7 +10,7 @@ export function ConnectionHint() {
   if (mode === 'simulate') {
     message = 'Simulating — watch it hang and balance. Go back to Build to keep editing.'
   } else if (shapeCount === 0) {
-    message = 'Drag a shape from the toolbar onto the scene, or click to add one on the grid.'
+    message = 'Drag a shape from the toolbar onto the scene, or click to add one in view.'
   } else if (pendingVertex) {
     message = 'Now click another corner (or the ceiling hook) to tie a thread between them.'
   } else {
