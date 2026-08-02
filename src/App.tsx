@@ -1,6 +1,7 @@
 import { Experience } from './scene/Experience'
 import { ConnectionHint } from './ui/ConnectionHint'
 import { ModeBar } from './ui/ModeBar'
+import { SaveStatus } from './ui/SaveStatus'
 import { ShapesList } from './ui/ShapesList'
 import { SizeSelector } from './ui/SizeSelector'
 import { StrawInventory } from './ui/StrawInventory'
@@ -15,6 +16,7 @@ function App() {
         <p className="app-subtitle">
           Build a himmeli-style straw mobile, then let gravity hang and balance it.
         </p>
+        <SaveStatus />
         <Toolbar />
         <SizeSelector />
         <ShapesList />

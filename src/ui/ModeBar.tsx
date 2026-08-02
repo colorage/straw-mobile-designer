@@ -28,7 +28,8 @@ export function ModeBar() {
         type="button"
         className="ghost-button"
         onClick={() => {
-          if (window.confirm('Clear the whole mobile and start over?')) reset()
+          if (window.confirm('Clear the whole mobile (including the autosaved copy) and start over?'))
+            reset()
         }}
       >
         Reset

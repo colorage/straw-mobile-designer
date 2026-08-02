@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geometry/primitives'
 import { clearBodyRef } from '../physics/bodyRefRegistry'
 import {
@@ -11,6 +12,17 @@ import {
   type StrawCounts,
   type StrawSize,
 } from './types'
+
+/**
+ * The current design (shapes, thread connections, and enough bookkeeping to
+ * keep adding to it sensibly) is auto-saved to localStorage on every change,
+ * so reloading the page — or closing and reopening the tab later — picks up
+ * right where things were left off. Only the durable design lives here;
+ * transient UI state (which mode you're in, what's mid-click) intentionally
+ * always starts fresh, see `partialize` below.
+ */
+const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
+const PERSISTED_STORAGE_VERSION = 1
 
 export const BASE_STRAW_LENGTH = 1.4
 export const ANCHOR_POSITION: Vector3Tuple = [0, 4.5, 0]
@@ -77,123 +89,144 @@ interface StrawMobileState {
   getStrawCounts: () => StrawCounts
 }
 
-export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
-  shapes: [],
-  connections: [],
-  mode: 'build',
-  strawSize: 1,
-  pendingVertex: null,
-  placedCount: 0,
-  selectedShapeId: null,
+/** The subset of state that's worth remembering between visits. */
+type PersistedMobileState = Pick<StrawMobileState, 'shapes' | 'connections' | 'strawSize' | 'placedCount'>
 
-  addShape: (kind) => {
-    const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
-    const { strawSize, placedCount } = get()
-    const shape: Shape = {
-      id: createId(),
-      kind,
-      size: strawSize,
-      vertices,
-      edges,
-      position: nextWorkbenchPosition(placedCount),
-      quaternion: [0, 0, 0, 1],
-    }
-    set((state) => ({
-      shapes: [...state.shapes, shape],
-      placedCount: state.placedCount + 1,
-      selectedShapeId: null,
-    }))
-  },
-
-  removeShape: (id) => {
-    clearBodyRef(id)
-    set((state) => ({
-      shapes: state.shapes.filter((shape) => shape.id !== id),
-      connections: state.connections.filter(
-        (connection) =>
-          !(connection.a.kind === 'shape' && connection.a.shapeId === id) &&
-          !(connection.b.kind === 'shape' && connection.b.shapeId === id),
-      ),
-      pendingVertex:
-        state.pendingVertex?.kind === 'shape' && state.pendingVertex.shapeId === id
-          ? null
-          : state.pendingVertex,
-      selectedShapeId: state.selectedShapeId === id ? null : state.selectedShapeId,
-    }))
-  },
-
-  setStrawSize: (size) => set({ strawSize: size }),
-
-  selectVertex: (endpoint) => {
-    const { pendingVertex, connections } = get()
-    // Picking a corner to tie thread is a distinct interaction from dragging a
-    // shape around; clear any active drag selection so its gizmo doesn't
-    // linger over (and steal clicks from) the corner handles.
-    set({ selectedShapeId: null })
-
-    if (!pendingVertex) {
-      set({ pendingVertex: endpoint })
-      return
-    }
-
-    if (endpointsEqual(pendingVertex, endpoint)) {
-      set({ pendingVertex: null })
-      return
-    }
-
-    const alreadyConnected = connections.some(
-      (connection) =>
-        (endpointsEqual(connection.a, pendingVertex) && endpointsEqual(connection.b, endpoint)) ||
-        (endpointsEqual(connection.a, endpoint) && endpointsEqual(connection.b, pendingVertex)),
-    )
-
-    if (alreadyConnected) {
-      set({ pendingVertex: null })
-      return
-    }
-
-    const connection: Connection = {
-      id: createId(),
-      a: pendingVertex,
-      b: endpoint,
-    }
-    set((state) => ({ connections: [...state.connections, connection], pendingVertex: null }))
-  },
-
-  clearPendingVertex: () => set({ pendingVertex: null }),
-
-  removeConnection: (id) =>
-    set((state) => ({
-      connections: state.connections.filter((connection) => connection.id !== id),
-    })),
-
-  setMode: (mode) => set({ mode, pendingVertex: null, selectedShapeId: null }),
-
-  setShapeTransform: (id, position, quaternion) =>
-    set((state) => ({
-      shapes: state.shapes.map((shape) =>
-        shape.id === id ? { ...shape, position, quaternion } : shape,
-      ),
-    })),
-
-  moveShape: (id, position) =>
-    set((state) => ({
-      shapes: state.shapes.map((shape) => (shape.id === id ? { ...shape, position } : shape)),
-    })),
-
-  selectShape: (id) => set({ selectedShapeId: id }),
-
-  reset: () => {
-    for (const shape of get().shapes) clearBodyRef(shape.id)
-    set({
+export const useStrawMobileStore = create<StrawMobileState>()(
+  persist(
+    (set, get) => ({
       shapes: [],
       connections: [],
       mode: 'build',
+      strawSize: 1,
       pendingVertex: null,
       placedCount: 0,
       selectedShapeId: null,
-    })
-  },
 
-  getStrawCounts: () => computeStrawCounts(get().shapes),
-}))
+      addShape: (kind) => {
+        const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
+        const { strawSize, placedCount } = get()
+        const shape: Shape = {
+          id: createId(),
+          kind,
+          size: strawSize,
+          vertices,
+          edges,
+          position: nextWorkbenchPosition(placedCount),
+          quaternion: [0, 0, 0, 1],
+        }
+        set((state) => ({
+          shapes: [...state.shapes, shape],
+          placedCount: state.placedCount + 1,
+          selectedShapeId: null,
+        }))
+      },
+
+      removeShape: (id) => {
+        clearBodyRef(id)
+        set((state) => ({
+          shapes: state.shapes.filter((shape) => shape.id !== id),
+          connections: state.connections.filter(
+            (connection) =>
+              !(connection.a.kind === 'shape' && connection.a.shapeId === id) &&
+              !(connection.b.kind === 'shape' && connection.b.shapeId === id),
+          ),
+          pendingVertex:
+            state.pendingVertex?.kind === 'shape' && state.pendingVertex.shapeId === id
+              ? null
+              : state.pendingVertex,
+          selectedShapeId: state.selectedShapeId === id ? null : state.selectedShapeId,
+        }))
+      },
+
+      setStrawSize: (size) => set({ strawSize: size }),
+
+      selectVertex: (endpoint) => {
+        const { pendingVertex, connections } = get()
+        // Picking a corner to tie thread is a distinct interaction from dragging a
+        // shape around; clear any active drag selection so its gizmo doesn't
+        // linger over (and steal clicks from) the corner handles.
+        set({ selectedShapeId: null })
+
+        if (!pendingVertex) {
+          set({ pendingVertex: endpoint })
+          return
+        }
+
+        if (endpointsEqual(pendingVertex, endpoint)) {
+          set({ pendingVertex: null })
+          return
+        }
+
+        const alreadyConnected = connections.some(
+          (connection) =>
+            (endpointsEqual(connection.a, pendingVertex) && endpointsEqual(connection.b, endpoint)) ||
+            (endpointsEqual(connection.a, endpoint) && endpointsEqual(connection.b, pendingVertex)),
+        )
+
+        if (alreadyConnected) {
+          set({ pendingVertex: null })
+          return
+        }
+
+        const connection: Connection = {
+          id: createId(),
+          a: pendingVertex,
+          b: endpoint,
+        }
+        set((state) => ({ connections: [...state.connections, connection], pendingVertex: null }))
+      },
+
+      clearPendingVertex: () => set({ pendingVertex: null }),
+
+      removeConnection: (id) =>
+        set((state) => ({
+          connections: state.connections.filter((connection) => connection.id !== id),
+        })),
+
+      setMode: (mode) => set({ mode, pendingVertex: null, selectedShapeId: null }),
+
+      setShapeTransform: (id, position, quaternion) =>
+        set((state) => ({
+          shapes: state.shapes.map((shape) =>
+            shape.id === id ? { ...shape, position, quaternion } : shape,
+          ),
+        })),
+
+      moveShape: (id, position) =>
+        set((state) => ({
+          shapes: state.shapes.map((shape) => (shape.id === id ? { ...shape, position } : shape)),
+        })),
+
+      selectShape: (id) => set({ selectedShapeId: id }),
+
+      reset: () => {
+        for (const shape of get().shapes) clearBodyRef(shape.id)
+        set({
+          shapes: [],
+          connections: [],
+          mode: 'build',
+          pendingVertex: null,
+          placedCount: 0,
+          selectedShapeId: null,
+        })
+      },
+
+      getStrawCounts: () => computeStrawCounts(get().shapes),
+    }),
+    {
+      name: PERSISTED_STORAGE_KEY,
+      version: PERSISTED_STORAGE_VERSION,
+      storage: createJSONStorage(() => localStorage),
+      // Mode and click-in-progress state are transient UI concerns, not part
+      // of the saved design — a reload always lands back in build mode,
+      // never mid-simulation with no physics bodies to show for it.
+      partialize: (state): PersistedMobileState => ({
+        shapes: state.shapes,
+        connections: state.connections,
+        strawSize: state.strawSize,
+        placedCount: state.placedCount,
+      }),
+    },
+  ),
+)
