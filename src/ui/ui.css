@@ -40,6 +40,13 @@
   line-height: 1.4;
 }
 
+.save-status {
+  margin: -4px 0 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #6b93d6;
+}
+
 .canvas-area {
   flex: 1;
   position: relative;
