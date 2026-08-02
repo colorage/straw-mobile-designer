@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geometry/primitives'
 import { clearBodyRef } from '../physics/bodyRefRegistry'
+import { findAddPosition } from '../scene/placement'
 import {
   endpointsEqual,
   STRAW_SIZES,
@@ -22,25 +23,10 @@ import {
  * always starts fresh, see `partialize` below.
  */
 const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
-const PERSISTED_STORAGE_VERSION = 1
+const PERSISTED_STORAGE_VERSION = 2
 
 export const BASE_STRAW_LENGTH = 1.4
 export const ANCHOR_POSITION: Vector3Tuple = [0, 4.5, 0]
-
-const WORKBENCH_COLUMNS = 5
-const WORKBENCH_SPACING_X = 2.4
-const WORKBENCH_SPACING_Y = 2.2
-const WORKBENCH_BASE_Y = 1.2
-
-function nextWorkbenchPosition(slot: number): Vector3Tuple {
-  const col = slot % WORKBENCH_COLUMNS
-  const row = Math.floor(slot / WORKBENCH_COLUMNS)
-  return [
-    (col - (WORKBENCH_COLUMNS - 1) / 2) * WORKBENCH_SPACING_X,
-    WORKBENCH_BASE_Y + row * WORKBENCH_SPACING_Y,
-    0,
-  ]
-}
 
 const createId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -71,7 +57,6 @@ interface StrawMobileState {
   mode: AppMode
   strawSize: StrawSize
   pendingVertex: EndpointRef | null
-  placedCount: number
   /** The shape currently picked up for dragging in build mode, if any. */
   selectedShapeId: string | null
 
@@ -90,7 +75,7 @@ interface StrawMobileState {
 }
 
 /** The subset of state that's worth remembering between visits. */
-type PersistedMobileState = Pick<StrawMobileState, 'shapes' | 'connections' | 'strawSize' | 'placedCount'>
+type PersistedMobileState = Pick<StrawMobileState, 'shapes' | 'connections' | 'strawSize'>
 
 export const useStrawMobileStore = create<StrawMobileState>()(
   persist(
@@ -100,24 +85,22 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       mode: 'build',
       strawSize: 1,
       pendingVertex: null,
-      placedCount: 0,
       selectedShapeId: null,
 
       addShape: (kind) => {
         const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
-        const { strawSize, placedCount } = get()
+        const { strawSize, shapes } = get()
         const shape: Shape = {
           id: createId(),
           kind,
           size: strawSize,
           vertices,
           edges,
-          position: nextWorkbenchPosition(placedCount),
+          position: findAddPosition(shapes, kind, strawSize),
           quaternion: [0, 0, 0, 1],
         }
         set((state) => ({
           shapes: [...state.shapes, shape],
-          placedCount: state.placedCount + 1,
           selectedShapeId: null,
         }))
       },
@@ -207,7 +190,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: [],
           mode: 'build',
           pendingVertex: null,
-          placedCount: 0,
           selectedShapeId: null,
         })
       },
@@ -225,8 +207,13 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         shapes: state.shapes,
         connections: state.connections,
         strawSize: state.strawSize,
-        placedCount: state.placedCount,
       }),
+      migrate: (persisted) => {
+        const state = persisted as PersistedMobileState & { placedCount?: number }
+        // Drop legacy workbench slot counter; placement is camera-aware now.
+        const { placedCount: _placedCount, ...rest } = state
+        return rest
+      },
     },
   ),
 )
