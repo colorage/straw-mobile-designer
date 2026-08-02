@@ -13,9 +13,7 @@ const SHAPE_ICONS: Record<ShapeKind, string> = {
 
 /** Buttons for adding the four building-block primitives to the workbench. */
 export function Toolbar() {
-  const mode = useStrawMobileStore((s) => s.mode)
   const addShape = useStrawMobileStore((s) => s.addShape)
-  const disabled = mode !== 'build'
 
   return (
     <div className="panel">
@@ -26,8 +24,7 @@ export function Toolbar() {
             key={kind}
             type="button"
             className="toolbar-button"
-            disabled={disabled}
-            draggable={!disabled}
+            draggable
             onClick={() => addShape(kind)}
             onDragStart={(event) => {
               event.dataTransfer.setData(SHAPE_DRAG_MIME, kind)

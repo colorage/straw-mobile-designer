@@ -19,18 +19,15 @@ function isShapeKind(value: string): value is ShapeKind {
 }
 
 function App() {
-  const mode = useStrawMobileStore((s) => s.mode)
   const addShape = useStrawMobileStore((s) => s.addShape)
 
   const handleDragOver = (event: DragEvent<HTMLElement>) => {
-    if (mode !== 'build') return
     if (![...event.dataTransfer.types].includes(SHAPE_DRAG_MIME)) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
   }
 
   const handleDrop = (event: DragEvent<HTMLElement>) => {
-    if (mode !== 'build') return
     const kind = event.dataTransfer.getData(SHAPE_DRAG_MIME)
     if (!isShapeKind(kind)) return
 
@@ -45,7 +42,7 @@ function App() {
       <aside className="sidebar">
         <h1 className="app-title">Straw Mobile Designer</h1>
         <p className="app-subtitle">
-          Build a himmeli-style straw mobile, then let gravity hang and balance it.
+          Build a himmeli-style straw mobile — pieces hang and balance as you tie them to the hook.
         </p>
         <SaveStatus />
         <Toolbar />

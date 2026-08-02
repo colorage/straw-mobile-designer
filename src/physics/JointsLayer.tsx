@@ -1,9 +1,10 @@
 import { useSphericalJoint } from '@react-three/rapier'
 import { useMemo } from 'react'
-import { getScaledVertex } from '../state/store'
 import { useStrawMobileStore } from '../state/store'
+import { getScaledVertex } from '../state/shapeSpace'
 import { endpointBodyKey, type Connection, type EndpointRef, type Shape } from '../state/types'
 import { getBodyRef } from './bodyRefRegistry'
+import { connectionInvolvesReelIn, reelInBodyKeys } from './reelIn'
 
 function localAnchorFor(endpoint: EndpointRef, shapesById: Map<string, Shape>): [number, number, number] {
   if (endpoint.kind === 'anchor') return [0, 0, 0]
@@ -28,19 +29,27 @@ function JointBridge({ connection, shapesById }: { connection: Connection; shape
   return null
 }
 
+/**
+ * Spherical joints for every settled connection. Joints that touch a shape still
+ * reeling in are omitted so a live hanging body isn't yanked across the gap.
+ */
 export function JointsLayer({ connections }: { connections: Connection[] }) {
   const shapes = useStrawMobileStore((s) => s.shapes)
+  const reelIns = useStrawMobileStore((s) => s.reelIns ?? [])
   const shapesById = useMemo(() => {
     const map = new Map<string, Shape>()
     for (const shape of shapes) map.set(shape.id, shape)
     return map
   }, [shapes])
+  const reelingIds = useMemo(() => reelInBodyKeys(reelIns), [reelIns])
 
   return (
     <>
-      {connections.map((connection) => (
-        <JointBridge key={connection.id} connection={connection} shapesById={shapesById} />
-      ))}
+      {connections.map((connection) =>
+        connectionInvolvesReelIn(connection, reelingIds) ? null : (
+          <JointBridge key={connection.id} connection={connection} shapesById={shapesById} />
+        ),
+      )}
     </>
   )
 }

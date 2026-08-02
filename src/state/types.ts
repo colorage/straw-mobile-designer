@@ -17,7 +17,7 @@ export interface Shape {
   /** Local-space rest vertices (unit-edge space, before size/world scaling). */
   vertices: Vector3Tuple[]
   edges: Edge[]
-  /** Build-mode workbench transform. */
+  /** World transform (workbench pose while free; last synced pose while hanging). */
   position: Vector3Tuple
   quaternion: [number, number, number, number]
 }
@@ -32,7 +32,14 @@ export interface Connection {
   b: EndpointRef
 }
 
-export type AppMode = 'build' | 'simulate'
+/** Transient animation pulling a shape along a new thread until corners meet. */
+export interface ShapeReelIn {
+  shapeId: string
+  from: Vector3Tuple
+  to: Vector3Tuple
+  startedAt: number
+  durationMs: number
+}
 
 export interface StrawCounts {
   bySize: Record<StrawSize, number>
