@@ -1,9 +1,47 @@
-import { Canvas } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Grid, OrbitControls } from '@react-three/drei'
+import { useRef } from 'react'
 import { exposeDebugGlobals } from '../debug/exposeForTesting'
 import { PhysicsScene } from '../physics/PhysicsScene'
 import { useStrawMobileStore } from '../state/store'
 import { BuildScene } from './BuildScene'
+import { setCameraView } from './cameraView'
+
+type OrbitControlsLike = {
+  target: { x: number; y: number; z: number }
+}
+
+/** Keeps the shared camera view in sync with the live camera + orbit target. */
+function CameraViewSync() {
+  const camera = useThree((s) => s.camera)
+  const controls = useThree((s) => s.controls) as OrbitControlsLike | null
+  const controlsRef = useRef<OrbitControlsLike | null>(null)
+
+  useFrame(() => {
+    const activeControls = controlsRef.current ?? controls
+    if (activeControls?.target) {
+      setCameraView(camera, activeControls.target)
+    } else {
+      setCameraView(camera)
+    }
+  })
+
+  return (
+    <OrbitControls
+      // drei's OrbitControls ref is the underlying controls instance
+      ref={controlsRef as never}
+      target={[0, 2, 0]}
+      enableDamping
+      makeDefault
+      onChange={() => {
+        const activeControls = controlsRef.current
+        if (activeControls?.target) {
+          setCameraView(camera, activeControls.target)
+        }
+      }}
+    />
+  )
+}
 
 /** Top-level 3D canvas: lighting, camera, and the build/simulate scene switch. */
 export function Experience() {
@@ -14,7 +52,10 @@ export function Experience() {
     <Canvas
       shadows
       camera={{ position: [6.5, 4.5, 8], fov: 42 }}
-      onCreated={(state) => exposeDebugGlobals(state.camera, state.size)}
+      onCreated={(state) => {
+        setCameraView(state.camera, { x: 0, y: 2, z: 0 })
+        exposeDebugGlobals(state.camera, state.size)
+      }}
       onPointerMissed={() => {
         if (mode === 'build') selectShape(null)
       }}
@@ -41,7 +82,7 @@ export function Experience() {
         infiniteGrid
       />
       {mode === 'build' ? <BuildScene /> : <PhysicsScene />}
-      <OrbitControls target={[0, 2, 0]} enableDamping makeDefault />
+      <CameraViewSync />
     </Canvas>
   )
 }
