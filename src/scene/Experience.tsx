@@ -6,6 +6,7 @@ import { PhysicsScene } from '../physics/PhysicsScene'
 import { useStrawMobileStore } from '../state/store'
 import { BuildScene } from './BuildScene'
 import { setCameraView } from './cameraView'
+import { setCanvasBridge } from './canvasBridge'
 
 type OrbitControlsLike = {
   target: { x: number; y: number; z: number }
@@ -53,6 +54,7 @@ export function Experience() {
       shadows
       camera={{ position: [6.5, 4.5, 8], fov: 42 }}
       onCreated={(state) => {
+        setCanvasBridge(state.camera, state.gl.domElement)
         setCameraView(state.camera, { x: 0, y: 2, z: 0 })
         exposeDebugGlobals(state.camera, state.size)
       }}

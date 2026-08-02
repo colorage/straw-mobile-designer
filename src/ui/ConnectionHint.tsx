@@ -10,12 +10,12 @@ export function ConnectionHint() {
   if (mode === 'simulate') {
     message = 'Simulating — watch it hang and balance. Go back to Build to keep editing.'
   } else if (shapeCount === 0) {
-    message = 'Add a shape from the toolbar to get started.'
+    message = 'Drag a shape from the toolbar onto the scene, or click to add one on the grid.'
   } else if (pendingVertex) {
     message = 'Now click another corner (or the ceiling hook) to tie a thread between them.'
   } else {
     message =
-      'Click a corner to connect thread. Click a straw body to select & drag it. Delete via the list or Backspace.'
+      'Drag shapes from the toolbar onto the scene. Click a corner to connect thread. Click a straw body to select & drag it. Delete via the list or Backspace.'
   }
 
   return (
