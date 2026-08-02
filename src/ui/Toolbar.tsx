@@ -1,4 +1,5 @@
 import { SHAPE_LABELS, type ShapeKind } from '../geometry/primitives'
+import { SHAPE_DRAG_MIME } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
 
 const SHAPE_ORDER: ShapeKind[] = ['straw', 'tetrahedron', 'squarePyramid', 'octahedron']
@@ -19,7 +20,17 @@ export function Toolbar() {
       <h2 className="panel-title">Add Shapes</h2>
       <div className="toolbar-grid">
         {SHAPE_ORDER.map((kind) => (
-          <button key={kind} type="button" className="toolbar-button" onClick={() => addShape(kind)}>
+          <button
+            key={kind}
+            type="button"
+            className="toolbar-button"
+            draggable
+            onClick={() => addShape(kind)}
+            onDragStart={(event) => {
+              event.dataTransfer.setData(SHAPE_DRAG_MIME, kind)
+              event.dataTransfer.effectAllowed = 'copy'
+            }}
+          >
             <span className="toolbar-icon" aria-hidden>
               {SHAPE_ICONS[kind]}
             </span>

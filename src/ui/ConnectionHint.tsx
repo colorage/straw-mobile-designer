@@ -7,12 +7,12 @@ export function ConnectionHint() {
 
   let message: string
   if (shapeCount === 0) {
-    message = 'Add a shape from the toolbar to get started.'
+    message = 'Drag a shape from the toolbar onto the scene, or click to add one in view.'
   } else if (pendingVertex) {
     message = 'Now click another corner (or the ceiling hook) to tie a thread between them.'
   } else {
     message =
-      'Click a corner to connect thread — pieces hang under gravity once tied into the hook chain. Click a free straw body to select & drag it.'
+      'Drag shapes from the toolbar onto the scene. Click a corner to connect thread — pieces hang once tied into the hook chain. Click a free straw body to select & drag it.'
   }
 
   return (

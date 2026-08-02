@@ -4,6 +4,7 @@ import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geom
 import { clearBodyRef, getBodyRef } from '../physics/bodyRefRegistry'
 import { buildReelIns, computeFreeCloseTarget } from '../physics/reelIn'
 import { computeRestingPositions, getHangingShapeIds } from '../physics/restingLayout'
+import { findAddPosition } from '../scene/placement'
 import {
   endpointsEqual,
   STRAW_SIZES,
@@ -26,22 +27,7 @@ export { ANCHOR_POSITION, BASE_STRAW_LENGTH, getScaledVertex } from './shapeSpac
  * always starts fresh, see `partialize` below.
  */
 const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
-const PERSISTED_STORAGE_VERSION = 1
-
-const WORKBENCH_COLUMNS = 5
-const WORKBENCH_SPACING_X = 2.4
-const WORKBENCH_SPACING_Y = 2.2
-const WORKBENCH_BASE_Y = 1.2
-
-function nextWorkbenchPosition(slot: number): Vector3Tuple {
-  const col = slot % WORKBENCH_COLUMNS
-  const row = Math.floor(slot / WORKBENCH_COLUMNS)
-  return [
-    (col - (WORKBENCH_COLUMNS - 1) / 2) * WORKBENCH_SPACING_X,
-    WORKBENCH_BASE_Y + row * WORKBENCH_SPACING_Y,
-    0,
-  ]
-}
+const PERSISTED_STORAGE_VERSION = 2
 
 const createId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -87,7 +73,6 @@ interface StrawMobileState {
   connections: Connection[]
   strawSize: StrawSize
   pendingVertex: EndpointRef | null
-  placedCount: number
   /** The free shape currently picked up for dragging, if any. */
   selectedShapeId: string | null
   /** In-progress thread shorten animations (not persisted). */
@@ -95,7 +80,7 @@ interface StrawMobileState {
   /** Live poses while reeling — drives the mesh without touching persisted shapes. */
   reelPositions: Record<string, Vector3Tuple>
 
-  addShape: (kind: ShapeKind) => void
+  addShape: (kind: ShapeKind, position?: Vector3Tuple) => string
   removeShape: (id: string) => void
   setStrawSize: (size: StrawSize) => void
   selectVertex: (endpoint: EndpointRef) => void
@@ -111,7 +96,7 @@ interface StrawMobileState {
 }
 
 /** The subset of state that's worth remembering between visits. */
-type PersistedMobileState = Pick<StrawMobileState, 'shapes' | 'connections' | 'strawSize' | 'placedCount'>
+type PersistedMobileState = Pick<StrawMobileState, 'shapes' | 'connections' | 'strawSize'>
 
 export const useStrawMobileStore = create<StrawMobileState>()(
   persist(
@@ -120,28 +105,33 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       connections: [],
       strawSize: 1,
       pendingVertex: null,
-      placedCount: 0,
       selectedShapeId: null,
       reelIns: [],
       reelPositions: {},
 
-      addShape: (kind) => {
+      addShape: (kind, position) => {
         const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
-        const { strawSize, placedCount } = get()
+        const { strawSize, shapes } = get()
+        const id = createId()
+        // Drop-from-panel supplies an explicit world position; click-to-add
+        // uses camera-aware non-overlapping placement.
+        const placedAt = position ?? findAddPosition(shapes, kind, strawSize)
         const shape: Shape = {
-          id: createId(),
+          id,
           kind,
           size: strawSize,
           vertices,
           edges,
-          position: nextWorkbenchPosition(placedCount),
+          position: placedAt,
           quaternion: [0, 0, 0, 1],
         }
         set((state) => ({
           shapes: [...state.shapes, shape],
-          placedCount: state.placedCount + 1,
-          selectedShapeId: null,
+          // Drop-placed shapes get selected so the gizmo appears immediately;
+          // click-to-add (no position) keeps clearing selection as before.
+          selectedShapeId: position !== undefined ? id : null,
         }))
+        return id
       },
 
       removeShape: (id) => {
@@ -271,7 +261,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (removed?.b.kind === 'shape') touched.add(removed.b.shapeId)
 
         const nextReelPositions = { ...get().reelPositions }
-        for (const id of touched) delete nextReelPositions[id]
+        for (const shapeId of touched) delete nextReelPositions[shapeId]
         set({
           connections: nextConnections,
           shapes: withSyncedLeavingHanging(shapes, previousHanging, nextHanging),
@@ -323,7 +313,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           shapes: [],
           connections: [],
           pendingVertex: null,
-          placedCount: 0,
           selectedShapeId: null,
           reelIns: [],
           reelPositions: {},
@@ -341,8 +330,13 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         shapes: state.shapes,
         connections: state.connections,
         strawSize: state.strawSize,
-        placedCount: state.placedCount,
       }),
+      migrate: (persisted) => {
+        const state = persisted as PersistedMobileState & { placedCount?: number }
+        // Drop legacy workbench slot counter; placement is camera-aware now.
+        const { placedCount: _placedCount, ...rest } = state
+        return rest
+      },
       merge: (persisted, current) => ({
         ...current,
         ...(persisted as Partial<StrawMobileState>),

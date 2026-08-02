@@ -97,13 +97,17 @@
   color: #e7e5ea;
   font-size: 12px;
   line-height: 1.25;
-  cursor: pointer;
+  cursor: grab;
   transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .toolbar-button:hover:not(:disabled) {
   background: #282c3c;
   border-color: #454c66;
+}
+
+.toolbar-button:active:not(:disabled) {
+  cursor: grabbing;
 }
 
 .toolbar-button:disabled {
