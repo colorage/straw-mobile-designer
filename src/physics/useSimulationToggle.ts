@@ -1,5 +1,6 @@
 import { useStrawMobileStore } from '../state/store'
 import { getBodyRef } from './bodyRefRegistry'
+import { computeRestingPositions } from './restingLayout'
 
 /**
  * Bridges the UI (outside the Canvas) with the live physics bodies (inside
@@ -11,7 +12,13 @@ export function useSimulationToggle() {
   const mode = useStrawMobileStore((s) => s.mode)
 
   const startSimulating = () => {
-    useStrawMobileStore.getState().setMode('simulate')
+    const { shapes, connections, setShapeTransform, setMode } = useStrawMobileStore.getState()
+    const restingPositions = computeRestingPositions(shapes, connections)
+    for (const [shapeId, position] of restingPositions) {
+      const shape = shapes.find((s) => s.id === shapeId)
+      if (shape) setShapeTransform(shapeId, position, shape.quaternion)
+    }
+    setMode('simulate')
   }
 
   const stopSimulating = () => {
