@@ -2,6 +2,7 @@ import { RigidBody } from '@react-three/rapier'
 import { ShapeGroup } from '../scene/ShapeGroup'
 import type { Shape } from '../state/types'
 import { getBodyRef } from './bodyRefRegistry'
+import { SHAPE_COLLISION_GROUPS } from './collisionGroups'
 
 /**
  * Wraps a shape in a dynamic rigid body so gravity and joints can move it.
@@ -21,6 +22,7 @@ export function PhysicsShape({ shape }: { shape: Shape }) {
       position={shape.position}
       quaternion={shape.quaternion}
       colliders="hull"
+      collisionGroups={SHAPE_COLLISION_GROUPS}
       restitution={0.1}
       linearDamping={0.5}
       angularDamping={0.7}
