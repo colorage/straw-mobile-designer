@@ -176,6 +176,13 @@ export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
       ),
     })),
 
+  moveShape: (id, position) =>
+    set((state) => ({
+      shapes: state.shapes.map((shape) => (shape.id === id ? { ...shape, position } : shape)),
+    })),
+
+  selectShape: (id) => set({ selectedShapeId: id }),
+
   reset: () => {
     for (const shape of get().shapes) clearBodyRef(shape.id)
     set({
@@ -184,6 +191,7 @@ export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
       mode: 'build',
       pendingVertex: null,
       placedCount: 0,
+      selectedShapeId: null,
     })
   },
 

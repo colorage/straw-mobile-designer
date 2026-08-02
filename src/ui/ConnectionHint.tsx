@@ -14,7 +14,8 @@ export function ConnectionHint() {
   } else if (pendingVertex) {
     message = 'Now click another corner (or the ceiling hook) to tie a thread between them.'
   } else {
-    message = 'Click a corner, then click another corner to connect them with thread.'
+    message =
+      'Click a corner to connect thread. Click a straw body to select & drag it. Delete via the list or Backspace.'
   }
 
   return (

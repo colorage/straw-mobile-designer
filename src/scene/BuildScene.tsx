@@ -4,7 +4,7 @@ import { useStrawMobileStore } from '../state/store'
 import { endpointVertexKey, type Shape } from '../state/types'
 import { AnchorPoint } from './AnchorPoint'
 import { ConnectionThread } from './ConnectionThread'
-import { ShapeGroup } from './ShapeGroup'
+import { SelectableShape } from './SelectableShape'
 import { VertexHandle } from './VertexHandle'
 
 /** Static (non-physics) scene used while designing: shapes sit on a workbench and every corner is clickable. */
@@ -13,6 +13,7 @@ export function BuildScene() {
   const connections = useStrawMobileStore((s) => s.connections)
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
   const selectVertex = useStrawMobileStore((s) => s.selectVertex)
+  const selectedShapeId = useStrawMobileStore((s) => s.selectedShapeId)
 
   const shapesById = useMemo(() => {
     const map = new Map<string, Shape>()
@@ -42,25 +43,24 @@ export function BuildScene() {
       </group>
 
       {shapes.map((shape) => (
-        <group key={shape.id} position={shape.position} quaternion={shape.quaternion}>
-          <ShapeGroup
-            shape={shape}
-            interactive
-            onVertexClick={(vertexIndex) =>
-              selectVertex({ kind: 'shape', shapeId: shape.id, vertexIndex })
-            }
-            isVertexPending={(vertexIndex) =>
-              pendingVertex?.kind === 'shape' &&
-              pendingVertex.shapeId === shape.id &&
-              pendingVertex.vertexIndex === vertexIndex
-            }
-            isVertexConnected={(vertexIndex) =>
-              connectedVertexKeys.has(
-                endpointVertexKey({ kind: 'shape', shapeId: shape.id, vertexIndex }),
-              )
-            }
-          />
-        </group>
+        <SelectableShape
+          key={shape.id}
+          shape={shape}
+          isSelected={selectedShapeId === shape.id}
+          onVertexClick={(vertexIndex) =>
+            selectVertex({ kind: 'shape', shapeId: shape.id, vertexIndex })
+          }
+          isVertexPending={(vertexIndex) =>
+            pendingVertex?.kind === 'shape' &&
+            pendingVertex.shapeId === shape.id &&
+            pendingVertex.vertexIndex === vertexIndex
+          }
+          isVertexConnected={(vertexIndex) =>
+            connectedVertexKeys.has(
+              endpointVertexKey({ kind: 'shape', shapeId: shape.id, vertexIndex }),
+            )
+          }
+        />
       ))}
 
       {connections.map((connection) => (
