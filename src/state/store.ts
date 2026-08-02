@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geometry/primitives'
 import { clearBodyRef, getBodyRef } from '../physics/bodyRefRegistry'
+import { buildReelIns, computeFreeCloseTarget } from '../physics/reelIn'
 import { computeRestingPositions, getHangingShapeIds } from '../physics/restingLayout'
 import {
   endpointsEqual,
@@ -9,6 +10,7 @@ import {
   type Connection,
   type EndpointRef,
   type Shape,
+  type ShapeReelIn,
   type StrawCounts,
   type StrawSize,
 } from './types'
@@ -20,8 +22,8 @@ export { ANCHOR_POSITION, BASE_STRAW_LENGTH, getScaledVertex } from './shapeSpac
  * keep adding to it sensibly) is auto-saved to localStorage on every change,
  * so reloading the page — or closing and reopening the tab later — picks up
  * right where things were left off. Only the durable design lives here;
- * transient UI state (what's mid-click / selected) intentionally always
- * starts fresh, see `partialize` below.
+ * transient UI state (what's mid-click / selected / reeling) intentionally
+ * always starts fresh, see `partialize` below.
  */
 const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
 const PERSISTED_STORAGE_VERSION = 1
@@ -88,6 +90,8 @@ interface StrawMobileState {
   placedCount: number
   /** The free shape currently picked up for dragging, if any. */
   selectedShapeId: string | null
+  /** In-progress thread shorten animations (not persisted). */
+  reelIns: ShapeReelIn[]
 
   addShape: (kind: ShapeKind) => void
   removeShape: (id: string) => void
@@ -98,6 +102,7 @@ interface StrawMobileState {
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: [number, number, number, number]) => void
   moveShape: (id: string, position: Vector3Tuple) => void
   selectShape: (id: string | null) => void
+  finishReelIns: (completed: { shapeId: string; position: Vector3Tuple }[]) => void
   reset: () => void
   getStrawCounts: () => StrawCounts
 }
@@ -114,6 +119,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       pendingVertex: null,
       placedCount: 0,
       selectedShapeId: null,
+      reelIns: [],
 
       addShape: (kind) => {
         const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
@@ -135,7 +141,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       removeShape: (id) => {
-        const { connections, shapes, selectedShapeId, pendingVertex } = get()
+        const { connections, shapes, selectedShapeId, pendingVertex, reelIns } = get()
         const previousHanging = getHangingShapeIds(connections)
         const nextConnections = connections.filter(
           (connection) =>
@@ -149,6 +155,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         set({
           shapes: syncedShapes.filter((shape) => shape.id !== id),
           connections: nextConnections,
+          reelIns: reelIns.filter((reel) => reel.shapeId !== id),
           pendingVertex:
             pendingVertex?.kind === 'shape' && pendingVertex.shapeId === id ? null : pendingVertex,
           selectedShapeId: selectedShapeId === id ? null : selectedShapeId,
@@ -194,7 +201,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         const nextConnections = [...connections, connection]
         const nextHanging = getHangingShapeIds(nextConnections)
 
-        // Prefer live poses for pieces already swinging so new joins snap to
+        // Prefer live poses for pieces already swinging so new joins aim at
         // where the chain is now, not where the store last remembered it.
         const shapesForLayout = shapes.map((shape) => {
           if (!previousHanging.has(shape.id)) return shape
@@ -208,35 +215,49 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             quaternion: [r.x, r.y, r.z, r.w] as [number, number, number, number],
           }
         })
-        const restingPositions = computeRestingPositions(
-          shapesForLayout,
-          nextConnections,
-          previousHanging,
-        )
 
-        set({
+        const joinsHanging = [...nextHanging].some((id) => !previousHanging.has(id))
+        const targets = joinsHanging
+          ? computeRestingPositions(shapesForLayout, nextConnections, previousHanging)
+          : computeFreeCloseTarget(shapesForLayout, connection)
+
+        // Keep current poses for animated shapes; apply already-closed gaps now.
+        const newReelIns = buildReelIns(shapesForLayout, targets)
+        const reelingIds = new Set(newReelIns.map((reel) => reel.shapeId))
+
+        set((state) => ({
           connections: nextConnections,
           pendingVertex: null,
           selectedShapeId: null,
           shapes: shapesForLayout.map((shape) => {
-            if (!nextHanging.has(shape.id)) return shape
-            if (previousHanging.has(shape.id)) return shape
-            const position = restingPositions.get(shape.id)
+            if (reelingIds.has(shape.id)) return shape
+            const position = targets.get(shape.id)
             return position ? { ...shape, position } : shape
           }),
-        })
+          // Replace any in-flight reel for the same shape with the new target.
+          reelIns: [
+            ...state.reelIns.filter((reel) => !targets.has(reel.shapeId)),
+            ...newReelIns,
+          ],
+        }))
       },
 
       clearPendingVertex: () => set({ pendingVertex: null }),
 
       removeConnection: (id) => {
-        const { connections, shapes } = get()
+        const { connections, shapes, reelIns } = get()
         const previousHanging = getHangingShapeIds(connections)
         const nextConnections = connections.filter((connection) => connection.id !== id)
         const nextHanging = getHangingShapeIds(nextConnections)
+        const removed = connections.find((connection) => connection.id === id)
+        const touched = new Set<string>()
+        if (removed?.a.kind === 'shape') touched.add(removed.a.shapeId)
+        if (removed?.b.kind === 'shape') touched.add(removed.b.shapeId)
+
         set({
           connections: nextConnections,
           shapes: withSyncedLeavingHanging(shapes, previousHanging, nextHanging),
+          reelIns: reelIns.filter((reel) => !touched.has(reel.shapeId)),
         })
       },
 
@@ -254,6 +275,19 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       selectShape: (id) => set({ selectedShapeId: id }),
 
+      finishReelIns: (completed) => {
+        if (completed.length === 0) return
+        const completedIds = new Set(completed.map((item) => item.shapeId))
+        const positionById = new Map(completed.map((item) => [item.shapeId, item.position]))
+        set((state) => ({
+          reelIns: state.reelIns.filter((reel) => !completedIds.has(reel.shapeId)),
+          shapes: state.shapes.map((shape) => {
+            const position = positionById.get(shape.id)
+            return position ? { ...shape, position } : shape
+          }),
+        }))
+      },
+
       reset: () => {
         for (const shape of get().shapes) clearBodyRef(shape.id)
         set({
@@ -262,6 +296,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           pendingVertex: null,
           placedCount: 0,
           selectedShapeId: null,
+          reelIns: [],
         })
       },
 
@@ -271,12 +306,20 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       name: PERSISTED_STORAGE_KEY,
       version: PERSISTED_STORAGE_VERSION,
       storage: createJSONStorage(() => localStorage),
-      // Click-in-progress / selection state are transient UI concerns.
+      // Click-in-progress / selection / reel-in state are transient UI concerns.
       partialize: (state): PersistedMobileState => ({
         shapes: state.shapes,
         connections: state.connections,
         strawSize: state.strawSize,
         placedCount: state.placedCount,
+      }),
+      merge: (persisted, current) => ({
+        ...current,
+        ...(persisted as Partial<StrawMobileState>),
+        // Never restore in-flight UI animations from storage.
+        reelIns: [],
+        pendingVertex: null,
+        selectedShapeId: null,
       }),
     },
   ),

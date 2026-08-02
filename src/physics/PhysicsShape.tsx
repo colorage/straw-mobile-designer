@@ -13,6 +13,8 @@ interface PhysicsShapeProps {
   shape: Shape
   /** True when this shape is in the hook-rooted hanging chain (dynamic under gravity). */
   hanging: boolean
+  /** True while a thread reel-in is sliding this body — stays kinematic until done. */
+  reeling: boolean
   onVertexClick: (vertexIndex: number) => void
   isVertexPending: (vertexIndex: number) => boolean
   isVertexConnected: (vertexIndex: number) => boolean
@@ -32,6 +34,7 @@ interface PhysicsShapeProps {
 export function PhysicsShape({
   shape,
   hanging,
+  reeling,
   onVertexClick,
   isVertexPending,
   isVertexConnected,
@@ -40,7 +43,8 @@ export function PhysicsShape({
   const isSelected = useStrawMobileStore((s) => s.selectedShapeId === shape.id)
   const selectShape = useStrawMobileStore((s) => s.selectShape)
   const moveShape = useStrawMobileStore((s) => s.moveShape)
-  const canDrag = !hanging
+  const isDynamic = hanging && !reeling
+  const canDrag = !hanging && !reeling
   const showGizmo = isSelected && canDrag
   const dragBaseRef = useRef<Vector3Tuple>(shape.position)
   const wasShowingGizmo = useRef(false)
@@ -76,7 +80,7 @@ export function PhysicsShape({
   return (
     <RigidBody
       ref={ref}
-      type={hanging ? 'dynamic' : 'kinematicPosition'}
+      type={isDynamic ? 'dynamic' : 'kinematicPosition'}
       position={shape.position}
       quaternion={shape.quaternion}
       colliders="hull"

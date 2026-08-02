@@ -10,6 +10,8 @@ import { ENVIRONMENT_COLLISION_GROUPS } from './collisionGroups'
 import { getHangingShapeIds } from './restingLayout'
 import { JointsLayer } from './JointsLayer'
 import { PhysicsShape } from './PhysicsShape'
+import { ReelInController } from './ReelInController'
+import { reelInBodyKeys } from './reelIn'
 
 const GROUND_Y = -6
 
@@ -65,7 +67,9 @@ export function PhysicsScene() {
     return map
   }, [shapes])
 
+  const reelIns = useStrawMobileStore((s) => s.reelIns ?? [])
   const hangingIds = useMemo(() => getHangingShapeIds(connections), [connections])
+  const reelingIds = useMemo(() => reelInBodyKeys(reelIns), [reelIns])
 
   const connectedVertexKeys = useMemo(() => {
     const set = new Set<string>()
@@ -79,11 +83,13 @@ export function PhysicsScene() {
   return (
     <Physics gravity={[0, -9.81, 0]}>
       <FixedAnchorBody />
+      <ReelInController />
       {shapes.map((shape) => (
         <PhysicsShape
           key={shape.id}
           shape={shape}
           hanging={hangingIds.has(shape.id)}
+          reeling={reelingIds.has(shape.id)}
           onVertexClick={(vertexIndex) =>
             selectVertex({ kind: 'shape', shapeId: shape.id, vertexIndex })
           }

@@ -17,15 +17,13 @@ export function ConnectionThread({ connection, shapesById }: ConnectionThreadPro
   const writePoints = () => {
     const start = getEndpointWorldPosition(connection.a, shapesById)
     const end = getEndpointWorldPosition(connection.b, shapesById)
-    if (!start || !end || !lineRef.current) return
-    lineRef.current.geometry.setPositions([
-      start.x,
-      start.y,
-      start.z,
-      end.x,
-      end.y,
-      end.z,
-    ])
+    const geometry = lineRef.current?.geometry
+    if (!start || !end || !geometry?.setPositions) return
+    try {
+      geometry.setPositions([start.x, start.y, start.z, end.x, end.y, end.z])
+    } catch {
+      // Geometry can be briefly unavailable during HMR / unmount.
+    }
   }
 
   useLayoutEffect(() => {

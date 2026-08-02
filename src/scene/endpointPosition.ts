@@ -1,7 +1,34 @@
 import * as THREE from 'three'
+import type { RapierRigidBody } from '@react-three/rapier'
 import { getBodyRef } from '../physics/bodyRefRegistry'
 import { ANCHOR_POSITION, getScaledVertex } from '../state/shapeSpace'
 import type { EndpointRef, Shape } from '../state/types'
+
+function readBodyPose(body: RapierRigidBody): {
+  translation: { x: number; y: number; z: number }
+  rotation: { x: number; y: number; z: number; w: number }
+} | null {
+  try {
+    // A non-null ref can still point at a Rapier body that was freed between
+    // frames (HMR, remount); calling into WASM then throws "null pointer".
+    const t = body.translation()
+    const r = body.rotation()
+    if (
+      !Number.isFinite(t.x) ||
+      !Number.isFinite(t.y) ||
+      !Number.isFinite(t.z) ||
+      !Number.isFinite(r.x) ||
+      !Number.isFinite(r.y) ||
+      !Number.isFinite(r.z) ||
+      !Number.isFinite(r.w)
+    ) {
+      return null
+    }
+    return { translation: t, rotation: r }
+  } catch {
+    return null
+  }
+}
 
 /**
  * World-space position of a connection endpoint. Prefers the live Rapier pose
@@ -15,8 +42,10 @@ export function getEndpointWorldPosition(
   if (endpoint.kind === 'anchor') {
     const body = getBodyRef('anchor').current
     if (body) {
-      const t = body.translation()
-      return new THREE.Vector3(t.x, t.y, t.z)
+      const pose = readBodyPose(body)
+      if (pose) {
+        return new THREE.Vector3(pose.translation.x, pose.translation.y, pose.translation.z)
+      }
     }
     return new THREE.Vector3(...ANCHOR_POSITION)
   }
@@ -27,11 +56,19 @@ export function getEndpointWorldPosition(
   const [lx, ly, lz] = getScaledVertex(shape, endpoint.vertexIndex)
   const body = getBodyRef(endpoint.shapeId).current
   if (body) {
-    const t = body.translation()
-    const r = body.rotation()
-    return new THREE.Vector3(lx, ly, lz)
-      .applyQuaternion(new THREE.Quaternion(r.x, r.y, r.z, r.w))
-      .add(new THREE.Vector3(t.x, t.y, t.z))
+    const pose = readBodyPose(body)
+    if (pose) {
+      return new THREE.Vector3(lx, ly, lz)
+        .applyQuaternion(
+          new THREE.Quaternion(
+            pose.rotation.x,
+            pose.rotation.y,
+            pose.rotation.z,
+            pose.rotation.w,
+          ),
+        )
+        .add(new THREE.Vector3(pose.translation.x, pose.translation.y, pose.translation.z))
+    }
   }
 
   const rotation = new THREE.Quaternion(...shape.quaternion)

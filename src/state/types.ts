@@ -32,6 +32,15 @@ export interface Connection {
   b: EndpointRef
 }
 
+/** Transient animation pulling a shape along a new thread until corners meet. */
+export interface ShapeReelIn {
+  shapeId: string
+  from: Vector3Tuple
+  to: Vector3Tuple
+  startedAt: number
+  durationMs: number
+}
+
 export interface StrawCounts {
   bySize: Record<StrawSize, number>
   total: number
