@@ -4,6 +4,7 @@ import { exposeDebugGlobals } from '../debug/exposeForTesting'
 import { PhysicsScene } from '../physics/PhysicsScene'
 import { useStrawMobileStore } from '../state/store'
 import { BuildScene } from './BuildScene'
+import { setCanvasBridge } from './canvasBridge'
 
 /** Top-level 3D canvas: lighting, camera, and the build/simulate scene switch. */
 export function Experience() {
@@ -14,7 +15,10 @@ export function Experience() {
     <Canvas
       shadows
       camera={{ position: [6.5, 4.5, 8], fov: 42 }}
-      onCreated={(state) => exposeDebugGlobals(state.camera, state.size)}
+      onCreated={(state) => {
+        setCanvasBridge(state.camera, state.gl.domElement)
+        exposeDebugGlobals(state.camera, state.size)
+      }}
       onPointerMissed={() => {
         if (mode === 'build') selectShape(null)
       }}

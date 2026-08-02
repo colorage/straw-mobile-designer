@@ -75,7 +75,7 @@ interface StrawMobileState {
   /** The shape currently picked up for dragging in build mode, if any. */
   selectedShapeId: string | null
 
-  addShape: (kind: ShapeKind) => void
+  addShape: (kind: ShapeKind, position?: Vector3Tuple) => string
   removeShape: (id: string) => void
   setStrawSize: (size: StrawSize) => void
   selectVertex: (endpoint: EndpointRef) => void
@@ -103,23 +103,28 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       placedCount: 0,
       selectedShapeId: null,
 
-      addShape: (kind) => {
+      addShape: (kind, position) => {
         const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
         const { strawSize, placedCount } = get()
+        const id = createId()
+        const placedAt = position ?? nextWorkbenchPosition(placedCount)
         const shape: Shape = {
-          id: createId(),
+          id,
           kind,
           size: strawSize,
           vertices,
           edges,
-          position: nextWorkbenchPosition(placedCount),
+          position: placedAt,
           quaternion: [0, 0, 0, 1],
         }
         set((state) => ({
           shapes: [...state.shapes, shape],
           placedCount: state.placedCount + 1,
-          selectedShapeId: null,
+          // Drop-placed shapes get selected so the gizmo appears immediately;
+          // click-to-add (no position) keeps clearing selection as before.
+          selectedShapeId: position !== undefined ? id : null,
         }))
+        return id
       },
 
       removeShape: (id) => {
