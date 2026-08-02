@@ -6,16 +6,12 @@ import { STRAW_SIZE_LABELS } from '../state/types'
 /** Sidebar list of every shape on the workbench, with a button to remove each one. */
 export function ShapesList() {
   const shapes = useStrawMobileStore((s) => s.shapes)
-  const mode = useStrawMobileStore((s) => s.mode)
   const selectedShapeId = useStrawMobileStore((s) => s.selectedShapeId)
   const selectShape = useStrawMobileStore((s) => s.selectShape)
   const removeShape = useStrawMobileStore((s) => s.removeShape)
-  const disabled = mode !== 'build'
 
   // Let Delete/Backspace remove whichever shape is currently picked up for dragging.
   useEffect(() => {
-    if (disabled) return
-
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Delete' && event.key !== 'Backspace') return
       if (!selectedShapeId) return
@@ -27,7 +23,7 @@ export function ShapesList() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [disabled, selectedShapeId, removeShape])
+  }, [selectedShapeId, removeShape])
 
   return (
     <div className="panel">
@@ -40,7 +36,7 @@ export function ShapesList() {
             <li
               key={shape.id}
               className={`shape-row${shape.id === selectedShapeId ? ' is-selected' : ''}`}
-              onClick={() => !disabled && selectShape(shape.id)}
+              onClick={() => selectShape(shape.id)}
             >
               <span className="shape-row-label">
                 {SHAPE_LABELS[shape.kind]} · {STRAW_SIZE_LABELS[shape.size]}
@@ -49,7 +45,6 @@ export function ShapesList() {
                 type="button"
                 className="shape-row-delete"
                 aria-label={`Remove ${SHAPE_LABELS[shape.kind]}`}
-                disabled={disabled}
                 onClick={(event) => {
                   event.stopPropagation()
                   removeShape(shape.id)

@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
-import { getScaledVertex } from '../state/store'
+import { getScaledVertex } from '../state/shapeSpace'
 import type { Shape } from '../state/types'
 import { StrawMesh } from './StrawMesh'
 import { VertexHandle } from './VertexHandle'
@@ -10,7 +10,7 @@ const STRAW_COLOR_SELECTED = '#8fb8ff'
 
 interface ShapeGroupProps {
   shape: Shape
-  /** Whether corner handles should render and respond to clicks (build mode only). */
+  /** Whether corner handles should render and respond to clicks. */
   interactive: boolean
   onVertexClick?: (vertexIndex: number) => void
   isVertexPending?: (vertexIndex: number) => boolean

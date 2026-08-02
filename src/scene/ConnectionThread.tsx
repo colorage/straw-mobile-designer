@@ -1,4 +1,7 @@
 import { Line } from '@react-three/drei'
+import { useFrame } from '@react-three/fiber'
+import { useLayoutEffect, useRef } from 'react'
+import type { Line2 } from 'three-stdlib'
 import type { Connection, Shape } from '../state/types'
 import { getEndpointWorldPosition } from './endpointPosition'
 
@@ -7,12 +10,42 @@ interface ConnectionThreadProps {
   shapesById: Map<string, Shape>
 }
 
-/** Thin thread line drawn between two connected corners while designing. */
+/** Thin thread line between two corners; tracks live body poses each frame. */
 export function ConnectionThread({ connection, shapesById }: ConnectionThreadProps) {
-  const start = getEndpointWorldPosition(connection.a, shapesById)
-  const end = getEndpointWorldPosition(connection.b, shapesById)
+  const lineRef = useRef<Line2>(null)
 
-  if (!start || !end) return null
+  const writePoints = () => {
+    const start = getEndpointWorldPosition(connection.a, shapesById)
+    const end = getEndpointWorldPosition(connection.b, shapesById)
+    if (!start || !end || !lineRef.current) return
+    lineRef.current.geometry.setPositions([
+      start.x,
+      start.y,
+      start.z,
+      end.x,
+      end.y,
+      end.z,
+    ])
+  }
 
-  return <Line points={[start, end]} color="#f2e9d3" lineWidth={1.4} dashed={false} />
+  useLayoutEffect(() => {
+    writePoints()
+  })
+
+  useFrame(() => {
+    writePoints()
+  })
+
+  return (
+    <Line
+      ref={lineRef}
+      points={[
+        [0, 0, 0],
+        [0, 0, 0],
+      ]}
+      color="#f2e9d3"
+      lineWidth={1.4}
+      dashed={false}
+    />
+  )
 }

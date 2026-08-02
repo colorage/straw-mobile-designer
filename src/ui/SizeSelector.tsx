@@ -5,8 +5,6 @@ import { useStrawMobileStore } from '../state/store'
 export function SizeSelector() {
   const strawSize = useStrawMobileStore((s) => s.strawSize)
   const setStrawSize = useStrawMobileStore((s) => s.setStrawSize)
-  const mode = useStrawMobileStore((s) => s.mode)
-  const disabled = mode !== 'build'
 
   return (
     <div className="panel">
@@ -17,7 +15,6 @@ export function SizeSelector() {
             key={size}
             type="button"
             className={`segmented-option${strawSize === size ? ' is-active' : ''}`}
-            disabled={disabled}
             onClick={() => setStrawSize(size)}
           >
             {STRAW_SIZE_LABELS[size]}

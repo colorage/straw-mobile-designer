@@ -1,7 +1,7 @@
 import { useSphericalJoint } from '@react-three/rapier'
 import { useMemo } from 'react'
-import { getScaledVertex } from '../state/store'
 import { useStrawMobileStore } from '../state/store'
+import { getScaledVertex } from '../state/shapeSpace'
 import { endpointBodyKey, type Connection, type EndpointRef, type Shape } from '../state/types'
 import { getBodyRef } from './bodyRefRegistry'
 

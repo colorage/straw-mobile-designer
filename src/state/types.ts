@@ -17,7 +17,7 @@ export interface Shape {
   /** Local-space rest vertices (unit-edge space, before size/world scaling). */
   vertices: Vector3Tuple[]
   edges: Edge[]
-  /** Build-mode workbench transform. */
+  /** World transform (workbench pose while free; last synced pose while hanging). */
   position: Vector3Tuple
   quaternion: [number, number, number, number]
 }
@@ -31,8 +31,6 @@ export interface Connection {
   a: EndpointRef
   b: EndpointRef
 }
-
-export type AppMode = 'build' | 'simulate'
 
 export interface StrawCounts {
   bySize: Record<StrawSize, number>

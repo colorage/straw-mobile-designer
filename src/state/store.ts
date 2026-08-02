@@ -1,11 +1,11 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geometry/primitives'
-import { clearBodyRef } from '../physics/bodyRefRegistry'
+import { clearBodyRef, getBodyRef } from '../physics/bodyRefRegistry'
+import { computeRestingPositions, getHangingShapeIds } from '../physics/restingLayout'
 import {
   endpointsEqual,
   STRAW_SIZES,
-  type AppMode,
   type Connection,
   type EndpointRef,
   type Shape,
@@ -13,19 +13,18 @@ import {
   type StrawSize,
 } from './types'
 
+export { ANCHOR_POSITION, BASE_STRAW_LENGTH, getScaledVertex } from './shapeSpace'
+
 /**
  * The current design (shapes, thread connections, and enough bookkeeping to
  * keep adding to it sensibly) is auto-saved to localStorage on every change,
  * so reloading the page — or closing and reopening the tab later — picks up
  * right where things were left off. Only the durable design lives here;
- * transient UI state (which mode you're in, what's mid-click) intentionally
- * always starts fresh, see `partialize` below.
+ * transient UI state (what's mid-click / selected) intentionally always
+ * starts fresh, see `partialize` below.
  */
 const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
 const PERSISTED_STORAGE_VERSION = 1
-
-export const BASE_STRAW_LENGTH = 1.4
-export const ANCHOR_POSITION: Vector3Tuple = [0, 4.5, 0]
 
 const WORKBENCH_COLUMNS = 5
 const WORKBENCH_SPACING_X = 2.4
@@ -47,13 +46,6 @@ const createId = () =>
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2)
 
-/** A shape's vertex, scaled from unit-edge local space into world-scale local space. */
-export function getScaledVertex(shape: Shape, vertexIndex: number): Vector3Tuple {
-  const scale = shape.size * BASE_STRAW_LENGTH
-  const [x, y, z] = shape.vertices[vertexIndex]
-  return [x * scale, y * scale, z * scale]
-}
-
 export function computeStrawCounts(shapes: Shape[]): StrawCounts {
   const bySize: Record<StrawSize, number> = { 1: 0, 0.5: 0, 0.25: 0 }
   for (const shape of shapes) {
@@ -65,14 +57,36 @@ export function computeStrawCounts(shapes: Shape[]): StrawCounts {
   }
 }
 
+/** Return shapes with any that leave the hanging chain frozen at their live pose. */
+function withSyncedLeavingHanging(
+  shapes: Shape[],
+  previous: Set<string>,
+  next: Set<string>,
+): Shape[] {
+  let changed = false
+  const updated = shapes.map((shape) => {
+    if (!previous.has(shape.id) || next.has(shape.id)) return shape
+    const body = getBodyRef(shape.id).current
+    if (!body) return shape
+    const t = body.translation()
+    const r = body.rotation()
+    changed = true
+    return {
+      ...shape,
+      position: [t.x, t.y, t.z] as Vector3Tuple,
+      quaternion: [r.x, r.y, r.z, r.w] as [number, number, number, number],
+    }
+  })
+  return changed ? updated : shapes
+}
+
 interface StrawMobileState {
   shapes: Shape[]
   connections: Connection[]
-  mode: AppMode
   strawSize: StrawSize
   pendingVertex: EndpointRef | null
   placedCount: number
-  /** The shape currently picked up for dragging in build mode, if any. */
+  /** The free shape currently picked up for dragging, if any. */
   selectedShapeId: string | null
 
   addShape: (kind: ShapeKind) => void
@@ -81,7 +95,6 @@ interface StrawMobileState {
   selectVertex: (endpoint: EndpointRef) => void
   clearPendingVertex: () => void
   removeConnection: (id: string) => void
-  setMode: (mode: AppMode) => void
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: [number, number, number, number]) => void
   moveShape: (id: string, position: Vector3Tuple) => void
   selectShape: (id: string | null) => void
@@ -97,7 +110,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
     (set, get) => ({
       shapes: [],
       connections: [],
-      mode: 'build',
       strawSize: 1,
       pendingVertex: null,
       placedCount: 0,
@@ -123,30 +135,34 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       removeShape: (id) => {
+        const { connections, shapes, selectedShapeId, pendingVertex } = get()
+        const previousHanging = getHangingShapeIds(connections)
+        const nextConnections = connections.filter(
+          (connection) =>
+            !(connection.a.kind === 'shape' && connection.a.shapeId === id) &&
+            !(connection.b.kind === 'shape' && connection.b.shapeId === id),
+        )
+        const nextHanging = getHangingShapeIds(nextConnections)
+        const syncedShapes = withSyncedLeavingHanging(shapes, previousHanging, nextHanging)
+
         clearBodyRef(id)
-        set((state) => ({
-          shapes: state.shapes.filter((shape) => shape.id !== id),
-          connections: state.connections.filter(
-            (connection) =>
-              !(connection.a.kind === 'shape' && connection.a.shapeId === id) &&
-              !(connection.b.kind === 'shape' && connection.b.shapeId === id),
-          ),
+        set({
+          shapes: syncedShapes.filter((shape) => shape.id !== id),
+          connections: nextConnections,
           pendingVertex:
-            state.pendingVertex?.kind === 'shape' && state.pendingVertex.shapeId === id
-              ? null
-              : state.pendingVertex,
-          selectedShapeId: state.selectedShapeId === id ? null : state.selectedShapeId,
-        }))
+            pendingVertex?.kind === 'shape' && pendingVertex.shapeId === id ? null : pendingVertex,
+          selectedShapeId: selectedShapeId === id ? null : selectedShapeId,
+        })
       },
 
       setStrawSize: (size) => set({ strawSize: size }),
 
       selectVertex: (endpoint) => {
-        const { pendingVertex, connections } = get()
+        const { pendingVertex, connections, shapes, selectedShapeId } = get()
         // Picking a corner to tie thread is a distinct interaction from dragging a
         // shape around; clear any active drag selection so its gizmo doesn't
         // linger over (and steal clicks from) the corner handles.
-        set({ selectedShapeId: null })
+        if (selectedShapeId) set({ selectedShapeId: null })
 
         if (!pendingVertex) {
           set({ pendingVertex: endpoint })
@@ -174,17 +190,55 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           a: pendingVertex,
           b: endpoint,
         }
-        set((state) => ({ connections: [...state.connections, connection], pendingVertex: null }))
+        const previousHanging = getHangingShapeIds(connections)
+        const nextConnections = [...connections, connection]
+        const nextHanging = getHangingShapeIds(nextConnections)
+
+        // Prefer live poses for pieces already swinging so new joins snap to
+        // where the chain is now, not where the store last remembered it.
+        const shapesForLayout = shapes.map((shape) => {
+          if (!previousHanging.has(shape.id)) return shape
+          const body = getBodyRef(shape.id).current
+          if (!body) return shape
+          const t = body.translation()
+          const r = body.rotation()
+          return {
+            ...shape,
+            position: [t.x, t.y, t.z] as Vector3Tuple,
+            quaternion: [r.x, r.y, r.z, r.w] as [number, number, number, number],
+          }
+        })
+        const restingPositions = computeRestingPositions(
+          shapesForLayout,
+          nextConnections,
+          previousHanging,
+        )
+
+        set({
+          connections: nextConnections,
+          pendingVertex: null,
+          selectedShapeId: null,
+          shapes: shapesForLayout.map((shape) => {
+            if (!nextHanging.has(shape.id)) return shape
+            if (previousHanging.has(shape.id)) return shape
+            const position = restingPositions.get(shape.id)
+            return position ? { ...shape, position } : shape
+          }),
+        })
       },
 
       clearPendingVertex: () => set({ pendingVertex: null }),
 
-      removeConnection: (id) =>
-        set((state) => ({
-          connections: state.connections.filter((connection) => connection.id !== id),
-        })),
-
-      setMode: (mode) => set({ mode, pendingVertex: null, selectedShapeId: null }),
+      removeConnection: (id) => {
+        const { connections, shapes } = get()
+        const previousHanging = getHangingShapeIds(connections)
+        const nextConnections = connections.filter((connection) => connection.id !== id)
+        const nextHanging = getHangingShapeIds(nextConnections)
+        set({
+          connections: nextConnections,
+          shapes: withSyncedLeavingHanging(shapes, previousHanging, nextHanging),
+        })
+      },
 
       setShapeTransform: (id, position, quaternion) =>
         set((state) => ({
@@ -205,7 +259,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         set({
           shapes: [],
           connections: [],
-          mode: 'build',
           pendingVertex: null,
           placedCount: 0,
           selectedShapeId: null,
@@ -218,9 +271,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       name: PERSISTED_STORAGE_KEY,
       version: PERSISTED_STORAGE_VERSION,
       storage: createJSONStorage(() => localStorage),
-      // Mode and click-in-progress state are transient UI concerns, not part
-      // of the saved design — a reload always lands back in build mode,
-      // never mid-simulation with no physics bodies to show for it.
+      // Click-in-progress / selection state are transient UI concerns.
       partialize: (state): PersistedMobileState => ({
         shapes: state.shapes,
         connections: state.connections,

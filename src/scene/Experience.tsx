@@ -2,22 +2,20 @@ import { Canvas } from '@react-three/fiber'
 import { Grid, OrbitControls } from '@react-three/drei'
 import { exposeDebugGlobals } from '../debug/exposeForTesting'
 import { PhysicsScene } from '../physics/PhysicsScene'
+import { usePhysicsPersistence } from '../physics/usePhysicsPersistence'
 import { useStrawMobileStore } from '../state/store'
-import { BuildScene } from './BuildScene'
 
-/** Top-level 3D canvas: lighting, camera, and the build/simulate scene switch. */
+/** Top-level 3D canvas: lighting, camera, and the unified edit/gravity scene. */
 export function Experience() {
-  const mode = useStrawMobileStore((s) => s.mode)
   const selectShape = useStrawMobileStore((s) => s.selectShape)
+  usePhysicsPersistence()
 
   return (
     <Canvas
       shadows
       camera={{ position: [6.5, 4.5, 8], fov: 42 }}
       onCreated={(state) => exposeDebugGlobals(state.camera, state.size)}
-      onPointerMissed={() => {
-        if (mode === 'build') selectShape(null)
-      }}
+      onPointerMissed={() => selectShape(null)}
     >
       <color attach="background" args={['#11131a']} />
       <fog attach="fog" args={['#11131a', 14, 32]} />
@@ -40,7 +38,7 @@ export function Experience() {
         fadeDistance={26}
         infiniteGrid
       />
-      {mode === 'build' ? <BuildScene /> : <PhysicsScene />}
+      <PhysicsScene />
       <OrbitControls target={[0, 2, 0]} enableDamping makeDefault />
     </Canvas>
   )

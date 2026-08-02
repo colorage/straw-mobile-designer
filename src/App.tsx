@@ -14,7 +14,7 @@ function App() {
       <aside className="sidebar">
         <h1 className="app-title">Straw Mobile Designer</h1>
         <p className="app-subtitle">
-          Build a himmeli-style straw mobile, then let gravity hang and balance it.
+          Build a himmeli-style straw mobile — pieces hang and balance as you tie them to the hook.
         </p>
         <SaveStatus />
         <Toolbar />

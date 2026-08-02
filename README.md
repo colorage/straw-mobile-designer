@@ -1,6 +1,6 @@
 # Straw Mobile Designer
 
-A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himmeli) designer built with React, Three.js, and a real physics engine. Build up a mobile from straws and geometric primitives, tie corners together with thread, then let gravity hang and balance the whole thing — just like a real one.
+A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himmeli) designer built with React, Three.js, and a real physics engine. Build up a mobile from straws and geometric primitives, tie corners together with thread, and watch gravity hang and balance each piece as soon as it joins the chain from the ceiling hook — just like a real one.
 
 ## Features
 
@@ -8,12 +8,12 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 - **Straw size selector**: `1`, `1/2`, `1/4` scale, applied to newly added shapes.
 - **Corner connections**: click a corner, then click another corner (or the ceiling hook) to tie a thread between them.
 - **Straws Used panel**: a live count of straws in the design, broken down by size.
-- **Gravity simulation**: toggling "Simulate Gravity" turns every shape into a real rigid body ([@react-three/rapier](https://github.com/pmndrs/react-three-rapier)) connected by ball-and-socket joints at the exact corners you tied together. Gravity pulls the whole assembly down and each piece rotates on its joints until it settles into balance — no custom torque math, just real physics.
+- **Live gravity**: physics runs while you build. Free pieces stay put on the workbench until they have a connection path to the ceiling hook; once tied into that chain they become real rigid bodies ([@react-three/rapier](https://github.com/pmndrs/react-three-rapier)) linked by ball-and-socket joints and hang under gravity.
 
 ## Tech stack
 
 - [Vite](https://vite.dev/) + React + TypeScript
-- [three.js](https://threejs.org/) via [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber) and [@react-three/drei](https://github.com/pmndrs/drei)
+- [three.js](https://threejs.org/) via [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber) and [@react-three/drei](https://docs.pmnd.rs/drei)
 - [@react-three/rapier](https://github.com/pmndrs/react-three-rapier) for physics
 - [zustand](https://github.com/pmndrs/zustand) for app state
 
