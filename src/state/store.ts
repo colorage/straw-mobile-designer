@@ -92,6 +92,8 @@ interface StrawMobileState {
   selectedShapeId: string | null
   /** In-progress thread shorten animations (not persisted). */
   reelIns: ShapeReelIn[]
+  /** Live poses while reeling — drives the mesh without touching persisted shapes. */
+  reelPositions: Record<string, Vector3Tuple>
 
   addShape: (kind: ShapeKind) => void
   removeShape: (id: string) => void
@@ -102,6 +104,7 @@ interface StrawMobileState {
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: [number, number, number, number]) => void
   moveShape: (id: string, position: Vector3Tuple) => void
   selectShape: (id: string | null) => void
+  setReelPositions: (positions: Record<string, Vector3Tuple>) => void
   finishReelIns: (completed: { shapeId: string; position: Vector3Tuple }[]) => void
   reset: () => void
   getStrawCounts: () => StrawCounts
@@ -120,6 +123,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       placedCount: 0,
       selectedShapeId: null,
       reelIns: [],
+      reelPositions: {},
 
       addShape: (kind) => {
         const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
@@ -152,10 +156,12 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         const syncedShapes = withSyncedLeavingHanging(shapes, previousHanging, nextHanging)
 
         clearBodyRef(id)
+        const { [id]: _removed, ...restReelPositions } = get().reelPositions
         set({
           shapes: syncedShapes.filter((shape) => shape.id !== id),
           connections: nextConnections,
           reelIns: reelIns.filter((reel) => reel.shapeId !== id),
+          reelPositions: restReelPositions,
           pendingVertex:
             pendingVertex?.kind === 'shape' && pendingVertex.shapeId === id ? null : pendingVertex,
           selectedShapeId: selectedShapeId === id ? null : selectedShapeId,
@@ -225,21 +231,31 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         const newReelIns = buildReelIns(shapesForLayout, targets)
         const reelingIds = new Set(newReelIns.map((reel) => reel.shapeId))
 
-        set((state) => ({
-          connections: nextConnections,
-          pendingVertex: null,
-          selectedShapeId: null,
-          shapes: shapesForLayout.map((shape) => {
-            if (reelingIds.has(shape.id)) return shape
-            const position = targets.get(shape.id)
-            return position ? { ...shape, position } : shape
-          }),
-          // Replace any in-flight reel for the same shape with the new target.
-          reelIns: [
-            ...state.reelIns.filter((reel) => !targets.has(reel.shapeId)),
-            ...newReelIns,
-          ],
-        }))
+        set((state) => {
+          const nextReelPositions = { ...state.reelPositions }
+          for (const reel of newReelIns) {
+            nextReelPositions[reel.shapeId] = reel.from
+          }
+          for (const shapeId of targets.keys()) {
+            if (!reelingIds.has(shapeId)) delete nextReelPositions[shapeId]
+          }
+          return {
+            connections: nextConnections,
+            pendingVertex: null,
+            selectedShapeId: null,
+            shapes: shapesForLayout.map((shape) => {
+              if (reelingIds.has(shape.id)) return shape
+              const position = targets.get(shape.id)
+              return position ? { ...shape, position } : shape
+            }),
+            // Replace any in-flight reel for the same shape with the new target.
+            reelIns: [
+              ...state.reelIns.filter((reel) => !targets.has(reel.shapeId)),
+              ...newReelIns,
+            ],
+            reelPositions: nextReelPositions,
+          }
+        })
       },
 
       clearPendingVertex: () => set({ pendingVertex: null }),
@@ -254,10 +270,13 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (removed?.a.kind === 'shape') touched.add(removed.a.shapeId)
         if (removed?.b.kind === 'shape') touched.add(removed.b.shapeId)
 
+        const nextReelPositions = { ...get().reelPositions }
+        for (const id of touched) delete nextReelPositions[id]
         set({
           connections: nextConnections,
           shapes: withSyncedLeavingHanging(shapes, previousHanging, nextHanging),
           reelIns: reelIns.filter((reel) => !touched.has(reel.shapeId)),
+          reelPositions: nextReelPositions,
         })
       },
 
@@ -275,17 +294,27 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       selectShape: (id) => set({ selectedShapeId: id }),
 
+      setReelPositions: (positions) =>
+        set((state) => ({
+          reelPositions: { ...state.reelPositions, ...positions },
+        })),
+
       finishReelIns: (completed) => {
         if (completed.length === 0) return
         const completedIds = new Set(completed.map((item) => item.shapeId))
         const positionById = new Map(completed.map((item) => [item.shapeId, item.position]))
-        set((state) => ({
-          reelIns: state.reelIns.filter((reel) => !completedIds.has(reel.shapeId)),
-          shapes: state.shapes.map((shape) => {
-            const position = positionById.get(shape.id)
-            return position ? { ...shape, position } : shape
-          }),
-        }))
+        set((state) => {
+          const nextReelPositions = { ...state.reelPositions }
+          for (const id of completedIds) delete nextReelPositions[id]
+          return {
+            reelIns: state.reelIns.filter((reel) => !completedIds.has(reel.shapeId)),
+            reelPositions: nextReelPositions,
+            shapes: state.shapes.map((shape) => {
+              const position = positionById.get(shape.id)
+              return position ? { ...shape, position } : shape
+            }),
+          }
+        })
       },
 
       reset: () => {
@@ -297,6 +326,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           placedCount: 0,
           selectedShapeId: null,
           reelIns: [],
+          reelPositions: {},
         })
       },
 
@@ -318,6 +348,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         ...(persisted as Partial<StrawMobileState>),
         // Never restore in-flight UI animations from storage.
         reelIns: [],
+        reelPositions: {},
         pendingVertex: null,
         selectedShapeId: null,
       }),

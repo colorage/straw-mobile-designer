@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import type { RapierRigidBody } from '@react-three/rapier'
 import { getBodyRef } from '../physics/bodyRefRegistry'
 import { ANCHOR_POSITION, getScaledVertex } from '../state/shapeSpace'
+import { useStrawMobileStore } from '../state/store'
 import type { EndpointRef, Shape } from '../state/types'
 
 function readBodyPose(body: RapierRigidBody): {
@@ -54,7 +55,14 @@ export function getEndpointWorldPosition(
   if (!shape) return null
 
   const [lx, ly, lz] = getScaledVertex(shape, endpoint.vertexIndex)
+  const reelPosition = useStrawMobileStore.getState().reelPositions[endpoint.shapeId]
   const body = getBodyRef(endpoint.shapeId).current
+  // Prefer live reel pose so the thread shortens in sync with the sliding mesh.
+  if (reelPosition) {
+    return new THREE.Vector3(lx, ly, lz)
+      .applyQuaternion(new THREE.Quaternion(...shape.quaternion))
+      .add(new THREE.Vector3(...reelPosition))
+  }
   if (body) {
     const pose = readBodyPose(body)
     if (pose) {
