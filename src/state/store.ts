@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geometry/primitives'
+import { clearBodyRef } from '../physics/bodyRefRegistry'
 import {
   endpointsEqual,
   STRAW_SIZES,
@@ -59,6 +60,8 @@ interface StrawMobileState {
   strawSize: StrawSize
   pendingVertex: EndpointRef | null
   placedCount: number
+  /** The shape currently picked up for dragging in build mode, if any. */
+  selectedShapeId: string | null
 
   addShape: (kind: ShapeKind) => void
   removeShape: (id: string) => void
@@ -68,6 +71,8 @@ interface StrawMobileState {
   removeConnection: (id: string) => void
   setMode: (mode: AppMode) => void
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: [number, number, number, number]) => void
+  moveShape: (id: string, position: Vector3Tuple) => void
+  selectShape: (id: string | null) => void
   reset: () => void
   getStrawCounts: () => StrawCounts
 }
@@ -79,6 +84,7 @@ export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
   strawSize: 1,
   pendingVertex: null,
   placedCount: 0,
+  selectedShapeId: null,
 
   addShape: (kind) => {
     const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
@@ -95,10 +101,12 @@ export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
     set((state) => ({
       shapes: [...state.shapes, shape],
       placedCount: state.placedCount + 1,
+      selectedShapeId: null,
     }))
   },
 
   removeShape: (id) => {
+    clearBodyRef(id)
     set((state) => ({
       shapes: state.shapes.filter((shape) => shape.id !== id),
       connections: state.connections.filter(
@@ -110,6 +118,7 @@ export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
         state.pendingVertex?.kind === 'shape' && state.pendingVertex.shapeId === id
           ? null
           : state.pendingVertex,
+      selectedShapeId: state.selectedShapeId === id ? null : state.selectedShapeId,
     }))
   },
 
@@ -117,6 +126,10 @@ export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
 
   selectVertex: (endpoint) => {
     const { pendingVertex, connections } = get()
+    // Picking a corner to tie thread is a distinct interaction from dragging a
+    // shape around; clear any active drag selection so its gizmo doesn't
+    // linger over (and steal clicks from) the corner handles.
+    set({ selectedShapeId: null })
 
     if (!pendingVertex) {
       set({ pendingVertex: endpoint })
@@ -154,7 +167,7 @@ export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
       connections: state.connections.filter((connection) => connection.id !== id),
     })),
 
-  setMode: (mode) => set({ mode, pendingVertex: null }),
+  setMode: (mode) => set({ mode, pendingVertex: null, selectedShapeId: null }),
 
   setShapeTransform: (id, position, quaternion) =>
     set((state) => ({
@@ -163,14 +176,24 @@ export const useStrawMobileStore = create<StrawMobileState>((set, get) => ({
       ),
     })),
 
-  reset: () =>
+  moveShape: (id, position) =>
+    set((state) => ({
+      shapes: state.shapes.map((shape) => (shape.id === id ? { ...shape, position } : shape)),
+    })),
+
+  selectShape: (id) => set({ selectedShapeId: id }),
+
+  reset: () => {
+    for (const shape of get().shapes) clearBodyRef(shape.id)
     set({
       shapes: [],
       connections: [],
       mode: 'build',
       pendingVertex: null,
       placedCount: 0,
-    }),
+      selectedShapeId: null,
+    })
+  },
 
   getStrawCounts: () => computeStrawCounts(get().shapes),
 }))

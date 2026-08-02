@@ -1,5 +1,6 @@
 import { Canvas } from '@react-three/fiber'
 import { Grid, OrbitControls } from '@react-three/drei'
+import { exposeDebugGlobals } from '../debug/exposeForTesting'
 import { PhysicsScene } from '../physics/PhysicsScene'
 import { useStrawMobileStore } from '../state/store'
 import { BuildScene } from './BuildScene'
@@ -7,9 +8,17 @@ import { BuildScene } from './BuildScene'
 /** Top-level 3D canvas: lighting, camera, and the build/simulate scene switch. */
 export function Experience() {
   const mode = useStrawMobileStore((s) => s.mode)
+  const selectShape = useStrawMobileStore((s) => s.selectShape)
 
   return (
-    <Canvas shadows camera={{ position: [6.5, 4.5, 8], fov: 42 }}>
+    <Canvas
+      shadows
+      camera={{ position: [6.5, 4.5, 8], fov: 42 }}
+      onCreated={(state) => exposeDebugGlobals(state.camera, state.size)}
+      onPointerMissed={() => {
+        if (mode === 'build') selectShape(null)
+      }}
+    >
       <color attach="background" args={['#11131a']} />
       <fog attach="fog" args={['#11131a', 14, 32]} />
       <hemisphereLight intensity={0.55} groundColor="#20222c" />

@@ -1,19 +1,20 @@
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
-import { useEffect } from 'react'
 import { AnchorPoint } from '../scene/AnchorPoint'
 import { ANCHOR_POSITION, useStrawMobileStore } from '../state/store'
-import { clearBodyRef, getBodyRef } from './bodyRefRegistry'
+import { getBodyRef } from './bodyRefRegistry'
 import { JointsLayer } from './JointsLayer'
 import { PhysicsShape } from './PhysicsShape'
 
 const GROUND_Y = -6
 
+// The anchor is never removed for the lifetime of the app, so its ref never
+// needs explicit cleanup (see PhysicsShape.tsx for why cleanup-on-unmount is
+// avoided in the first place).
 function FixedAnchorBody() {
   const ref = getBodyRef('anchor')
-  useEffect(() => () => clearBodyRef('anchor'), [])
 
   return (
-    <RigidBody ref={ref} type="fixed" position={ANCHOR_POSITION}>
+    <RigidBody ref={ref} type="fixed" position={ANCHOR_POSITION} colliders={false}>
       <AnchorPoint />
     </RigidBody>
   )

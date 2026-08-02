@@ -1,6 +1,7 @@
 import { Experience } from './scene/Experience'
 import { ConnectionHint } from './ui/ConnectionHint'
 import { ModeBar } from './ui/ModeBar'
+import { ShapesList } from './ui/ShapesList'
 import { SizeSelector } from './ui/SizeSelector'
 import { StrawInventory } from './ui/StrawInventory'
 import { Toolbar } from './ui/Toolbar'
@@ -16,6 +17,7 @@ function App() {
         </p>
         <Toolbar />
         <SizeSelector />
+        <ShapesList />
         <StrawInventory />
         <ModeBar />
         <ConnectionHint />
