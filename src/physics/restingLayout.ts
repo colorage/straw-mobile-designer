@@ -253,57 +253,127 @@ function poseMapToShapePoses(poses: Map<string, MutablePose>): Map<string, Shape
 }
 
 /**
- * Translation-only close for a new tie between pieces that are already on the
- * hanging chain (hanging↔hanging, or hanging↔hook).
+ * Close poses for a new tie between pieces already on the hanging chain.
  *
- * Moves a single shape's tied corner onto the other endpoint and keeps the
- * partner fixed so ReelInController's live tracking can follow a non-reeling
- * neighbor (midpoint-both would leave both ends reeling and retarget onto an
- * unrelated parent joint). Quaternions stay as-is so mid-sway pieces don't spin.
- * Always emits a target for the mover — even for tiny overlap gaps — so a
- * forced reel can defer the new joint instead of snapping immediately.
+ * Unlike a free workbench tighten, existing hook/parent attachments stay pinned
+ * in world space. Movers are only the shapes in `newConnection`; each is solved
+ * with (a) those fixed pins and (b) the new shared corner so a straw keeps its
+ * top on the parent while its free end meets the partner — ready for reel-in
+ * without a parent-joint remount snap when animation finishes.
+ *
+ * Always emits targets for every mover (even tiny gaps) so a forced reel can
+ * defer the new joint.
  */
 export function computeHangingClosePoses(
   shapes: Shape[],
+  connections: Connection[],
   newConnection: Connection,
 ): Map<string, ShapePose> {
   const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
   const result = new Map<string, ShapePose>()
 
-  const worldOf = (endpoint: EndpointRef): THREE.Vector3 | null => {
+  const moverIds = new Set<string>()
+  if (newConnection.a.kind === 'shape') moverIds.add(newConnection.a.shapeId)
+  if (newConnection.b.kind === 'shape') moverIds.add(newConnection.b.shapeId)
+  if (moverIds.size === 0) return result
+
+  const poses = new Map<string, MutablePose>()
+  for (const id of moverIds) {
+    const shape = shapesById.get(id)
+    if (shape) poses.set(id, poseFromShape(shape))
+  }
+
+  const worldOfFixed = (endpoint: EndpointRef): THREE.Vector3 | null => {
     if (endpoint.kind === 'anchor') return new THREE.Vector3(...ANCHOR_POSITION)
+    // Non-mover shapes keep their authored/live pose (not in `poses`).
+    if (moverIds.has(endpoint.shapeId)) return null
     const shape = shapesById.get(endpoint.shapeId)
     if (!shape) return null
     return worldVertexFromPose(poseFromShape(shape), shape, endpoint.vertexIndex)
   }
 
-  // Prefer moving `b` toward `a` (click order / overlap order). If `b` is the
-  // hook, move `a` toward the hook instead.
-  let moving: EndpointRef | null = null
-  let fixed: EndpointRef | null = null
-  if (newConnection.b.kind === 'shape') {
-    moving = newConnection.b
-    fixed = newConnection.a
-  } else if (newConnection.a.kind === 'shape') {
-    moving = newConnection.a
-    fixed = newConnection.b
+  // Existing attachments to the hook / rest of the chain — world-fixed pins.
+  const fixedPinsByShape = new Map<string, VertexTarget[]>()
+  for (const connection of connections) {
+    if (connection.id === newConnection.id) continue
+    for (const [self, other] of [
+      [connection.a, connection.b] as const,
+      [connection.b, connection.a] as const,
+    ]) {
+      if (self.kind !== 'shape' || !moverIds.has(self.shapeId)) continue
+      const target = worldOfFixed(other)
+      if (!target) continue
+      const list = fixedPinsByShape.get(self.shapeId) ?? []
+      list.push({ vertexIndex: self.vertexIndex, target: target.clone() })
+      fixedPinsByShape.set(self.shapeId, list)
+    }
   }
-  if (!moving || !fixed || moving.kind !== 'shape') return result
 
-  const meet = worldOf(fixed)
-  const shape = shapesById.get(moving.shapeId)
-  if (!meet || !shape) return result
+  for (let iter = 0; iter < FREE_SOLVER_ITERATIONS; iter++) {
+    const rotAmount = ROTATION_BLEND * (0.4 + 0.6 * ((iter + 1) / FREE_SOLVER_ITERATIONS))
 
-  const quaternion = shape.quaternion
-  const localOffset = localVertex(shape, moving.vertexIndex).applyQuaternion(
-    new THREE.Quaternion(...quaternion),
-  )
-  const position: Vector3Tuple = [
-    meet.x - localOffset.x,
-    meet.y - localOffset.y,
-    meet.z - localOffset.z,
-  ]
-  result.set(shape.id, { position, quaternion: [...quaternion] as QuatTuple })
+    // Soft-close the new tie (midpoint if both ends move; else onto the fixed end).
+    let meet: THREE.Vector3 | null = null
+    if (newConnection.a.kind === 'shape' && newConnection.b.kind === 'shape') {
+      const shapeA = shapesById.get(newConnection.a.shapeId)
+      const shapeB = shapesById.get(newConnection.b.shapeId)
+      const poseA = poses.get(newConnection.a.shapeId)
+      const poseB = poses.get(newConnection.b.shapeId)
+      if (shapeA && shapeB && poseA && poseB) {
+        const worldA = worldVertexFromPose(poseA, shapeA, newConnection.a.vertexIndex)
+        const worldB = worldVertexFromPose(poseB, shapeB, newConnection.b.vertexIndex)
+        meet = worldA.clone().add(worldB).multiplyScalar(0.5)
+        poseA.position.add(meet.clone().sub(worldA).multiplyScalar(0.5))
+        poseB.position.add(meet.clone().sub(worldB).multiplyScalar(0.5))
+      }
+    } else {
+      const shapeEnd = newConnection.a.kind === 'shape' ? newConnection.a : newConnection.b
+      const fixedEnd = newConnection.a.kind === 'anchor' ? newConnection.a : newConnection.b
+      if (shapeEnd.kind === 'shape') {
+        meet = worldOfFixed(fixedEnd)
+        const shape = shapesById.get(shapeEnd.shapeId)
+        const pose = poses.get(shapeEnd.shapeId)
+        if (meet && shape && pose) {
+          const world = worldVertexFromPose(pose, shape, shapeEnd.vertexIndex)
+          pose.position.add(meet.clone().sub(world).multiplyScalar(0.5))
+        }
+      }
+    }
+    if (!meet) break
+
+    for (const shapeId of moverIds) {
+      const shape = shapesById.get(shapeId)
+      const pose = poses.get(shapeId)
+      if (!shape || !pose) continue
+
+      const pins: VertexTarget[] = [...(fixedPinsByShape.get(shapeId) ?? [])]
+      if (newConnection.a.kind === 'shape' && newConnection.a.shapeId === shapeId) {
+        pins.push({ vertexIndex: newConnection.a.vertexIndex, target: meet.clone() })
+      } else if (newConnection.b.kind === 'shape' && newConnection.b.shapeId === shapeId) {
+        pins.push({ vertexIndex: newConnection.b.vertexIndex, target: meet.clone() })
+      }
+
+      // Deduplicate by vertex (average targets).
+      const byVertex = new Map<number, THREE.Vector3[]>()
+      for (const pin of pins) {
+        const list = byVertex.get(pin.vertexIndex) ?? []
+        list.push(pin.target)
+        byVertex.set(pin.vertexIndex, list)
+      }
+      const unique: VertexTarget[] = []
+      for (const [vertexIndex, targets] of byVertex) {
+        const avg = new THREE.Vector3()
+        for (const t of targets) avg.add(t)
+        avg.multiplyScalar(1 / targets.length)
+        unique.push({ vertexIndex, target: avg })
+      }
+      projectShapeFromPins(shape, pose, unique, rotAmount)
+    }
+  }
+
+  for (const [id, pose] of poseMapToShapePoses(poses)) {
+    result.set(id, pose)
+  }
   return result
 }
 

@@ -123,6 +123,8 @@ export type BuildReelInsOptions = {
    * Always create a reel entry (min duration) even when the pose gap is below
    * the usual skip thresholds. Used for hanging↔hanging overlap ties so the
    * new joint stays deferred while the thread finishes shortening.
+   * Also locks the finish target so live neighbor tracking cannot undo a
+   * multi-pin hanging solve.
    */
   force?: boolean
 }
@@ -155,6 +157,7 @@ export function buildReelIns(
       toQuat: [...toQuat] as QuatTuple,
       startedAt: now,
       durationMs: reelDurationMs(from, to, angle),
+      lockTarget: options.force || undefined,
     })
   }
 

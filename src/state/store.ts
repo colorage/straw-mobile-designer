@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geometry/primitives'
 import { clearBodyRef, getBodyRef } from '../physics/bodyRefRegistry'
-import { buildReelIns } from '../physics/reelIn'
+import { buildReelIns, connectionInvolvesReelIn, reelInBodyKeys } from '../physics/reelIn'
 import {
   computeFreeTightenPoses,
   computeHangingClosePoses,
@@ -127,6 +127,11 @@ interface StrawMobileState {
   activeTool: ActiveTool
   /** In-progress thread shorten animations (not persisted). */
   reelIns: ShapeReelIn[]
+  /**
+   * Connection ids whose spherical joints stay unmounted until reel-in finishes.
+   * Used for hanging closes so existing parent joints remain active.
+   */
+  deferredConnectionIds: string[]
   /** Live poses while reeling — drives the mesh without touching persisted shapes. */
   reelPositions: Record<string, Vector3Tuple>
   reelQuaternions: Record<string, QuatTuple>
@@ -202,6 +207,7 @@ function applyDesignSnapshot(
     ...EMPTY_SELECTION,
     activeTool: 'select',
     reelIns: [],
+    deferredConnectionIds: [],
     reelPositions: {},
     reelQuaternions: {},
     past: history.past,
@@ -222,6 +228,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       selectionAnchorId: null,
       activeTool: 'select',
       reelIns: [],
+      deferredConnectionIds: [],
       reelPositions: {},
       reelQuaternions: {},
       past: [],
@@ -431,7 +438,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (joinsHanging) {
           targets = computeRestingPoses(shapesForLayout, nextConnections, previousHanging)
         } else if (aAlreadyOnChain && bAlreadyOnChain) {
-          targets = computeHangingClosePoses(shapesForLayout, connection)
+          targets = computeHangingClosePoses(shapesForLayout, nextConnections, connection)
           forceReel = true
         } else {
           targets = computeFreeTightenPoses(shapesForLayout, nextConnections, connection)
@@ -473,6 +480,10 @@ export const useStrawMobileStore = create<StrawMobileState>()(
               ...state.reelIns.filter((reel) => !targets.has(reel.shapeId)),
               ...newReelIns,
             ],
+            // Hanging closes keep parent joints mounted; only the new tie waits.
+            deferredConnectionIds: forceReel
+              ? [...new Set([...state.deferredConnectionIds, connection.id])]
+              : state.deferredConnectionIds,
             reelPositions: nextReelPositions,
             reelQuaternions: nextReelQuaternions,
           }
@@ -661,8 +672,18 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             delete nextReelPositions[id]
             delete nextReelQuaternions[id]
           }
+          const remainingReelIns = state.reelIns.filter(
+            (reel) => !completedIds.has(reel.shapeId),
+          )
+          const stillReeling = reelInBodyKeys(remainingReelIns)
           return {
-            reelIns: state.reelIns.filter((reel) => !completedIds.has(reel.shapeId)),
+            reelIns: remainingReelIns,
+            // Drop deferred joints once neither endpoint is still reeling.
+            deferredConnectionIds: state.deferredConnectionIds.filter((id) => {
+              const connection = state.connections.find((item) => item.id === id)
+              if (!connection) return false
+              return connectionInvolvesReelIn(connection, stillReeling)
+            }),
             reelPositions: nextReelPositions,
             reelQuaternions: nextReelQuaternions,
             shapes: state.shapes.map((shape) => {
@@ -686,6 +707,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           ...EMPTY_SELECTION,
           activeTool: 'select',
           reelIns: [],
+          deferredConnectionIds: [],
           reelPositions: {},
           reelQuaternions: {},
           physicsEpoch,
@@ -704,6 +726,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           ...EMPTY_SELECTION,
           activeTool: 'select',
           reelIns: [],
+          deferredConnectionIds: [],
           reelPositions: {},
           reelQuaternions: {},
           physicsEpoch,
@@ -733,6 +756,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         ...(persisted as Partial<StrawMobileState>),
         // Never restore in-flight UI animations or undo stacks from storage.
         reelIns: [],
+        deferredConnectionIds: [],
         reelPositions: {},
         reelQuaternions: {},
         pendingVertex: null,
