@@ -14,6 +14,7 @@ import { JointsLayer } from './JointsLayer'
 import { PhysicsShape } from './PhysicsShape'
 import { ReelInController } from './ReelInController'
 import { reelInBodyKeys } from './reelIn'
+import { getConnectionJointRoles, jointRoleShowsThread } from './rigidConnections'
 
 const GROUND_Y = -6
 
@@ -96,6 +97,7 @@ export function PhysicsScene() {
   const reelIns = useStrawMobileStore((s) => s.reelIns ?? [])
   const hangingIds = useMemo(() => getHangingShapeIds(connections), [connections])
   const reelingIds = useMemo(() => reelInBodyKeys(reelIns), [reelIns])
+  const jointRoles = useMemo(() => getConnectionJointRoles(connections), [connections])
 
   const connectedVertexKeys = useMemo(() => {
     const set = new Set<string>()
@@ -152,9 +154,11 @@ export function PhysicsScene() {
         />
       ))}
       <JointsLayer connections={connections} />
-      {connections.map((connection) => (
-        <ConnectionThread key={connection.id} connection={connection} shapesById={shapesById} />
-      ))}
+      {connections.map((connection) =>
+        jointRoleShowsThread(jointRoles.get(connection.id)) ? (
+          <ConnectionThread key={connection.id} connection={connection} shapesById={shapesById} />
+        ) : null,
+      )}
       <OverlapPreviewThread />
       <GroundBody />
     </Physics>

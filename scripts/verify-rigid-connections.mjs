@@ -195,4 +195,38 @@ function assert(cond, msg) {
   console.log('ok: triangle + spoke + hook')
 }
 
+function jointRoleShowsThread(role) {
+  return role === 'spherical' || role === undefined
+}
+
+{
+  const roles = getConnectionJointRoles([
+    {
+      id: 'c1',
+      a: { kind: 'shape', shapeId: 'a', vertexIndex: 0 },
+      b: { kind: 'shape', shapeId: 'b', vertexIndex: 0 },
+    },
+    {
+      id: 'c2',
+      a: { kind: 'shape', shapeId: 'b', vertexIndex: 1 },
+      b: { kind: 'shape', shapeId: 'c', vertexIndex: 0 },
+    },
+    {
+      id: 'c3',
+      a: { kind: 'shape', shapeId: 'c', vertexIndex: 1 },
+      b: { kind: 'shape', shapeId: 'a', vertexIndex: 1 },
+    },
+    {
+      id: 'hook',
+      a: { kind: 'anchor' },
+      b: { kind: 'shape', shapeId: 'a', vertexIndex: 0 },
+    },
+  ])
+  for (const id of ['c1', 'c2', 'c3']) {
+    assert(!jointRoleShowsThread(roles.get(id)), `${id} cycle edge should hide thread`)
+  }
+  assert(jointRoleShowsThread(roles.get('hook')), 'hook should show thread')
+  console.log('ok: cycle edges hide thread, hook shows thread')
+}
+
 console.log('all rigid-connection checks passed')
