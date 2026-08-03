@@ -68,6 +68,25 @@
   color: #9298ab;
 }
 
+.panel-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.panel-title-row .panel-title {
+  margin: 0;
+}
+
+.panel-title-row .ghost-button {
+  width: auto;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 .panel-hint {
   margin: 8px 0 0;
   font-size: 13px;

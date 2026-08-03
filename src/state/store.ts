@@ -30,11 +30,25 @@ const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
 const PERSISTED_STORAGE_VERSION = 2
 /** Max design snapshots kept for undo / redo. */
 const HISTORY_LIMIT = 50
+/** World offset applied to duplicated shapes so copies don't stack. */
+const DUPLICATE_OFFSET: Vector3Tuple = [0.45, 0.45, 0]
 
 const createId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2)
+
+const EMPTY_SELECTION = {
+  selectedShapeIds: [] as string[],
+  selectionAnchorId: null as string | null,
+}
+
+function remapEndpoint(endpoint: EndpointRef, idMap: Map<string, string>): EndpointRef | null {
+  if (endpoint.kind === 'anchor') return null
+  const nextId = idMap.get(endpoint.shapeId)
+  if (!nextId) return null
+  return { kind: 'shape', shapeId: nextId, vertexIndex: endpoint.vertexIndex }
+}
 
 /** The subset of state that's worth remembering between visits / undo steps. */
 export type PersistedMobileState = {
@@ -91,8 +105,10 @@ interface StrawMobileState {
   connections: Connection[]
   strawSize: StrawSize
   pendingVertex: EndpointRef | null
-  /** The free shape currently picked up for dragging, if any. */
-  selectedShapeId: string | null
+  /** Shapes currently selected (last id is the primary / gizmo target). */
+  selectedShapeIds: string[]
+  /** Anchor for Shift+range selection in the sidebar list. */
+  selectionAnchorId: string | null
   /** In-progress thread shorten animations (not persisted). */
   reelIns: ShapeReelIn[]
   /** Live poses while reeling — drives the mesh without touching persisted shapes. */
@@ -108,6 +124,7 @@ interface StrawMobileState {
   redo: () => void
   addShape: (kind: ShapeKind, position?: Vector3Tuple) => string
   removeShape: (id: string) => void
+  removeShapes: (ids: string[]) => void
   setStrawSize: (size: StrawSize) => void
   selectVertex: (endpoint: EndpointRef) => void
   clearPendingVertex: () => void
@@ -115,6 +132,9 @@ interface StrawMobileState {
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: [number, number, number, number]) => void
   moveShape: (id: string, position: Vector3Tuple) => void
   selectShape: (id: string | null) => void
+  toggleShapeSelection: (id: string) => void
+  selectShapeRange: (id: string) => void
+  duplicateSelection: () => void
   setReelPositions: (positions: Record<string, Vector3Tuple>) => void
   finishReelIns: (completed: { shapeId: string; position: Vector3Tuple }[]) => void
   reset: () => void
@@ -140,7 +160,7 @@ function applyDesignSnapshot(
     connections: snapshot.connections,
     strawSize: snapshot.strawSize,
     pendingVertex: null,
-    selectedShapeId: null,
+    ...EMPTY_SELECTION,
     reelIns: [],
     reelPositions: {},
     past: history.past,
@@ -155,7 +175,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       connections: [],
       strawSize: 1,
       pendingVertex: null,
-      selectedShapeId: null,
+      selectedShapeIds: [],
+      selectionAnchorId: null,
       reelIns: [],
       reelPositions: {},
       past: [],
@@ -214,33 +235,49 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           shapes: [...state.shapes, shape],
           // Drop-placed shapes get selected so the gizmo appears immediately;
           // click-to-add (no position) keeps clearing selection as before.
-          selectedShapeId: position !== undefined ? id : null,
+          ...(position !== undefined
+            ? { selectedShapeIds: [id], selectionAnchorId: id }
+            : EMPTY_SELECTION),
         }))
         return id
       },
 
       removeShape: (id) => {
+        get().removeShapes([id])
+      },
+
+      removeShapes: (ids) => {
+        if (ids.length === 0) return
+        const removeSet = new Set(ids)
         get().pushHistory()
-        const { connections, shapes, selectedShapeId, pendingVertex, reelIns } = get()
+        const { connections, shapes, selectedShapeIds, selectionAnchorId, pendingVertex, reelIns } =
+          get()
         const previousHanging = getHangingShapeIds(connections)
         const nextConnections = connections.filter(
           (connection) =>
-            !(connection.a.kind === 'shape' && connection.a.shapeId === id) &&
-            !(connection.b.kind === 'shape' && connection.b.shapeId === id),
+            !(connection.a.kind === 'shape' && removeSet.has(connection.a.shapeId)) &&
+            !(connection.b.kind === 'shape' && removeSet.has(connection.b.shapeId)),
         )
         const nextHanging = getHangingShapeIds(nextConnections)
         const syncedShapes = withSyncedLeavingHanging(shapes, previousHanging, nextHanging)
 
-        clearBodyRef(id)
-        const { [id]: _removed, ...restReelPositions } = get().reelPositions
+        for (const id of removeSet) clearBodyRef(id)
+        const nextReelPositions = { ...get().reelPositions }
+        for (const id of removeSet) delete nextReelPositions[id]
+
+        const nextSelected = selectedShapeIds.filter((id) => !removeSet.has(id))
         set({
-          shapes: syncedShapes.filter((shape) => shape.id !== id),
+          shapes: syncedShapes.filter((shape) => !removeSet.has(shape.id)),
           connections: nextConnections,
-          reelIns: reelIns.filter((reel) => reel.shapeId !== id),
-          reelPositions: restReelPositions,
+          reelIns: reelIns.filter((reel) => !removeSet.has(reel.shapeId)),
+          reelPositions: nextReelPositions,
           pendingVertex:
-            pendingVertex?.kind === 'shape' && pendingVertex.shapeId === id ? null : pendingVertex,
-          selectedShapeId: selectedShapeId === id ? null : selectedShapeId,
+            pendingVertex?.kind === 'shape' && removeSet.has(pendingVertex.shapeId)
+              ? null
+              : pendingVertex,
+          selectedShapeIds: nextSelected,
+          selectionAnchorId:
+            selectionAnchorId && removeSet.has(selectionAnchorId) ? null : selectionAnchorId,
         })
       },
 
@@ -251,11 +288,11 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       selectVertex: (endpoint) => {
-        const { pendingVertex, connections, shapes, selectedShapeId } = get()
+        const { pendingVertex, connections, shapes, selectedShapeIds } = get()
         // Picking a corner to tie thread is a distinct interaction from dragging a
         // shape around; clear any active drag selection so its gizmo doesn't
         // linger over (and steal clicks from) the corner handles.
-        if (selectedShapeId) set({ selectedShapeId: null })
+        if (selectedShapeIds.length > 0) set({ ...EMPTY_SELECTION })
 
         if (!pendingVertex) {
           set({ pendingVertex: endpoint })
@@ -324,7 +361,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           return {
             connections: nextConnections,
             pendingVertex: null,
-            selectedShapeId: null,
+            ...EMPTY_SELECTION,
             shapes: shapesForLayout.map((shape) => {
               if (reelingIds.has(shape.id)) return shape
               const position = targets.get(shape.id)
@@ -375,7 +412,95 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           shapes: state.shapes.map((shape) => (shape.id === id ? { ...shape, position } : shape)),
         })),
 
-      selectShape: (id) => set({ selectedShapeId: id }),
+      selectShape: (id) =>
+        set(
+          id === null
+            ? EMPTY_SELECTION
+            : { selectedShapeIds: [id], selectionAnchorId: id },
+        ),
+
+      toggleShapeSelection: (id) => {
+        const { selectedShapeIds, selectionAnchorId } = get()
+        if (selectedShapeIds.includes(id)) {
+          const next = selectedShapeIds.filter((selectedId) => selectedId !== id)
+          set({
+            selectedShapeIds: next,
+            selectionAnchorId:
+              selectionAnchorId === id
+                ? (next[next.length - 1] ?? null)
+                : selectionAnchorId,
+          })
+          return
+        }
+        set({
+          selectedShapeIds: [...selectedShapeIds, id],
+          selectionAnchorId: id,
+        })
+      },
+
+      selectShapeRange: (id) => {
+        const { shapes, selectionAnchorId } = get()
+        const anchorId = selectionAnchorId ?? id
+        const anchorIndex = shapes.findIndex((shape) => shape.id === anchorId)
+        const targetIndex = shapes.findIndex((shape) => shape.id === id)
+        if (anchorIndex < 0 || targetIndex < 0) {
+          set({ selectedShapeIds: [id], selectionAnchorId: id })
+          return
+        }
+        const start = Math.min(anchorIndex, targetIndex)
+        const end = Math.max(anchorIndex, targetIndex)
+        set({
+          selectedShapeIds: shapes.slice(start, end + 1).map((shape) => shape.id),
+          // Keep the original anchor fixed for subsequent Shift+range clicks.
+          selectionAnchorId: anchorId,
+        })
+      },
+
+      duplicateSelection: () => {
+        const { shapes, connections, selectedShapeIds } = get()
+        if (selectedShapeIds.length === 0) return
+
+        const selectedSet = new Set(selectedShapeIds)
+        const selectedShapes = shapes.filter((shape) => selectedSet.has(shape.id))
+        if (selectedShapes.length === 0) return
+
+        get().pushHistory()
+
+        const idMap = new Map<string, string>()
+        const clones: Shape[] = selectedShapes.map((shape) => {
+          const newId = createId()
+          idMap.set(shape.id, newId)
+          return {
+            ...shape,
+            id: newId,
+            vertices: shape.vertices.map((vertex) => [...vertex] as Vector3Tuple),
+            edges: shape.edges.map((edge) => [...edge] as [number, number]),
+            position: [
+              shape.position[0] + DUPLICATE_OFFSET[0],
+              shape.position[1] + DUPLICATE_OFFSET[1],
+              shape.position[2] + DUPLICATE_OFFSET[2],
+            ] as Vector3Tuple,
+            quaternion: [...shape.quaternion] as [number, number, number, number],
+          }
+        })
+
+        const clonedConnections: Connection[] = []
+        for (const connection of connections) {
+          const a = remapEndpoint(connection.a, idMap)
+          const b = remapEndpoint(connection.b, idMap)
+          // Only copy threads whose both ends land inside the duplicated set.
+          if (!a || !b) continue
+          clonedConnections.push({ id: createId(), a, b })
+        }
+
+        const newIds = clones.map((shape) => shape.id)
+        set((state) => ({
+          shapes: [...state.shapes, ...clones],
+          connections: [...state.connections, ...clonedConnections],
+          selectedShapeIds: newIds,
+          selectionAnchorId: newIds[newIds.length - 1] ?? null,
+        }))
+      },
 
       setReelPositions: (positions) =>
         set((state) => ({
@@ -407,7 +532,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           shapes: [],
           connections: [],
           pendingVertex: null,
-          selectedShapeId: null,
+          ...EMPTY_SELECTION,
           reelIns: [],
           reelPositions: {},
         })
@@ -421,7 +546,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: snapshot.connections,
           strawSize: snapshot.strawSize,
           pendingVertex: null,
-          selectedShapeId: null,
+          ...EMPTY_SELECTION,
           reelIns: [],
           reelPositions: {},
         })
@@ -452,7 +577,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         reelIns: [],
         reelPositions: {},
         pendingVertex: null,
-        selectedShapeId: null,
+        ...EMPTY_SELECTION,
         past: [],
         future: [],
       }),

@@ -20,6 +20,11 @@ export function ModeBar() {
       if (!mod) return
 
       const key = event.key.toLowerCase()
+      if (key === 'd') {
+        event.preventDefault()
+        useStrawMobileStore.getState().duplicateSelection()
+        return
+      }
       if (key === 'z' && !event.shiftKey) {
         event.preventDefault()
         useStrawMobileStore.getState().undo()
