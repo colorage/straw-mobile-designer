@@ -423,19 +423,24 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         const bAlreadyOnChain = bKey === 'anchor' || previousHanging.has(bKey)
         // Hanging↔hanging (or hanging↔hook on an already-hung piece): don't run
         // the free workbench tightener — it ignores hook pins and yanks the chain.
-        // Close only the new tie's corners (translation-only) so reel-in can
-        // shorten the gap smoothly before the spherical joint engages.
+        // Close one endpoint onto the other (translation-only) and force a reel
+        // so the new joint stays deferred while the thread shortens — including
+        // tiny overlap gaps that would otherwise skip animation entirely.
         let targets: Map<string, ShapePose>
+        let forceReel = false
         if (joinsHanging) {
           targets = computeRestingPoses(shapesForLayout, nextConnections, previousHanging)
         } else if (aAlreadyOnChain && bAlreadyOnChain) {
           targets = computeHangingClosePoses(shapesForLayout, connection)
+          forceReel = true
         } else {
           targets = computeFreeTightenPoses(shapesForLayout, nextConnections, connection)
         }
 
         // Keep current poses for animated shapes; apply already-closed gaps now.
-        const newReelIns = buildReelIns(shapesForLayout, targets)
+        const newReelIns = buildReelIns(shapesForLayout, targets, performance.now(), {
+          force: forceReel,
+        })
         const reelingIds = new Set(newReelIns.map((reel) => reel.shapeId))
 
         set((state) => {

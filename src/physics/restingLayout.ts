@@ -254,10 +254,14 @@ function poseMapToShapePoses(poses: Map<string, MutablePose>): Map<string, Shape
 
 /**
  * Translation-only close for a new tie between pieces that are already on the
- * hanging chain (hanging↔hanging, or hanging↔hook). Moves only the endpoints of
- * `newConnection` so their tied corners meet — midpoint for shape↔shape, the
- * hook for shape↔anchor — without the free workbench tightener that would yank
- * pinned chain links. Quaternions stay as-is so mid-sway pieces don't spin.
+ * hanging chain (hanging↔hanging, or hanging↔hook).
+ *
+ * Moves a single shape's tied corner onto the other endpoint and keeps the
+ * partner fixed so ReelInController's live tracking can follow a non-reeling
+ * neighbor (midpoint-both would leave both ends reeling and retarget onto an
+ * unrelated parent joint). Quaternions stay as-is so mid-sway pieces don't spin.
+ * Always emits a target for the mover — even for tiny overlap gaps — so a
+ * forced reel can defer the new joint instead of snapping immediately.
  */
 export function computeHangingClosePoses(
   shapes: Shape[],
@@ -273,42 +277,33 @@ export function computeHangingClosePoses(
     return worldVertexFromPose(poseFromShape(shape), shape, endpoint.vertexIndex)
   }
 
-  const cornerA = worldOf(newConnection.a)
-  const cornerB = worldOf(newConnection.b)
-  if (!cornerA || !cornerB) return result
-
-  const aIsAnchor = newConnection.a.kind === 'anchor'
-  const bIsAnchor = newConnection.b.kind === 'anchor'
-  const meet = aIsAnchor
-    ? cornerA.clone()
-    : bIsAnchor
-      ? cornerB.clone()
-      : cornerA.clone().add(cornerB).multiplyScalar(0.5)
-
-  const placeCorner = (endpoint: EndpointRef) => {
-    if (endpoint.kind !== 'shape') return
-    const shape = shapesById.get(endpoint.shapeId)
-    if (!shape) return
-    const quaternion = shape.quaternion
-    const localOffset = localVertex(shape, endpoint.vertexIndex).applyQuaternion(
-      new THREE.Quaternion(...quaternion),
-    )
-    const position: Vector3Tuple = [
-      meet.x - localOffset.x,
-      meet.y - localOffset.y,
-      meet.z - localOffset.z,
-    ]
-    const posDelta = Math.hypot(
-      position[0] - shape.position[0],
-      position[1] - shape.position[1],
-      position[2] - shape.position[2],
-    )
-    if (posDelta < MIN_POSE_DELTA) return
-    result.set(shape.id, { position, quaternion: [...quaternion] as QuatTuple })
+  // Prefer moving `b` toward `a` (click order / overlap order). If `b` is the
+  // hook, move `a` toward the hook instead.
+  let moving: EndpointRef | null = null
+  let fixed: EndpointRef | null = null
+  if (newConnection.b.kind === 'shape') {
+    moving = newConnection.b
+    fixed = newConnection.a
+  } else if (newConnection.a.kind === 'shape') {
+    moving = newConnection.a
+    fixed = newConnection.b
   }
+  if (!moving || !fixed || moving.kind !== 'shape') return result
 
-  placeCorner(newConnection.a)
-  placeCorner(newConnection.b)
+  const meet = worldOf(fixed)
+  const shape = shapesById.get(moving.shapeId)
+  if (!meet || !shape) return result
+
+  const quaternion = shape.quaternion
+  const localOffset = localVertex(shape, moving.vertexIndex).applyQuaternion(
+    new THREE.Quaternion(...quaternion),
+  )
+  const position: Vector3Tuple = [
+    meet.x - localOffset.x,
+    meet.y - localOffset.y,
+    meet.z - localOffset.z,
+  ]
+  result.set(shape.id, { position, quaternion: [...quaternion] as QuatTuple })
   return result
 }
 
