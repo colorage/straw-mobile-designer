@@ -13,28 +13,50 @@ import { registerMeshDriver } from './meshDriveRegistry'
 /** Gentle nudge so a freshly hanging piece sways instead of sitting perfectly still. */
 function nudgeHangingBody(body: {
   wakeUp: () => void
+  mass: () => number
   applyImpulse: (impulse: { x: number; y: number; z: number }, wake: boolean) => void
   applyTorqueImpulse: (torque: { x: number; y: number; z: number }, wake: boolean) => void
+  setLinvel: (vel: { x: number; y: number; z: number }, wake: boolean) => void
+  setAngvel: (vel: { x: number; y: number; z: number }, wake: boolean) => void
 }) {
   body.wakeUp()
-  const lateral = 0.04 + Math.random() * 0.06
   const angle = Math.random() * Math.PI * 2
-  body.applyImpulse(
-    {
-      x: Math.cos(angle) * lateral,
-      y: 0.01,
-      z: Math.sin(angle) * lateral,
-    },
-    true,
-  )
-  body.applyTorqueImpulse(
-    {
-      x: (Math.random() - 0.5) * 0.02,
-      y: (Math.random() - 0.5) * 0.01,
-      z: (Math.random() - 0.5) * 0.02,
-    },
-    true,
-  )
+  const speed = 0.55 + Math.random() * 0.35
+  const linvel = {
+    x: Math.cos(angle) * speed,
+    y: 0.02,
+    z: Math.sin(angle) * speed,
+  }
+  const angvel = {
+    x: (Math.random() - 0.5) * 0.35,
+    y: (Math.random() - 0.5) * 0.2,
+    z: (Math.random() - 0.5) * 0.35,
+  }
+
+  // Prefer impulses when the hull colliders gave the body real mass; otherwise
+  // set velocities directly so a zero-mass body still visibly starts swinging.
+  const mass = body.mass()
+  if (mass > 1e-4) {
+    body.applyImpulse(
+      {
+        x: linvel.x * mass * 0.55,
+        y: linvel.y * mass * 0.55,
+        z: linvel.z * mass * 0.55,
+      },
+      true,
+    )
+    body.applyTorqueImpulse(
+      {
+        x: angvel.x * mass * 0.08,
+        y: angvel.y * mass * 0.08,
+        z: angvel.z * mass * 0.08,
+      },
+      true,
+    )
+  } else {
+    body.setLinvel(linvel, true)
+    body.setAngvel(angvel, true)
+  }
 }
 
 interface PhysicsShapeProps {
@@ -143,25 +165,36 @@ export function PhysicsShape({
       return
     }
     if (wasDynamicRef.current) return
-    wasDynamicRef.current = true
 
     let attempts = 0
     let frameId = 0
+    let cancelled = false
     const tryNudge = () => {
+      if (cancelled) return
       const body = ref.current
       if (body) {
         try {
+          // Wait until auto-colliders have attached so mass > 0 and impulses work.
+          if (body.numColliders() === 0 && attempts < 20) {
+            attempts += 1
+            frameId = requestAnimationFrame(tryNudge)
+            return
+          }
           nudgeHangingBody(body)
+          wasDynamicRef.current = true
           return
         } catch {
           // Body may not be ready for impulses yet.
         }
       }
       attempts += 1
-      if (attempts < 8) frameId = requestAnimationFrame(tryNudge)
+      if (attempts < 24) frameId = requestAnimationFrame(tryNudge)
     }
     frameId = requestAnimationFrame(tryNudge)
-    return () => cancelAnimationFrame(frameId)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(frameId)
+    }
   }, [isDynamic, ref])
 
   return (
@@ -172,11 +205,17 @@ export function PhysicsShape({
         position={worldPosition}
         quaternion={shape.quaternion}
         colliders="hull"
+        // Hull meshes live in a hidden group so they don't double-draw; Rapier
+        // skips invisible children unless this flag is set (otherwise mass=0).
+        includeInvisible
+        // Thin straw hulls have tiny volume; scale density so total mass is
+        // numerically stable under joints (~1–2 for a full-size octahedron).
+        density={400}
         collisionGroups={SHAPE_COLLISION_GROUPS}
         canSleep={false}
         restitution={0.1}
-        linearDamping={0.35}
-        angularDamping={0.45}
+        linearDamping={0.4}
+        angularDamping={0.55}
       >
         {/* Hull source only — not rendered / not raycast-visible. */}
         <group visible={false}>
