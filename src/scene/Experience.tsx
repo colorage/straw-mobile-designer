@@ -1,6 +1,7 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Grid, OrbitControls } from '@react-three/drei'
-import { Suspense, useRef } from 'react'
+import { Suspense, useEffect, useRef } from 'react'
+import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { exposeDebugGlobals } from '../debug/exposeForTesting'
 import { PhysicsScene } from '../physics/PhysicsScene'
 import { usePhysicsPersistence } from '../physics/usePhysicsPersistence'
@@ -8,40 +9,74 @@ import { useStrawMobileStore } from '../state/store'
 import { setCameraView } from './cameraView'
 import { setCanvasBridge } from './canvasBridge'
 
-type OrbitControlsLike = {
-  target: { x: number; y: number; z: number }
-}
+const ORBIT_TARGET: [number, number, number] = [0, 2, 0]
 
-/** Keeps the shared camera view in sync with the live camera + orbit target. */
+/**
+ * Keeps the shared camera view in sync with the live camera + orbit target,
+ * and owns the default OrbitControls instance.
+ *
+ * The orbit target is applied once on mount (not as a declarative prop) so
+ * React re-renders cannot reset the look-at while the user is panning.
+ */
 function CameraViewSync() {
   const camera = useThree((s) => s.camera)
-  const controls = useThree((s) => s.controls) as OrbitControlsLike | null
-  const controlsRef = useRef<OrbitControlsLike | null>(null)
+  const get = useThree((s) => s.get)
+  const controlsRef = useRef<OrbitControlsImpl | null>(null)
 
   useFrame(() => {
-    const activeControls = controlsRef.current ?? controls
-    if (activeControls?.target) {
-      setCameraView(camera, activeControls.target)
+    const controls = controlsRef.current ?? (get().controls as OrbitControlsImpl | null)
+    if (controls?.target) {
+      setCameraView(camera, controls.target)
     } else {
       setCameraView(camera)
     }
   })
 
+  useEffect(() => {
+    const controls = controlsRef.current
+    if (!controls) return
+    controls.target.set(...ORBIT_TARGET)
+    controls.enabled = true
+    controls.update()
+  }, [])
+
   return (
     <OrbitControls
-      // drei's OrbitControls ref is the underlying controls instance
-      ref={controlsRef as never}
-      target={[0, 2, 0]}
+      ref={controlsRef}
       enableDamping
       makeDefault
       onChange={() => {
-        const activeControls = controlsRef.current
-        if (activeControls?.target) {
-          setCameraView(camera, activeControls.target)
-        }
+        const controls = controlsRef.current
+        if (controls?.target) setCameraView(camera, controls.target)
       }}
     />
   )
+}
+
+/**
+ * PivotControls sets `controls.enabled = false` while a gizmo is dragged. If
+ * pointerup is missed (released outside the window), orbit stays dead. Restore
+ * on window-level pointerup/cancel after drei's own handler runs.
+ */
+function OrbitEnabledGuard() {
+  const get = useThree((s) => s.get)
+
+  useEffect(() => {
+    const restore = () => {
+      requestAnimationFrame(() => {
+        const controls = get().controls as OrbitControlsImpl | null
+        if (controls) controls.enabled = true
+      })
+    }
+    window.addEventListener('pointerup', restore)
+    window.addEventListener('pointercancel', restore)
+    return () => {
+      window.removeEventListener('pointerup', restore)
+      window.removeEventListener('pointercancel', restore)
+    }
+  }, [get])
+
+  return null
 }
 
 /** Top-level 3D canvas: lighting, camera, and the unified edit/gravity scene. */
@@ -56,16 +91,20 @@ export function Experience() {
       onCreated={(state) => {
         setCanvasBridge(state.camera, state.gl.domElement)
         setCameraView(state.camera, { x: 0, y: 2, z: 0 })
-        exposeDebugGlobals(state.camera, state.size)
+        exposeDebugGlobals(state.camera, state.size, {
+          scene: state.scene,
+          gl: state.gl,
+          controls: state.controls,
+        })
       }}
       onPointerMissed={() => selectShape(null)}
     >
       <color attach="background" args={['#11131a']} />
       <fog attach="fog" args={['#11131a', 14, 32]} />
-      <hemisphereLight intensity={0.55} groundColor="#20222c" />
+      <hemisphereLight intensity={0.7} groundColor="#20222c" />
       <directionalLight
         position={[5, 9, 4]}
-        intensity={1.3}
+        intensity={1.15}
         castShadow
         shadow-mapSize={[1024, 1024]}
         shadow-camera-left={-8}
@@ -91,6 +130,7 @@ export function Experience() {
         <PhysicsScene />
       </Suspense>
       <CameraViewSync />
+      <OrbitEnabledGuard />
     </Canvas>
   )
 }

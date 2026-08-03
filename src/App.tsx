@@ -1,7 +1,7 @@
 import type { DragEvent } from 'react'
 import { SHAPE_LABELS, type ShapeKind } from './geometry/primitives'
 import { Experience } from './scene/Experience'
-import { SHAPE_DRAG_MIME, screenToWorkbenchPlane } from './scene/canvasBridge'
+import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME, screenToWorkbenchPlane } from './scene/canvasBridge'
 import { useStrawMobileStore } from './state/store'
 import { ConnectionHint } from './ui/ConnectionHint'
 import { ModeBar } from './ui/ModeBar'
@@ -18,18 +18,27 @@ function isShapeKind(value: string): value is ShapeKind {
   return SHAPE_KINDS.has(value)
 }
 
+function readDraggedShapeKind(dataTransfer: DataTransfer): ShapeKind | null {
+  const custom = dataTransfer.getData(SHAPE_DRAG_MIME)
+  if (isShapeKind(custom)) return custom
+  const plain = dataTransfer.getData(SHAPE_DRAG_TEXT_MIME)
+  if (isShapeKind(plain)) return plain
+  return null
+}
+
 function App() {
   const addShape = useStrawMobileStore((s) => s.addShape)
 
   const handleDragOver = (event: DragEvent<HTMLElement>) => {
-    if (![...event.dataTransfer.types].includes(SHAPE_DRAG_MIME)) return
+    const types = [...event.dataTransfer.types]
+    if (!types.includes(SHAPE_DRAG_MIME) && !types.includes(SHAPE_DRAG_TEXT_MIME)) return
     event.preventDefault()
     event.dataTransfer.dropEffect = 'copy'
   }
 
   const handleDrop = (event: DragEvent<HTMLElement>) => {
-    const kind = event.dataTransfer.getData(SHAPE_DRAG_MIME)
-    if (!isShapeKind(kind)) return
+    const kind = readDraggedShapeKind(event.dataTransfer)
+    if (!kind) return
 
     event.preventDefault()
     const position = screenToWorkbenchPlane(event.clientX, event.clientY)

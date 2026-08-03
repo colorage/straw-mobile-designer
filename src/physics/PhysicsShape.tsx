@@ -1,7 +1,7 @@
 import { PivotControls } from '@react-three/drei'
 import { RigidBody } from '@react-three/rapier'
-import { useEffect, useRef } from 'react'
-import type { ThreeEvent } from '@react-three/fiber'
+import { useThree, type ThreeEvent } from '@react-three/fiber'
+import { useLayoutEffect, useRef } from 'react'
 import type { Object3D } from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
 import { ShapeGroup } from '../scene/ShapeGroup'
@@ -42,6 +42,7 @@ export function PhysicsShape({
   isVertexConnected,
 }: PhysicsShapeProps) {
   const ref = getBodyRef(shape.id)
+  const invalidate = useThree((s) => s.invalidate)
   const isSelected = useStrawMobileStore((s) => s.selectedShapeId === shape.id)
   const selectShape = useStrawMobileStore((s) => s.selectShape)
   const moveShape = useStrawMobileStore((s) => s.moveShape)
@@ -54,13 +55,26 @@ export function PhysicsShape({
   const wasShowingGizmo = useRef(false)
   const rigidObjectRef = useRef<Object3D | null>(null)
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     return registerMeshDriver(shape.id, (position) => {
       rigidObjectRef.current?.position.set(position[0], position[1], position[2])
     })
   }, [shape.id])
 
-  useEffect(() => {
+  /**
+   * Rapier positions the RigidBody Object3D before React mounts its children.
+   * Three only propagates matrixWorld to descendants when a node (or an
+   * ancestor) has matrixWorldNeedsUpdate — which is false for a stationary
+   * kinematic/fixed body. Newly mounted meshes then keep an identity
+   * matrixWorld and render at the origin (invisible in the normal view).
+   * Force a full subtree update after every commit that may have changed kids.
+   */
+  useLayoutEffect(() => {
+    rigidObjectRef.current?.updateWorldMatrix(true, true)
+    invalidate()
+  })
+
+  useLayoutEffect(() => {
     if (showGizmo && !wasShowingGizmo.current) {
       dragBaseRef.current = worldPosition
     }
@@ -123,6 +137,7 @@ export function PhysicsShape({
             ]
             moveShape(shape.id, next)
             rigidObjectRef.current?.position.set(next[0], next[1], next[2])
+            rigidObjectRef.current?.updateWorldMatrix(true, true)
             const body = ref.current
             if (body) {
               body.setNextKinematicTranslation({ x: next[0], y: next[1], z: next[2] })

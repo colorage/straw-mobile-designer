@@ -53,11 +53,8 @@ export function VertexHandle({ position, pending, connected, onSelect }: VertexH
       </mesh>
       <mesh>
         <sphereGeometry args={[radius, 16, 16]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={pending ? COLOR_PENDING : '#000000'}
-          emissiveIntensity={pending ? 0.5 : 0}
-        />
+        {/* Unlit marker — stays visible on software WebGL where PBR shades to black. */}
+        <meshBasicMaterial color={color} toneMapped={false} />
       </mesh>
     </group>
   )

@@ -1,5 +1,5 @@
 import { SHAPE_LABELS, type ShapeKind } from '../geometry/primitives'
-import { SHAPE_DRAG_MIME } from '../scene/canvasBridge'
+import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
 
 const SHAPE_ORDER: ShapeKind[] = ['straw', 'tetrahedron', 'squarePyramid', 'octahedron']
@@ -28,6 +28,7 @@ export function Toolbar() {
             onClick={() => addShape(kind)}
             onDragStart={(event) => {
               event.dataTransfer.setData(SHAPE_DRAG_MIME, kind)
+              event.dataTransfer.setData(SHAPE_DRAG_TEXT_MIME, kind)
               event.dataTransfer.effectAllowed = 'copy'
             }}
           >

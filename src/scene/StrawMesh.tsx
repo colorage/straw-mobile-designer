@@ -11,7 +11,12 @@ interface StrawMeshProps {
 
 const UP = new THREE.Vector3(0, 1, 0)
 
-/** Renders a single straw edge as a thin cylinder tube between two points. */
+/**
+ * Renders a single straw edge as a thin cylinder tube between two points.
+ *
+ * Uses an unlit material so straws stay visible on software WebGL (SwiftShader)
+ * where MeshStandardMaterial can shade to near-black.
+ */
 export function StrawMesh({ start, end, radius = 0.032, color = '#dcc186' }: StrawMeshProps) {
   const { position, quaternion, length } = useMemo(() => {
     const a = new THREE.Vector3(...start)
@@ -24,9 +29,15 @@ export function StrawMesh({ start, end, radius = 0.032, color = '#dcc186' }: Str
   }, [start, end])
 
   return (
-    <mesh position={position} quaternion={quaternion} castShadow receiveShadow>
+    <mesh
+      position={position}
+      quaternion={quaternion}
+      castShadow={false}
+      receiveShadow={false}
+      frustumCulled={false}
+    >
       <cylinderGeometry args={[radius, radius, length, 10]} />
-      <meshStandardMaterial color={color} roughness={0.6} metalness={0.05} />
+      <meshBasicMaterial color={color} toneMapped={false} />
     </mesh>
   )
 }

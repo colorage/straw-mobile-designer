@@ -1,5 +1,7 @@
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
-import { useMemo } from 'react'
+import { useThree } from '@react-three/fiber'
+import { useLayoutEffect, useMemo, useRef } from 'react'
+import type { Object3D } from 'three'
 import { AnchorPoint } from '../scene/AnchorPoint'
 import { ConnectionThread } from '../scene/ConnectionThread'
 import { VertexHandle } from '../scene/VertexHandle'
@@ -23,14 +25,27 @@ function FixedAnchorBody() {
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
   const connections = useStrawMobileStore((s) => s.connections)
   const selectVertex = useStrawMobileStore((s) => s.selectVertex)
+  const rigidObjectRef = useRef<Object3D | null>(null)
+  const invalidate = useThree((s) => s.invalidate)
 
   const connected = useMemo(
     () => connections.some((c) => c.a.kind === 'anchor' || c.b.kind === 'anchor'),
     [connections],
   )
 
+  // See PhysicsShape — force world-matrix propagation after children mount.
+  useLayoutEffect(() => {
+    rigidObjectRef.current?.updateWorldMatrix(true, true)
+    invalidate()
+  })
+
   return (
     <RigidBody ref={ref} type="fixed" position={ANCHOR_POSITION} colliders={false}>
+      <group
+        ref={(node) => {
+          rigidObjectRef.current = node?.parent ?? null
+        }}
+      />
       <AnchorPoint />
       <VertexHandle
         position={[0, 0, 0]}
