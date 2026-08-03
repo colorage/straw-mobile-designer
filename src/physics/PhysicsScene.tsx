@@ -116,6 +116,8 @@ export function PhysicsScene() {
       // defaults (4 / 1) or residual joint error resonates as N grows.
       numSolverIterations={12}
       numInternalPgsIterations={2}
+      // Half-size steps (~2 per 60fps frame) cut joint integration error further.
+      timeStep={1 / 120}
     >
       <FixedAnchorBody />
       <CeilingHookVisual />
