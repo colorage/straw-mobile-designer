@@ -15,6 +15,7 @@ interface ShapeGroupProps {
   interactive: boolean
   onVertexClick?: (vertexIndex: number) => void
   isVertexPending?: (vertexIndex: number) => boolean
+  isVertexSuggested?: (vertexIndex: number) => boolean
   isVertexConnected?: (vertexIndex: number) => boolean
   /** Tints the straws to indicate this shape is picked up for dragging. */
   selected?: boolean
@@ -30,6 +31,7 @@ export function ShapeGroup({
   interactive,
   onVertexClick,
   isVertexPending,
+  isVertexSuggested,
   isVertexConnected,
   selected,
   scissorsHover,
@@ -80,6 +82,7 @@ export function ShapeGroup({
             key={i}
             position={vertex}
             pending={isVertexPending?.(i)}
+            suggested={isVertexSuggested?.(i)}
             connected={isVertexConnected?.(i)}
             onSelect={() => onVertexClick?.(i)}
           />

@@ -6,6 +6,8 @@ import { useSoftwareGL } from './renderCapability'
 interface VertexHandleProps {
   position: Vector3Tuple
   pending?: boolean
+  /** Highlighted while overlapping another corner toward auto-connect. */
+  suggested?: boolean
   connected?: boolean
   onSelect: () => void
 }
@@ -14,18 +16,31 @@ const COLOR_DEFAULT = '#3d4250'
 const COLOR_CONNECTED = '#5fd48a'
 const COLOR_PENDING = '#ff5a5f'
 const COLOR_HOVER = '#ffd166'
+const COLOR_SUGGESTED = '#ffd166'
 
 // Generous invisible hit-area radius so corners are easy to click without
 // making the visible marker distractingly large.
 const HIT_AREA_RADIUS = 0.17
 
 /** A small clickable sphere marking a shape's corner, used to build thread connections. */
-export function VertexHandle({ position, pending, connected, onSelect }: VertexHandleProps) {
+export function VertexHandle({
+  position,
+  pending,
+  suggested,
+  connected,
+  onSelect,
+}: VertexHandleProps) {
   const [hovered, setHovered] = useState(false)
   const softwareGL = useSoftwareGL()
 
-  const color = pending ? COLOR_PENDING : hovered ? COLOR_HOVER : connected ? COLOR_CONNECTED : COLOR_DEFAULT
-  const radius = pending || hovered ? 0.085 : 0.06
+  const color = pending
+    ? COLOR_PENDING
+    : hovered || suggested
+      ? COLOR_HOVER
+      : connected
+        ? COLOR_CONNECTED
+        : COLOR_DEFAULT
+  const radius = pending || hovered || suggested ? 0.085 : 0.06
 
   const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
@@ -62,8 +77,8 @@ export function VertexHandle({ position, pending, connected, onSelect }: VertexH
             color={color}
             roughness={0.45}
             metalness={0.1}
-            emissive={pending ? COLOR_PENDING : '#000000'}
-            emissiveIntensity={pending ? 0.5 : 0}
+            emissive={pending ? COLOR_PENDING : suggested ? COLOR_SUGGESTED : '#000000'}
+            emissiveIntensity={pending ? 0.5 : suggested ? 0.35 : 0}
           />
         )}
       </mesh>

@@ -96,6 +96,7 @@ interface PhysicsShapeProps {
   reeling: boolean
   onVertexClick: (vertexIndex: number) => void
   isVertexPending: (vertexIndex: number) => boolean
+  isVertexSuggested: (vertexIndex: number) => boolean
   isVertexConnected: (vertexIndex: number) => boolean
 }
 
@@ -108,6 +109,7 @@ function DrivenShapeVisual({
   shape,
   onVertexClick,
   isVertexPending,
+  isVertexSuggested,
   isVertexConnected,
 }: Omit<PhysicsShapeProps, 'hanging' | 'reeling'>) {
   const groupRef = useRef<Group>(null)
@@ -166,6 +168,7 @@ function DrivenShapeVisual({
         interactive={!isScissors}
         onVertexClick={onVertexClick}
         isVertexPending={isVertexPending}
+        isVertexSuggested={isVertexSuggested}
         isVertexConnected={isVertexConnected}
         scissorsHover={isScissors}
         onBodyClick={handleBodyClick}
@@ -191,6 +194,7 @@ export function PhysicsShape({
   reeling,
   onVertexClick,
   isVertexPending,
+  isVertexSuggested,
   isVertexConnected,
 }: PhysicsShapeProps) {
   const ref = getBodyRef(shape.id)
@@ -280,6 +284,7 @@ export function PhysicsShape({
           showGizmo={showGizmo}
           onVertexClick={onVertexClick}
           isVertexPending={isVertexPending}
+          isVertexSuggested={isVertexSuggested}
           isVertexConnected={isVertexConnected}
         />
       ) : (
@@ -287,6 +292,7 @@ export function PhysicsShape({
           shape={shape}
           onVertexClick={onVertexClick}
           isVertexPending={isVertexPending}
+          isVertexSuggested={isVertexSuggested}
           isVertexConnected={isVertexConnected}
         />
       )}
