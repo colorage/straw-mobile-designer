@@ -113,7 +113,8 @@ function FixedBridge({
  * - none on redundant cycle edges (visual thread only — avoids overconstraint)
  *
  * Joints that touch a shape still reeling in are omitted so a live hanging body
- * isn't yanked across the gap.
+ * isn't yanked across the gap. Rigid clusters keep their relative poses through
+ * hang reel-in via resting-layout translation (see computeRestingPoses).
  */
 export function JointsLayer({ connections }: { connections: Connection[] }) {
   const shapes = useStrawMobileStore((s) => s.shapes)
