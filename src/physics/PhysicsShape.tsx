@@ -275,8 +275,8 @@ export function PhysicsShape({
         collisionGroups={SHAPE_COLLISION_GROUPS}
         canSleep={false}
         restitution={0.1}
-        // Higher damping + world solver iters + soft velocity caps kill
-        // multi-spoke / long-chain ringing while keeping a readable sway.
+        // Base hanging damping; HangingEnergyLimiter raises it adaptively
+        // when many pieces hang or a body approaches the soft speed caps.
         linearDamping={isDynamic ? 0.65 : 0.4}
         angularDamping={isDynamic ? 0.8 : 0.55}
       >
