@@ -51,6 +51,23 @@ export function tetrahedron(): PrimitiveGeometry {
   return { vertices: normalizeToUnitEdges(vertices, edges), edges }
 }
 
+/** A flat square loop: 4 corners, 4 equal straw edges. */
+export function square(): PrimitiveGeometry {
+  const vertices: Vector3Tuple[] = [
+    [0.5, 0, 0.5],
+    [0.5, 0, -0.5],
+    [-0.5, 0, -0.5],
+    [-0.5, 0, 0.5],
+  ]
+  const edges: Edge[] = [
+    [0, 1],
+    [1, 2],
+    [2, 3],
+    [3, 0],
+  ]
+  return { vertices: normalizeToUnitEdges(vertices, edges), edges }
+}
+
 /**
  * A 4-corner (square) pyramid with all 8 edges equal length — the apex sits
  * at height 1/sqrt(2) above the base so lateral edges match the base edges,
@@ -105,11 +122,12 @@ export function octahedron(): PrimitiveGeometry {
   return { vertices: normalizeToUnitEdges(vertices, edges), edges }
 }
 
-export type ShapeKind = 'straw' | 'tetrahedron' | 'squarePyramid' | 'octahedron'
+export type ShapeKind = 'straw' | 'tetrahedron' | 'square' | 'squarePyramid' | 'octahedron'
 
 export const PRIMITIVE_GENERATORS: Record<ShapeKind, () => PrimitiveGeometry> = {
   straw,
   tetrahedron,
+  square,
   squarePyramid,
   octahedron,
 }
@@ -117,6 +135,7 @@ export const PRIMITIVE_GENERATORS: Record<ShapeKind, () => PrimitiveGeometry> = 
 export const SHAPE_LABELS: Record<ShapeKind, string> = {
   straw: 'Straw Line',
   tetrahedron: '3-Corner Pyramid',
+  square: 'Square',
   squarePyramid: '4-Corner Pyramid',
   octahedron: 'Octahedron',
 }

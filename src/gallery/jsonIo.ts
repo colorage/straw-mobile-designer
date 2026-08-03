@@ -8,7 +8,13 @@ import {
 import type { Connection, EndpointRef, Shape, StrawSize } from '../state/types'
 import type { ShapeKind, Vector3Tuple } from '../geometry/primitives'
 
-const SHAPE_KINDS = new Set<ShapeKind>(['straw', 'tetrahedron', 'squarePyramid', 'octahedron'])
+const SHAPE_KINDS = new Set<ShapeKind>([
+  'straw',
+  'tetrahedron',
+  'square',
+  'squarePyramid',
+  'octahedron',
+])
 const STRAW_SIZES = new Set<StrawSize>([1, 0.5, 0.25])
 
 function isRecord(value: unknown): value is Record<string, unknown> {

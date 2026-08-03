@@ -2,16 +2,17 @@ import { SHAPE_LABELS, type ShapeKind } from '../geometry/primitives'
 import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
 
-const SHAPE_ORDER: ShapeKind[] = ['straw', 'tetrahedron', 'squarePyramid', 'octahedron']
+const SHAPE_ORDER: ShapeKind[] = ['straw', 'tetrahedron', 'square', 'squarePyramid', 'octahedron']
 
 const SHAPE_ICONS: Record<ShapeKind, string> = {
   straw: '│',
   tetrahedron: '△',
+  square: '□',
   squarePyramid: '▲',
   octahedron: '◇',
 }
 
-/** Buttons for adding the four building-block primitives to the workbench. */
+/** Buttons for adding the building-block primitives to the workbench. */
 export function Toolbar() {
   const addShape = useStrawMobileStore((s) => s.addShape)
 
