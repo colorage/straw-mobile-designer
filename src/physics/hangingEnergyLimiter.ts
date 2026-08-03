@@ -23,6 +23,11 @@ function clampVecSpeed(
  * After each physics step, soft-clamp hanging body velocities so rare solver
  * spikes cannot snowball through a multi-link spherical-joint chain.
  * Excess is scaled down to the cap — never zeroed — so natural sway remains.
+ *
+ * Runs at default useFrame priority (0), same as ReelInController. Physics
+ * uses updatePriority={-1} so this still runs after the Rapier step. Do NOT
+ * pass a positive priority — in R3F that disables automatic rendering unless
+ * the subscriber calls gl.render() itself, which freezes the canvas.
  */
 export function HangingEnergyLimiter() {
   useFrame(() => {
@@ -41,7 +46,7 @@ export function HangingEnergyLimiter() {
         // Body may have been freed between frames.
       }
     }
-  }, 1)
+  })
 
   return null
 }
