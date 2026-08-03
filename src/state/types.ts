@@ -10,6 +10,8 @@ export const STRAW_SIZE_LABELS: Record<StrawSize, string> = {
   0.25: '1/4',
 }
 
+export type QuatTuple = [number, number, number, number]
+
 export interface Shape {
   id: string
   kind: ShapeKind
@@ -19,7 +21,7 @@ export interface Shape {
   edges: Edge[]
   /** World transform (workbench pose while free; last synced pose while hanging). */
   position: Vector3Tuple
-  quaternion: [number, number, number, number]
+  quaternion: QuatTuple
 }
 
 export type EndpointRef =
@@ -32,11 +34,19 @@ export interface Connection {
   b: EndpointRef
 }
 
-/** Transient animation pulling a shape along a new thread until corners meet. */
+/** Solved world pose for a shape (reel-in target or resting layout). */
+export interface ShapePose {
+  position: Vector3Tuple
+  quaternion: QuatTuple
+}
+
+/** Transient animation pulling shapes along a new thread until corners meet. */
 export interface ShapeReelIn {
   shapeId: string
   from: Vector3Tuple
   to: Vector3Tuple
+  fromQuat: QuatTuple
+  toQuat: QuatTuple
   startedAt: number
   durationMs: number
 }
