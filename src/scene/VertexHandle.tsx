@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { Vector3Tuple } from '../geometry/primitives'
+import { useSoftwareGL } from './renderCapability'
 
 interface VertexHandleProps {
   position: Vector3Tuple
@@ -21,6 +22,7 @@ const HIT_AREA_RADIUS = 0.17
 /** A small clickable sphere marking a shape's corner, used to build thread connections. */
 export function VertexHandle({ position, pending, connected, onSelect }: VertexHandleProps) {
   const [hovered, setHovered] = useState(false)
+  const softwareGL = useSoftwareGL()
 
   const color = pending ? COLOR_PENDING : hovered ? COLOR_HOVER : connected ? COLOR_CONNECTED : COLOR_DEFAULT
   const radius = pending || hovered ? 0.085 : 0.06
@@ -51,10 +53,19 @@ export function VertexHandle({ position, pending, connected, onSelect }: VertexH
       >
         <sphereGeometry args={[HIT_AREA_RADIUS, 12, 12]} />
       </mesh>
-      <mesh>
+      <mesh castShadow={!softwareGL}>
         <sphereGeometry args={[radius, 16, 16]} />
-        {/* Unlit marker — stays visible on software WebGL where PBR shades to black. */}
-        <meshBasicMaterial color={color} toneMapped={false} />
+        {softwareGL ? (
+          <meshBasicMaterial color={color} toneMapped={false} />
+        ) : (
+          <meshStandardMaterial
+            color={color}
+            roughness={0.45}
+            metalness={0.1}
+            emissive={pending ? COLOR_PENDING : '#000000'}
+            emissiveIntensity={pending ? 0.5 : 0}
+          />
+        )}
       </mesh>
     </group>
   )

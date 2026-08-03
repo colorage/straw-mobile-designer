@@ -8,6 +8,10 @@ import { usePhysicsPersistence } from '../physics/usePhysicsPersistence'
 import { useStrawMobileStore } from '../state/store'
 import { setCameraView } from './cameraView'
 import { setCanvasBridge } from './canvasBridge'
+import { detectSoftwareGL, useSoftwareGL } from './renderCapability'
+
+const GRID_Y = -3.2
+const SHADOW_FLOOR_Y = -3.19
 
 const ORBIT_TARGET: [number, number, number] = [0, 2, 0]
 
@@ -82,6 +86,19 @@ function OrbitEnabledGuard() {
   return null
 }
 
+/** Dark workbench plane that catches directional shadows under the hanging mobile. */
+function ShadowFloor() {
+  const softwareGL = useSoftwareGL()
+  if (softwareGL) return null
+
+  return (
+    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, SHADOW_FLOOR_Y, 0]} receiveShadow>
+      <planeGeometry args={[40, 40]} />
+      <meshStandardMaterial color="#141622" roughness={1} metalness={0} />
+    </mesh>
+  )
+}
+
 /** Top-level 3D canvas: lighting, camera, and the unified edit/gravity scene. */
 export function Experience() {
   const selectShape = useStrawMobileStore((s) => s.selectShape)
@@ -92,6 +109,7 @@ export function Experience() {
       shadows
       camera={{ position: [6.5, 4.5, 8], fov: 42 }}
       onCreated={(state) => {
+        detectSoftwareGL(state.gl)
         setCanvasBridge(state.camera, state.gl.domElement)
         setCameraView(state.camera, { x: 0, y: 2, z: 0 })
         exposeDebugGlobals(state.camera, state.size, {
@@ -104,19 +122,24 @@ export function Experience() {
     >
       <color attach="background" args={['#11131a']} />
       <fog attach="fog" args={['#11131a', 45, 120]} />
-      <hemisphereLight intensity={0.7} groundColor="#20222c" />
+      <ambientLight intensity={0.22} />
+      <hemisphereLight intensity={0.65} groundColor="#20222c" />
       <directionalLight
         position={[5, 9, 4]}
-        intensity={1.15}
+        intensity={1.2}
         castShadow
-        shadow-mapSize={[1024, 1024]}
-        shadow-camera-left={-8}
-        shadow-camera-right={8}
-        shadow-camera-top={8}
-        shadow-camera-bottom={-8}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-near={0.5}
+        shadow-camera-far={28}
+        shadow-camera-left={-12}
+        shadow-camera-right={12}
+        shadow-camera-top={12}
+        shadow-camera-bottom={-12}
+        shadow-bias={-0.0002}
       />
+      <ShadowFloor />
       <Grid
-        position={[0, -3.2, 0]}
+        position={[0, GRID_Y, 0]}
         args={[40, 40]}
         cellColor="#262a37"
         sectionColor="#3a4054"

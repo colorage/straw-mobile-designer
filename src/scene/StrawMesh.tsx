@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
+import { useSoftwareGL } from './renderCapability'
 
 interface StrawMeshProps {
   start: Vector3Tuple
@@ -14,10 +15,11 @@ const UP = new THREE.Vector3(0, 1, 0)
 /**
  * Renders a single straw edge as a thin cylinder tube between two points.
  *
- * Uses an unlit material so straws stay visible on software WebGL (SwiftShader)
- * where MeshStandardMaterial can shade to near-black.
+ * Uses lit materials + shadows on real GPUs; falls back to unlit on software
+ * WebGL (SwiftShader) where MeshStandardMaterial can shade to near-black.
  */
 export function StrawMesh({ start, end, radius = 0.032, color = '#dcc186' }: StrawMeshProps) {
+  const softwareGL = useSoftwareGL()
   const { position, quaternion, length } = useMemo(() => {
     const a = new THREE.Vector3(...start)
     const b = new THREE.Vector3(...end)
@@ -32,12 +34,16 @@ export function StrawMesh({ start, end, radius = 0.032, color = '#dcc186' }: Str
     <mesh
       position={position}
       quaternion={quaternion}
-      castShadow={false}
-      receiveShadow={false}
+      castShadow={!softwareGL}
+      receiveShadow={!softwareGL}
       frustumCulled={false}
     >
       <cylinderGeometry args={[radius, radius, length, 10]} />
-      <meshBasicMaterial color={color} toneMapped={false} />
+      {softwareGL ? (
+        <meshBasicMaterial color={color} toneMapped={false} />
+      ) : (
+        <meshStandardMaterial color={color} roughness={0.6} metalness={0.05} />
+      )}
     </mesh>
   )
 }
