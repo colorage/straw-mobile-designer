@@ -8,10 +8,10 @@ import { easeOutCubic } from './reelIn'
 /**
  * Drives in-progress thread reel-ins.
  *
- * Kinematic bodies in react-three-rapier follow the React `position` prop / THREE
- * object, so each interpolated pose is written into transient `reelPositions`
- * (which PhysicsShape feeds into RigidBody). Persisted `shapes` only commit
- * when the reel finishes.
+ * Each interpolated pose is written into the kinematic body and into transient
+ * `reelPositions` (RigidBody prop + DrivenShapeVisual). `driveMesh` pushes the
+ * same pose to the plain visual group so the shorten is visible the same frame.
+ * Persisted `shapes` only commit when the reel finishes.
  */
 export function ReelInController() {
   // Priority 1: run after rapier's mesh←body sync so our visual write wins the frame.
