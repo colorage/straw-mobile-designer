@@ -182,6 +182,12 @@
   background: #e05a6a;
 }
 
+.project-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .ghost-button {
   width: 100%;
   padding: 9px 0;
@@ -193,9 +199,14 @@
   cursor: pointer;
 }
 
-.ghost-button:hover {
+.ghost-button:hover:not(:disabled) {
   border-color: #454c66;
   color: #e7e5ea;
+}
+
+.ghost-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .inventory-list {

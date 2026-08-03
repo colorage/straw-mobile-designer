@@ -93,6 +93,7 @@ function syncKinematicBody(shapeId: string, position: Vector3Tuple) {
  */
 function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) {
   const moveShape = useStrawMobileStore((s) => s.moveShape)
+  const pushHistory = useStrawMobileStore((s) => s.pushHistory)
   const basePosition = useRef(position).current
   const baseQuaternion = useRef(quaternion).current
 
@@ -104,6 +105,10 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
       lineWidth={2.5}
       fixed
       depthTest={false}
+      onDragStart={() => {
+        // One history entry per drag gesture — not per onDrag frame.
+        pushHistory()
+      }}
       onDrag={(l) => {
         const next: Vector3Tuple = [
           basePosition[0] + l.elements[12],

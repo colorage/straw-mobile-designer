@@ -28,11 +28,29 @@ export { ANCHOR_POSITION, BASE_STRAW_LENGTH, getScaledVertex } from './shapeSpac
  */
 const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
 const PERSISTED_STORAGE_VERSION = 2
+/** Max design snapshots kept for undo / redo. */
+const HISTORY_LIMIT = 50
 
 const createId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
     ? crypto.randomUUID()
     : Math.random().toString(36).slice(2)
+
+/** The subset of state that's worth remembering between visits / undo steps. */
+export type PersistedMobileState = {
+  shapes: Shape[]
+  connections: Connection[]
+  strawSize: StrawSize
+}
+
+/** Clone the durable design fields for a history entry. */
+function snapshotDesign(state: PersistedMobileState): PersistedMobileState {
+  return structuredClone({
+    shapes: state.shapes,
+    connections: state.connections,
+    strawSize: state.strawSize,
+  })
+}
 
 export function computeStrawCounts(shapes: Shape[]): StrawCounts {
   const bySize: Record<StrawSize, number> = { 1: 0, 0.5: 0, 0.25: 0 }
@@ -79,7 +97,15 @@ interface StrawMobileState {
   reelIns: ShapeReelIn[]
   /** Live poses while reeling — drives the mesh without touching persisted shapes. */
   reelPositions: Record<string, Vector3Tuple>
+  /** Prior design snapshots for Undo (not persisted across reloads). */
+  past: PersistedMobileState[]
+  /** Snapshots undone, available for Redo (not persisted across reloads). */
+  future: PersistedMobileState[]
 
+  /** Snapshot the current design before an undoable mutation (or drag-start). */
+  pushHistory: () => void
+  undo: () => void
+  redo: () => void
   addShape: (kind: ShapeKind, position?: Vector3Tuple) => string
   removeShape: (id: string) => void
   setStrawSize: (size: StrawSize) => void
@@ -97,8 +123,30 @@ interface StrawMobileState {
   getStrawCounts: () => StrawCounts
 }
 
-/** The subset of state that's worth remembering between visits. */
-export type PersistedMobileState = Pick<StrawMobileState, 'shapes' | 'connections' | 'strawSize'>
+function applyDesignSnapshot(
+  set: (
+    partial:
+      | Partial<StrawMobileState>
+      | ((state: StrawMobileState) => Partial<StrawMobileState>),
+  ) => void,
+  get: () => StrawMobileState,
+  snapshot: PersistedMobileState,
+  history: { past: PersistedMobileState[]; future: PersistedMobileState[] },
+) {
+  // Drop body refs so physics remounts from the restored shape list.
+  for (const shape of get().shapes) clearBodyRef(shape.id)
+  set({
+    shapes: snapshot.shapes,
+    connections: snapshot.connections,
+    strawSize: snapshot.strawSize,
+    pendingVertex: null,
+    selectedShapeId: null,
+    reelIns: [],
+    reelPositions: {},
+    past: history.past,
+    future: history.future,
+  })
+}
 
 export const useStrawMobileStore = create<StrawMobileState>()(
   persist(
@@ -110,8 +158,43 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       selectedShapeId: null,
       reelIns: [],
       reelPositions: {},
+      past: [],
+      future: [],
+
+      pushHistory: () => {
+        const state = get()
+        const entry = snapshotDesign(state)
+        const past = [...state.past, entry]
+        if (past.length > HISTORY_LIMIT) past.splice(0, past.length - HISTORY_LIMIT)
+        set({ past, future: [] })
+      },
+
+      undo: () => {
+        const state = get()
+        if (state.past.length === 0) return
+        const past = [...state.past]
+        const previous = past.pop()!
+        const current = snapshotDesign(state)
+        applyDesignSnapshot(set, get, previous, {
+          past,
+          future: [...state.future, current],
+        })
+      },
+
+      redo: () => {
+        const state = get()
+        if (state.future.length === 0) return
+        const future = [...state.future]
+        const next = future.pop()!
+        const current = snapshotDesign(state)
+        applyDesignSnapshot(set, get, next, {
+          past: [...state.past, current],
+          future,
+        })
+      },
 
       addShape: (kind, position) => {
+        get().pushHistory()
         const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
         const { strawSize, shapes } = get()
         const id = createId()
@@ -137,6 +220,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       removeShape: (id) => {
+        get().pushHistory()
         const { connections, shapes, selectedShapeId, pendingVertex, reelIns } = get()
         const previousHanging = getHangingShapeIds(connections)
         const nextConnections = connections.filter(
@@ -160,7 +244,11 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         })
       },
 
-      setStrawSize: (size) => set({ strawSize: size }),
+      setStrawSize: (size) => {
+        if (get().strawSize === size) return
+        get().pushHistory()
+        set({ strawSize: size })
+      },
 
       selectVertex: (endpoint) => {
         const { pendingVertex, connections, shapes, selectedShapeId } = get()
@@ -189,6 +277,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           set({ pendingVertex: null })
           return
         }
+
+        get().pushHistory()
 
         const connection: Connection = {
           id: createId(),
@@ -253,6 +343,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       clearPendingVertex: () => set({ pendingVertex: null }),
 
       removeConnection: (id) => {
+        get().pushHistory()
         const { connections, shapes, reelIns } = get()
         const previousHanging = getHangingShapeIds(connections)
         const nextConnections = connections.filter((connection) => connection.id !== id)
@@ -310,6 +401,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       reset: () => {
+        get().pushHistory()
         for (const shape of get().shapes) clearBodyRef(shape.id)
         set({
           shapes: [],
@@ -322,6 +414,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       loadProject: (snapshot) => {
+        get().pushHistory()
         for (const shape of get().shapes) clearBodyRef(shape.id)
         set({
           shapes: snapshot.shapes,
@@ -340,7 +433,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       name: PERSISTED_STORAGE_KEY,
       version: PERSISTED_STORAGE_VERSION,
       storage: createJSONStorage(() => localStorage),
-      // Click-in-progress / selection / reel-in state are transient UI concerns.
+      // Click-in-progress / selection / reel-in / undo stacks are transient.
       partialize: (state): PersistedMobileState => ({
         shapes: state.shapes,
         connections: state.connections,
@@ -355,11 +448,13 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       merge: (persisted, current) => ({
         ...current,
         ...(persisted as Partial<StrawMobileState>),
-        // Never restore in-flight UI animations from storage.
+        // Never restore in-flight UI animations or undo stacks from storage.
         reelIns: [],
         reelPositions: {},
         pendingVertex: null,
         selectedShapeId: null,
+        past: [],
+        future: [],
       }),
     },
   ),
