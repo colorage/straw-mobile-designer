@@ -12,6 +12,9 @@ import {
   overlapPairKey,
 } from './cornerProximity'
 
+/** Proximity scans are far cheaper than 60 Hz; dwell is 2.5s so ~15 Hz is plenty. */
+const SCAN_INTERVAL_S = 1 / 15
+
 function bodySpeed(bodyKey: string): number {
   if (bodyKey === 'anchor') return 0
   const body = getBodyRef(bodyKey).current
@@ -68,12 +71,16 @@ function pairIsSettled(
  *
  * Runs at default useFrame priority (0), same as ReelInController — do not pass
  * a positive priority or R3F will skip automatic rendering.
+ *
+ * Scans are throttled to SCAN_INTERVAL_S; the pairwise search itself is also
+ * spatially hashed (see findClosestOverlappingPair).
  */
 export function OverlapConnectController() {
   const dwellKeyRef = useRef<string | null>(null)
   const dwellStartedAtRef = useRef<number>(0)
+  const scanAccumulatorRef = useRef(0)
 
-  useFrame(() => {
+  useFrame((_, delta) => {
     const {
       shapes,
       connections,
@@ -91,10 +98,17 @@ export function OverlapConnectController() {
       }
     }
 
+    // Cheap mode gates run every frame so scissors/empty clear suggest immediately.
     if (activeTool === 'scissors' || shapes.length === 0) {
+      scanAccumulatorRef.current = 0
       clearDwell()
       return
     }
+
+    scanAccumulatorRef.current += delta
+    if (scanAccumulatorRef.current < SCAN_INTERVAL_S) return
+    // Keep residual so hitchy frames don't permanently desync the cadence.
+    scanAccumulatorRef.current %= SCAN_INTERVAL_S
 
     const hangingIds = getHangingShapeIds(connections)
     const reelingIds = new Set(reelIns.map((reel) => reel.shapeId))
