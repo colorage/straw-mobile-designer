@@ -10,6 +10,7 @@ import {
 } from '../physics/restingLayout'
 import { findAddPosition } from '../scene/placement'
 import {
+  endpointBodyKey,
   endpointsEqual,
   STRAW_SIZES,
   type Connection,
@@ -17,6 +18,7 @@ import {
   type OverlapSuggest,
   type QuatTuple,
   type Shape,
+  type ShapePose,
   type ShapeReelIn,
   type StrawCounts,
   type StrawSize,
@@ -414,9 +416,22 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         })
 
         const joinsHanging = [...nextHanging].some((id) => !previousHanging.has(id))
-        const targets = joinsHanging
-          ? computeRestingPoses(shapesForLayout, nextConnections, previousHanging)
-          : computeFreeTightenPoses(shapesForLayout, nextConnections, connection)
+        const aKey = endpointBodyKey(a)
+        const bKey = endpointBodyKey(b)
+        const aAlreadyOnChain = aKey === 'anchor' || previousHanging.has(aKey)
+        const bAlreadyOnChain = bKey === 'anchor' || previousHanging.has(bKey)
+        // Hanging↔hanging (or hanging↔hook on an already-hung piece): don't run
+        // the free workbench tightener — it ignores hook pins and yanks the chain.
+        // Overlap auto-connect only fires when corners are already close, so the
+        // new joint can close the remaining gap under gravity.
+        let targets: Map<string, ShapePose>
+        if (joinsHanging) {
+          targets = computeRestingPoses(shapesForLayout, nextConnections, previousHanging)
+        } else if (aAlreadyOnChain && bAlreadyOnChain) {
+          targets = new Map()
+        } else {
+          targets = computeFreeTightenPoses(shapesForLayout, nextConnections, connection)
+        }
 
         // Keep current poses for animated shapes; apply already-closed gaps now.
         const newReelIns = buildReelIns(shapesForLayout, targets)

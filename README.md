@@ -7,7 +7,7 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 - **Primitives**: single straw lines, 3-corner pyramids (tetrahedra), squares (4 straws), 4-corner (square) pyramids, and octahedra — the classic himmeli "diamond".
 - **Scissors tool**: click a straw to remove it; prebuilt shapes are deleted entirely.
 - **Straw size selector**: `1`, `1/2`, `1/4` scale, applied to newly added shapes.
-- **Corner connections**: click a corner, then click another corner (or the ceiling hook) to tie a thread between them. Hold two free corners (or a free corner and the hook) overlapping for ~2.5 seconds to auto-connect.
+- **Corner connections**: click a corner, then click another corner (or the ceiling hook) to tie a thread between them. Hold two corners overlapping for ~2.5 seconds to auto-connect — including free ends of hanging pieces once they settle (hub spokes already tied to the same corner are ignored).
 - **Undo / Redo**: reverse or re-apply design edits (add/remove shapes, connections, moves, straw size, reset, gallery load) via the Project panel or Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z.
 - **Straws Used panel**: a live count of straws in the design, broken down by size.
 - **Live gravity**: physics runs while you build. Free pieces stay put on the workbench until they have a connection path to the ceiling hook; once tied into that chain they become real rigid bodies ([@react-three/rapier](https://github.com/pmndrs/react-three-rapier)) linked by ball-and-socket joints, get a gentle wake nudge, and hang/sway under gravity.

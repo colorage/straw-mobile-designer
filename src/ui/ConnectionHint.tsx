@@ -24,7 +24,7 @@ export function ConnectionHint() {
         : 'Now click another corner — or the ceiling hook — to tie a thread. Connected free pieces tighten together; the hook chain hangs under gravity.'
   } else {
     message =
-      'Click a corner, then another corner (or the ceiling hook) to connect thread — or hold two free corners together for a couple of seconds to auto-tie. Free pieces pull together as the thread tightens — a cycle of straws forms a polygon on the workbench. Pieces on the hook chain hang and sway under gravity. Click a free straw body to select & drag it.'
+      'Click a corner, then another corner (or the ceiling hook) to connect thread — or hold two corners together for a couple of seconds to auto-tie (works for free pieces and for free ends of hanging straws once they settle). Free pieces pull together as the thread tightens — a cycle of straws forms a polygon on the workbench. Pieces on the hook chain hang and sway under gravity. Click a free straw body to select & drag it.'
   }
 
   return (
