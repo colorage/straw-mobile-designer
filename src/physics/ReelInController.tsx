@@ -12,9 +12,13 @@ import { easeOutCubic } from './reelIn'
  * `reelPositions` (RigidBody prop + DrivenShapeVisual). `driveMesh` pushes the
  * same pose to the plain visual group so the shorten is visible the same frame.
  * Persisted `shapes` only commit when the reel finishes.
+ *
+ * Runs at default useFrame priority (0). Physics uses updatePriority={-1} so
+ * Rapier steps first; this callback then overwrites the visual. Do NOT pass a
+ * positive priority — in R3F that disables automatic rendering unless the
+ * subscriber calls gl.render() itself, which froze the production canvas.
  */
 export function ReelInController() {
-  // Priority 1: run after rapier's mesh←body sync so our visual write wins the frame.
   useFrame(() => {
     const { reelIns, finishReelIns, setReelPositions } = useStrawMobileStore.getState()
     const active = reelIns ?? []
@@ -61,7 +65,7 @@ export function ReelInController() {
 
     setReelPositions(framePositions)
     if (completed.length > 0) finishReelIns(completed)
-  }, 1)
+  })
 
   return null
 }

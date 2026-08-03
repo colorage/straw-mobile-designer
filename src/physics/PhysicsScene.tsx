@@ -91,7 +91,7 @@ export function PhysicsScene() {
   }, [connections])
 
   return (
-    <Physics gravity={[0, -9.81, 0]}>
+    <Physics gravity={[0, -9.81, 0]} updatePriority={-1}>
       <FixedAnchorBody />
       <CeilingHookVisual />
       <ReelInController />

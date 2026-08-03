@@ -5,9 +5,9 @@ let ready: Promise<void> | null = null
 /**
  * Load Rapier WASM before React mounts.
  *
- * @react-three/rapier's <Physics> suspends until init finishes. Pre-loading
- * makes that suspend a no-op so shapes/anchor appear on the first paint
- * instead of after a late Suspense resolve.
+ * Production builds patch <Physics> to use the static Rapier module (see
+ * vite.config.ts) instead of suspend-react + dynamic import. Pre-init here so
+ * `new World(...)` is safe on the first Physics render.
  */
 export function ensureRapier(): Promise<void> {
   if (!ready) {

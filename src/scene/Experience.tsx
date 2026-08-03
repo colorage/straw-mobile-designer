@@ -1,6 +1,6 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Grid, OrbitControls } from '@react-three/drei'
-import { Suspense, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { exposeDebugGlobals } from '../debug/exposeForTesting'
 import { PhysicsScene } from '../physics/PhysicsScene'
@@ -123,15 +123,8 @@ export function Experience() {
         fadeDistance={26}
         infiniteGrid
       />
-      {/*
-        Rapier's <Physics> suspends while WASM loads. If that suspend hits the
-        Canvas root Suspense boundary, the whole scene (grid, lights, controls)
-        unmounts and never recovers cleanly — blank clear-color canvas.
-        Keep Physics in its own boundary so the rest of the scene stays up.
-      */}
-      <Suspense fallback={null}>
-        <PhysicsScene />
-      </Suspense>
+      {/* Physics no longer suspends — see vite.config.ts rapierSyncPhysicsPlugin. */}
+      <PhysicsScene />
       <CameraViewSync />
       <OrbitEnabledGuard />
     </Canvas>
