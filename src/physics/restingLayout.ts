@@ -20,7 +20,6 @@ import {
   worldVertexFromPose,
   type MutablePose,
 } from './poseMath'
-import { getRigidClusterShapeIds } from './rigidConnections'
 
 const FREE_SOLVER_ITERATIONS = 56
 const ROTATION_BLEND = 0.55
@@ -365,29 +364,6 @@ export function computeRestingPoses(
 
       const targetWorldPos = worldPositionOf(self)
       if (!targetWorldPos) continue
-
-      // Closed constructions (triangles, etc.) move as one rigid piece so
-      // hanging from the hook doesn't tear the cluster into separate straws.
-      const clusterIds = getRigidClusterShapeIds(connections, other.shapeId)
-      if (clusterIds.size > 1) {
-        const attachCorner = localVertex(otherShape, other.vertexIndex)
-          .applyQuaternion(new THREE.Quaternion(...otherShape.quaternion))
-          .add(new THREE.Vector3(...otherShape.position))
-        const delta = targetWorldPos.clone().sub(attachCorner)
-
-        for (const memberId of clusterIds) {
-          if (visited.has(memberId) || fixedShapeIds.has(memberId)) continue
-          const member = shapesById.get(memberId)
-          if (!member) continue
-          resolved.set(memberId, {
-            position: toVector3Tuple(new THREE.Vector3(...member.position).add(delta)),
-            quaternion: [...member.quaternion] as QuatTuple,
-          })
-          visited.add(memberId)
-          queue.push(memberId)
-        }
-        continue
-      }
 
       // Hang-aligned: tied corner points toward the parent attachment.
       const parentHint =
