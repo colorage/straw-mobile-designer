@@ -5,6 +5,7 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 ## Features
 
 - **Primitives**: single straw lines, 3-corner pyramids (tetrahedra), squares (4 straws), 4-corner (square) pyramids, and octahedra — the classic himmeli "diamond".
+- **Scissors tool**: click a straw to remove it; prebuilt shapes are deleted entirely.
 - **Straw size selector**: `1`, `1/2`, `1/4` scale, applied to newly added shapes.
 - **Corner connections**: click a corner, then click another corner (or the ceiling hook) to tie a thread between them.
 - **Undo / Redo**: reverse or re-apply design edits (add/remove shapes, connections, moves, straw size, reset, gallery load) via the Project panel or Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z.

@@ -86,6 +86,9 @@ function withSyncedLeavingHanging(
   return changed ? updated : shapes
 }
 
+/** Transient edit tool: select/drag/connect vs click-to-cut. */
+export type ActiveTool = 'select' | 'scissors'
+
 interface StrawMobileState {
   shapes: Shape[]
   connections: Connection[]
@@ -93,6 +96,8 @@ interface StrawMobileState {
   pendingVertex: EndpointRef | null
   /** The free shape currently picked up for dragging, if any. */
   selectedShapeId: string | null
+  /** Current edit tool (not persisted). */
+  activeTool: ActiveTool
   /** In-progress thread shorten animations (not persisted). */
   reelIns: ShapeReelIn[]
   /** Live poses while reeling — drives the mesh without touching persisted shapes. */
@@ -115,6 +120,7 @@ interface StrawMobileState {
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: [number, number, number, number]) => void
   moveShape: (id: string, position: Vector3Tuple) => void
   selectShape: (id: string | null) => void
+  setActiveTool: (tool: ActiveTool) => void
   setReelPositions: (positions: Record<string, Vector3Tuple>) => void
   finishReelIns: (completed: { shapeId: string; position: Vector3Tuple }[]) => void
   reset: () => void
@@ -141,6 +147,7 @@ function applyDesignSnapshot(
     strawSize: snapshot.strawSize,
     pendingVertex: null,
     selectedShapeId: null,
+    activeTool: 'select',
     reelIns: [],
     reelPositions: {},
     past: history.past,
@@ -156,6 +163,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       strawSize: 1,
       pendingVertex: null,
       selectedShapeId: null,
+      activeTool: 'select',
       reelIns: [],
       reelPositions: {},
       past: [],
@@ -377,6 +385,14 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       selectShape: (id) => set({ selectedShapeId: id }),
 
+      setActiveTool: (tool) => {
+        if (tool === 'scissors') {
+          set({ activeTool: tool, selectedShapeId: null, pendingVertex: null })
+          return
+        }
+        set({ activeTool: tool })
+      },
+
       setReelPositions: (positions) =>
         set((state) => ({
           reelPositions: { ...state.reelPositions, ...positions },
@@ -408,6 +424,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: [],
           pendingVertex: null,
           selectedShapeId: null,
+          activeTool: 'select',
           reelIns: [],
           reelPositions: {},
         })
@@ -422,6 +439,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           strawSize: snapshot.strawSize,
           pendingVertex: null,
           selectedShapeId: null,
+          activeTool: 'select',
           reelIns: [],
           reelPositions: {},
         })
@@ -453,6 +471,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         reelPositions: {},
         pendingVertex: null,
         selectedShapeId: null,
+        activeTool: 'select',
         past: [],
         future: [],
       }),

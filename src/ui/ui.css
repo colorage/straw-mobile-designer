@@ -52,6 +52,11 @@
   position: relative;
 }
 
+.canvas-area.is-scissors,
+.canvas-area.is-scissors canvas {
+  cursor: crosshair;
+}
+
 .panel {
   background: #1b1e29;
   border: 1px solid #2a2e3d;

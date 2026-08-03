@@ -1,5 +1,5 @@
 import { RigidBody } from '@react-three/rapier'
-import { useFrame } from '@react-three/fiber'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { Group } from 'three'
 import { SelectableShape } from '../scene/SelectableShape'
@@ -82,6 +82,9 @@ function DrivenShapeVisual({
   isVertexConnected,
 }: Omit<PhysicsShapeProps, 'hanging' | 'reeling'>) {
   const groupRef = useRef<Group>(null)
+  const removeShape = useStrawMobileStore((s) => s.removeShape)
+  const activeTool = useStrawMobileStore((s) => s.activeTool)
+  const isScissors = activeTool === 'scissors'
 
   useLayoutEffect(() => {
     return registerMeshDriver(shape.id, (position) => {
@@ -117,14 +120,23 @@ function DrivenShapeVisual({
     }
   })
 
+  const handleBodyClick = isScissors
+    ? (event: ThreeEvent<MouseEvent>) => {
+        event.stopPropagation()
+        removeShape(shape.id)
+      }
+    : undefined
+
   return (
     <group ref={groupRef} position={shape.position} quaternion={shape.quaternion}>
       <ShapeGroup
         shape={shape}
-        interactive
+        interactive={!isScissors}
         onVertexClick={onVertexClick}
         isVertexPending={isVertexPending}
         isVertexConnected={isVertexConnected}
+        scissorsHover={isScissors}
+        onBodyClick={handleBodyClick}
       />
     </group>
   )

@@ -29,6 +29,7 @@ function CeilingHookVisual() {
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
   const connections = useStrawMobileStore((s) => s.connections)
   const selectVertex = useStrawMobileStore((s) => s.selectVertex)
+  const activeTool = useStrawMobileStore((s) => s.activeTool)
 
   const connected = useMemo(
     () => connections.some((c) => c.a.kind === 'anchor' || c.b.kind === 'anchor'),
@@ -38,12 +39,14 @@ function CeilingHookVisual() {
   return (
     <group position={ANCHOR_POSITION}>
       <AnchorPoint />
-      <VertexHandle
-        position={[0, 0, 0]}
-        pending={pendingVertex?.kind === 'anchor'}
-        connected={connected}
-        onSelect={() => selectVertex({ kind: 'anchor' })}
-      />
+      {activeTool !== 'scissors' && (
+        <VertexHandle
+          position={[0, 0, 0]}
+          pending={pendingVertex?.kind === 'anchor'}
+          connected={connected}
+          onSelect={() => selectVertex({ kind: 'anchor' })}
+        />
+      )}
     </group>
   )
 }

@@ -4,9 +4,13 @@ import { useStrawMobileStore } from '../state/store'
 export function ConnectionHint() {
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
   const shapeCount = useStrawMobileStore((s) => s.shapes.length)
+  const activeTool = useStrawMobileStore((s) => s.activeTool)
 
   let message: string
-  if (shapeCount === 0) {
+  if (activeTool === 'scissors') {
+    message =
+      'Click a straw to cut it. Prebuilt shapes are removed entirely. Escape returns to Select.'
+  } else if (shapeCount === 0) {
     message =
       'Drag a shape from the toolbar onto the scene, or click to add one in view. Tie a corner to the ceiling hook to hang it under gravity.'
   } else if (pendingVertex) {

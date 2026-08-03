@@ -11,6 +11,7 @@ import { ShapesList } from './ui/ShapesList'
 import { SizeSelector } from './ui/SizeSelector'
 import { StrawInventory } from './ui/StrawInventory'
 import { Toolbar } from './ui/Toolbar'
+import { ToolPanel } from './ui/ToolPanel'
 import './ui/ui.css'
 
 const SHAPE_KINDS = new Set<string>(Object.keys(SHAPE_LABELS))
@@ -29,6 +30,7 @@ function readDraggedShapeKind(dataTransfer: DataTransfer): ShapeKind | null {
 
 function App() {
   const addShape = useStrawMobileStore((s) => s.addShape)
+  const activeTool = useStrawMobileStore((s) => s.activeTool)
 
   const handleDragOver = (event: DragEvent<HTMLElement>) => {
     const types = [...event.dataTransfer.types]
@@ -55,6 +57,7 @@ function App() {
           Build a himmeli-style straw mobile — pieces hang and balance as you tie them to the hook.
         </p>
         <SaveStatus />
+        <ToolPanel />
         <Toolbar />
         <SizeSelector />
         <ShapesList />
@@ -63,7 +66,11 @@ function App() {
         <ModeBar />
         <ConnectionHint />
       </aside>
-      <main className="canvas-area" onDragOver={handleDragOver} onDrop={handleDrop}>
+      <main
+        className={`canvas-area${activeTool === 'scissors' ? ' is-scissors' : ''}`}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         <Experience />
       </main>
     </div>

@@ -30,25 +30,33 @@ export function SelectableShape({
   isVertexConnected,
 }: SelectableShapeProps) {
   const selectShape = useStrawMobileStore((s) => s.selectShape)
+  const removeShape = useStrawMobileStore((s) => s.removeShape)
+  const activeTool = useStrawMobileStore((s) => s.activeTool)
+  const isScissors = activeTool === 'scissors'
 
   const handleBodyClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
+    if (isScissors) {
+      removeShape(shape.id)
+      return
+    }
     selectShape(shape.id)
   }
 
   const shapeGroup = (
     <ShapeGroup
       shape={shape}
-      interactive
+      interactive={!isScissors}
       onVertexClick={onVertexClick}
       isVertexPending={isVertexPending}
       isVertexConnected={isVertexConnected}
       selected={isSelected}
+      scissorsHover={isScissors}
       onBodyClick={handleBodyClick}
     />
   )
 
-  if (!isSelected) {
+  if (!isSelected || isScissors) {
     return (
       <group position={shape.position} quaternion={shape.quaternion}>
         {shapeGroup}
