@@ -17,10 +17,10 @@ export function ConnectionHint() {
     message =
       pendingVertex.kind === 'anchor'
         ? 'Now click a shape corner to hang it from the ceiling hook under gravity.'
-        : 'Now click another corner — or the ceiling hook — to tie a thread. Pieces on the hook chain hang and sway under gravity.'
+        : 'Now click another corner — or the ceiling hook — to tie a thread. Connected free pieces tighten together; the hook chain hangs under gravity.'
   } else {
     message =
-      'Click a corner, then the ceiling hook (or another corner) to connect thread. Free pieces stay put until they join the hook chain — then gravity takes over. Click a free straw body to select & drag it.'
+      'Click a corner, then another corner (or the ceiling hook) to connect thread. Free pieces pull together as the thread tightens — a cycle of straws forms a polygon on the workbench. Pieces on the hook chain hang and sway under gravity. Click a free straw body to select & drag it.'
   }
 
   return (

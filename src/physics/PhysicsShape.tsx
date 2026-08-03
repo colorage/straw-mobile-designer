@@ -87,8 +87,13 @@ function DrivenShapeVisual({
   const isScissors = activeTool === 'scissors'
 
   useLayoutEffect(() => {
-    return registerMeshDriver(shape.id, (position) => {
-      groupRef.current?.position.set(position[0], position[1], position[2])
+    return registerMeshDriver(shape.id, (position, quaternion) => {
+      const group = groupRef.current
+      if (!group) return
+      group.position.set(position[0], position[1], position[2])
+      if (quaternion) {
+        group.quaternion.set(quaternion[0], quaternion[1], quaternion[2], quaternion[3])
+      }
     })
   }, [shape.id])
 
@@ -96,15 +101,13 @@ function DrivenShapeVisual({
     const group = groupRef.current
     if (!group) return
 
-    const reelPosition = useStrawMobileStore.getState().reelPositions[shape.id]
+    const state = useStrawMobileStore.getState()
+    const reelPosition = state.reelPositions[shape.id]
+    const reelQuaternion = state.reelQuaternions[shape.id]
     if (reelPosition) {
       group.position.set(reelPosition[0], reelPosition[1], reelPosition[2])
-      group.quaternion.set(
-        shape.quaternion[0],
-        shape.quaternion[1],
-        shape.quaternion[2],
-        shape.quaternion[3],
-      )
+      const q = reelQuaternion ?? shape.quaternion
+      group.quaternion.set(q[0], q[1], q[2], q[3])
       return
     }
 
@@ -167,9 +170,11 @@ export function PhysicsShape({
     (s) => s.selectedShapeIds[s.selectedShapeIds.length - 1] === shape.id,
   )
   const reelPosition = useStrawMobileStore((s) => s.reelPositions[shape.id])
+  const reelQuaternion = useStrawMobileStore((s) => s.reelQuaternions[shape.id])
   const isDynamic = hanging && !reeling
   const isFree = !hanging && !reeling
   const worldPosition = reelPosition ?? shape.position
+  const worldQuaternion = reelQuaternion ?? shape.quaternion
   const wasDynamicRef = useRef(false)
 
   // When a shape first becomes dynamic (joins the hook chain / finishes reel-in),
@@ -218,7 +223,7 @@ export function PhysicsShape({
         ref={ref}
         type={isDynamic ? 'dynamic' : 'kinematicPosition'}
         position={worldPosition}
-        quaternion={shape.quaternion}
+        quaternion={worldQuaternion}
         colliders="hull"
         // Hull meshes live in a hidden group so they don't double-draw; Rapier
         // skips invisible children unless this flag is set (otherwise mass=0).

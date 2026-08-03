@@ -55,12 +55,15 @@ export function getEndpointWorldPosition(
   if (!shape) return null
 
   const [lx, ly, lz] = getScaledVertex(shape, endpoint.vertexIndex)
-  const reelPosition = useStrawMobileStore.getState().reelPositions[endpoint.shapeId]
+  const state = useStrawMobileStore.getState()
+  const reelPosition = state.reelPositions[endpoint.shapeId]
+  const reelQuaternion = state.reelQuaternions[endpoint.shapeId]
   const body = getBodyRef(endpoint.shapeId).current
   // Prefer live reel pose so the thread shortens in sync with the sliding mesh.
   if (reelPosition) {
+    const q = reelQuaternion ?? shape.quaternion
     return new THREE.Vector3(lx, ly, lz)
-      .applyQuaternion(new THREE.Quaternion(...shape.quaternion))
+      .applyQuaternion(new THREE.Quaternion(...q))
       .add(new THREE.Vector3(...reelPosition))
   }
   if (body) {
