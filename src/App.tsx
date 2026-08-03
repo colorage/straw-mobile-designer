@@ -4,6 +4,7 @@ import { Experience } from './scene/Experience'
 import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME, screenToWorkbenchPlane } from './scene/canvasBridge'
 import { useStrawMobileStore } from './state/store'
 import { ConnectionHint } from './ui/ConnectionHint'
+import { GalleryPanel } from './ui/GalleryPanel'
 import { ModeBar } from './ui/ModeBar'
 import { SaveStatus } from './ui/SaveStatus'
 import { ShapesList } from './ui/ShapesList'
@@ -58,6 +59,7 @@ function App() {
         <SizeSelector />
         <ShapesList />
         <StrawInventory />
+        <GalleryPanel />
         <ModeBar />
         <ConnectionHint />
       </aside>

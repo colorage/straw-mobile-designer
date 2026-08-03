@@ -107,10 +107,11 @@ export function Experience() {
   return (
     <Canvas
       shadows
+      gl={{ preserveDrawingBuffer: true }}
       camera={{ position: [6.5, 4.5, 8], fov: 42 }}
       onCreated={(state) => {
         detectSoftwareGL(state.gl)
-        setCanvasBridge(state.camera, state.gl.domElement)
+        setCanvasBridge(state.camera, state.gl.domElement, state.gl, state.scene)
         setCameraView(state.camera, { x: 0, y: 2, z: 0 })
         exposeDebugGlobals(state.camera, state.size, {
           scene: state.scene,

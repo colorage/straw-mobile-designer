@@ -7,6 +7,7 @@ export const SHAPE_DRAG_MIME = 'application/x-straw-shape'
 export const SHAPE_DRAG_TEXT_MIME = 'text/plain'
 
 const WORKBENCH_PLANE = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0)
+
 const _ndc = new THREE.Vector2()
 const _raycaster = new THREE.Raycaster()
 const _hit = new THREE.Vector3()
@@ -14,13 +15,25 @@ const _camPlane = new THREE.Plane()
 const _forward = new THREE.Vector3()
 const _lookAt = new THREE.Vector3(0, 2, 0)
 
+const THUMBNAIL_MAX_WIDTH = 320
+const THUMBNAIL_JPEG_QUALITY = 0.72
+
 let camera: THREE.Camera | null = null
 let canvasElement: HTMLCanvasElement | null = null
+let renderer: THREE.WebGLRenderer | null = null
+let scene: THREE.Scene | null = null
 
 /** Keep the latest R3F camera + canvas so DOM drop handlers can raycast. */
-export function setCanvasBridge(nextCamera: THREE.Camera, canvas: HTMLCanvasElement) {
+export function setCanvasBridge(
+  nextCamera: THREE.Camera,
+  canvas: HTMLCanvasElement,
+  nextRenderer?: THREE.WebGLRenderer,
+  nextScene?: THREE.Scene,
+) {
   camera = nextCamera
   canvasElement = canvas
+  if (nextRenderer) renderer = nextRenderer
+  if (nextScene) scene = nextScene
 }
 
 /**
@@ -49,4 +62,32 @@ export function screenToWorkbenchPlane(clientX: number, clientY: number): Vector
   const camHit = _raycaster.ray.intersectPlane(_camPlane, _hit)
   if (!camHit) return null
   return [camHit.x, camHit.y, camHit.z]
+}
+
+/**
+ * Capture the current 3D view as a small JPEG data URL for gallery thumbnails.
+ * Returns null when the canvas bridge is not ready yet.
+ */
+export function captureCanvasThumbnail(): string | null {
+  if (!renderer || !scene || !camera || !canvasElement) return null
+
+  renderer.render(scene, camera)
+
+  const source = canvasElement
+  const sourceWidth = source.width
+  const sourceHeight = source.height
+  if (sourceWidth <= 0 || sourceHeight <= 0) return null
+
+  const scale = Math.min(1, THUMBNAIL_MAX_WIDTH / sourceWidth)
+  const width = Math.max(1, Math.round(sourceWidth * scale))
+  const height = Math.max(1, Math.round(sourceHeight * scale))
+
+  const offscreen = document.createElement('canvas')
+  offscreen.width = width
+  offscreen.height = height
+  const ctx = offscreen.getContext('2d')
+  if (!ctx) return null
+
+  ctx.drawImage(source, 0, 0, width, height)
+  return offscreen.toDataURL('image/jpeg', THUMBNAIL_JPEG_QUALITY)
 }

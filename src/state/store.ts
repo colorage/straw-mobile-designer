@@ -92,11 +92,13 @@ interface StrawMobileState {
   setReelPositions: (positions: Record<string, Vector3Tuple>) => void
   finishReelIns: (completed: { shapeId: string; position: Vector3Tuple }[]) => void
   reset: () => void
+  /** Replace the working draft with a gallery / import snapshot. */
+  loadProject: (snapshot: PersistedMobileState) => void
   getStrawCounts: () => StrawCounts
 }
 
 /** The subset of state that's worth remembering between visits. */
-type PersistedMobileState = Pick<StrawMobileState, 'shapes' | 'connections' | 'strawSize'>
+export type PersistedMobileState = Pick<StrawMobileState, 'shapes' | 'connections' | 'strawSize'>
 
 export const useStrawMobileStore = create<StrawMobileState>()(
   persist(
@@ -312,6 +314,19 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         set({
           shapes: [],
           connections: [],
+          pendingVertex: null,
+          selectedShapeId: null,
+          reelIns: [],
+          reelPositions: {},
+        })
+      },
+
+      loadProject: (snapshot) => {
+        for (const shape of get().shapes) clearBodyRef(shape.id)
+        set({
+          shapes: snapshot.shapes,
+          connections: snapshot.connections,
+          strawSize: snapshot.strawSize,
           pendingVertex: null,
           selectedShapeId: null,
           reelIns: [],

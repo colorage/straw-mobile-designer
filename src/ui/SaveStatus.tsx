@@ -23,8 +23,8 @@ export function SaveStatus() {
 
   return (
     <p className="save-status">
-      {showRestoredMessage && 'Restored your saved mobile from last time. '}
-      Your design autosaves in this browser — close the tab anytime, it'll be here when you're back.
+      {showRestoredMessage && 'Restored your draft from last time. '}
+      Your draft autosaves in this browser. Use the Gallery below to keep named copies or export JSON.
     </p>
   )
 }
