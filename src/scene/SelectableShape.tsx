@@ -10,6 +10,8 @@ import { ShapeGroup } from './ShapeGroup'
 interface SelectableShapeProps {
   shape: Shape
   isSelected: boolean
+  /** Only the primary (last) selected free shape mounts the drag gizmo. */
+  showGizmo: boolean
   onVertexClick: (vertexIndex: number) => void
   isVertexPending: (vertexIndex: number) => boolean
   isVertexConnected: (vertexIndex: number) => boolean
@@ -25,11 +27,13 @@ interface SelectableShapeProps {
 export function SelectableShape({
   shape,
   isSelected,
+  showGizmo,
   onVertexClick,
   isVertexPending,
   isVertexConnected,
 }: SelectableShapeProps) {
   const selectShape = useStrawMobileStore((s) => s.selectShape)
+  const toggleShapeSelection = useStrawMobileStore((s) => s.toggleShapeSelection)
   const removeShape = useStrawMobileStore((s) => s.removeShape)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
   const isScissors = activeTool === 'scissors'
@@ -38,6 +42,10 @@ export function SelectableShape({
     event.stopPropagation()
     if (isScissors) {
       removeShape(shape.id)
+      return
+    }
+    if (event.nativeEvent.shiftKey) {
+      toggleShapeSelection(shape.id)
       return
     }
     selectShape(shape.id)
@@ -56,7 +64,7 @@ export function SelectableShape({
     />
   )
 
-  if (!isSelected || isScissors) {
+  if (!showGizmo || isScissors) {
     return (
       <group position={shape.position} quaternion={shape.quaternion}>
         {shapeGroup}

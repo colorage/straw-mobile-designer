@@ -162,7 +162,10 @@ export function PhysicsShape({
   isVertexConnected,
 }: PhysicsShapeProps) {
   const ref = getBodyRef(shape.id)
-  const isSelected = useStrawMobileStore((s) => s.selectedShapeId === shape.id)
+  const isSelected = useStrawMobileStore((s) => s.selectedShapeIds.includes(shape.id))
+  const showGizmo = useStrawMobileStore(
+    (s) => s.selectedShapeIds[s.selectedShapeIds.length - 1] === shape.id,
+  )
   const reelPosition = useStrawMobileStore((s) => s.reelPositions[shape.id])
   const isDynamic = hanging && !reeling
   const isFree = !hanging && !reeling
@@ -239,6 +242,7 @@ export function PhysicsShape({
         <SelectableShape
           shape={shape}
           isSelected={isSelected}
+          showGizmo={showGizmo}
           onVertexClick={onVertexClick}
           isVertexPending={isVertexPending}
           isVertexConnected={isVertexConnected}
