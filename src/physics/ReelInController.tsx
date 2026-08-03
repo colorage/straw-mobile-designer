@@ -51,22 +51,15 @@ export function ReelInController() {
       outQ.copy(fromQ).slerp(toQ, e)
       const quaternion: QuatTuple = [outQ.x, outQ.y, outQ.z, outQ.w]
 
-      // Rigid clusters (triangles) reel with precomputed relative poses — do not
-      // live-retarget one member toward the hook or the triangle tears apart.
+      // Rigid clusters (triangles / multi-pin hanging cycles) reel with
+      // precomputed relative poses — do not live-retarget toward a single pin
+      // or the closed orientation tears apart.
       const cluster = getRigidClusterShapeIds(connections, reel.shapeId)
-      let clusterMateReeling = false
-      if (cluster.size > 1) {
-        for (const id of cluster) {
-          if (id !== reel.shapeId && reelingIds.has(id)) {
-            clusterMateReeling = true
-            break
-          }
-        }
-      }
+      const inRigidCluster = cluster.size > 1
 
       // Track the live hanging corner so hub sway during reel-in doesn't leave
       // a teleport-sized joint error when a floppy spherical joint engages.
-      const liveTo = clusterMateReeling
+      const liveTo = inRigidCluster
         ? reel.to
         : (computeLiveReelClosePosition(
             reel.shapeId,

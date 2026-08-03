@@ -5,6 +5,7 @@ import { clearBodyRef, getBodyRef } from '../physics/bodyRefRegistry'
 import { buildReelIns } from '../physics/reelIn'
 import {
   computeFreeTightenPoses,
+  computeHangingClusterTightenPoses,
   computeRestingPoses,
   getHangingShapeIds,
 } from '../physics/restingLayout'
@@ -422,13 +423,18 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         const bAlreadyOnChain = bKey === 'anchor' || previousHanging.has(bKey)
         // Hanging↔hanging (or hanging↔hook on an already-hung piece): don't run
         // the free workbench tightener — it ignores hook pins and yanks the chain.
-        // Overlap auto-connect only fires when corners are already close, so the
-        // new joint can close the remaining gap under gravity.
+        // When the new tie forms/extends a rigid cycle, close all cycle corners
+        // with a hook-rooted multi-pin solve before fixed joints mount. Plain
+        // spherical bridges stay as-is (overlap auto-connect / gravity close).
         let targets: Map<string, ShapePose>
         if (joinsHanging) {
           targets = computeRestingPoses(shapesForLayout, nextConnections, previousHanging)
         } else if (aAlreadyOnChain && bAlreadyOnChain) {
-          targets = new Map()
+          targets = computeHangingClusterTightenPoses(
+            shapesForLayout,
+            nextConnections,
+            connection,
+          )
         } else {
           targets = computeFreeTightenPoses(shapesForLayout, nextConnections, connection)
         }
