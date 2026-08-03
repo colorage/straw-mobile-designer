@@ -103,7 +103,6 @@ export function Experience() {
       onPointerMissed={() => selectShape(null)}
     >
       <color attach="background" args={['#11131a']} />
-      {/* Soft depth haze only — far enough that zoom-out still shows shapes. */}
       <fog attach="fog" args={['#11131a', 45, 120]} />
       <hemisphereLight intensity={0.7} groundColor="#20222c" />
       <directionalLight
