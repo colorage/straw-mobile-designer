@@ -73,6 +73,9 @@ export function PhysicsScene() {
   const connections = useStrawMobileStore((s) => s.connections)
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
   const selectVertex = useStrawMobileStore((s) => s.selectVertex)
+  // Remount the whole Rapier world after undo/redo/load so body refs and
+  // hull mass are rebuilt — registry clears alone leave stale forwarded refs.
+  const physicsEpoch = useStrawMobileStore((s) => s.physicsEpoch)
 
   const shapesById = useMemo(() => {
     const map = new Map<string, Shape>()
@@ -94,7 +97,7 @@ export function PhysicsScene() {
   }, [connections])
 
   return (
-    <Physics gravity={[0, -9.81, 0]} updatePriority={-1}>
+    <Physics key={physicsEpoch} gravity={[0, -9.81, 0]} updatePriority={-1}>
       <FixedAnchorBody />
       <CeilingHookVisual />
       <ReelInController />

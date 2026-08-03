@@ -122,6 +122,12 @@ interface StrawMobileState {
   past: PersistedMobileState[]
   /** Snapshots undone, available for Redo (not persisted across reloads). */
   future: PersistedMobileState[]
+  /**
+   * Bumped when the design is replaced wholesale (undo / redo / reset / load).
+   * PhysicsScene keys the Rapier world on this so bodies remount with fresh
+   * refs and correct hull mass — clearing the registry alone is not enough.
+   */
+  physicsEpoch: number
 
   /** Snapshot the current design before an undoable mutation (or drag-start). */
   pushHistory: () => void
@@ -149,6 +155,13 @@ interface StrawMobileState {
   getStrawCounts: () => StrawCounts
 }
 
+/** Drop registry entries and bump the epoch so Rapier bodies remount cleanly. */
+function invalidatePhysics(get: () => StrawMobileState): number {
+  for (const shape of get().shapes) clearBodyRef(shape.id)
+  clearBodyRef('anchor')
+  return get().physicsEpoch + 1
+}
+
 function applyDesignSnapshot(
   set: (
     partial:
@@ -159,8 +172,7 @@ function applyDesignSnapshot(
   snapshot: PersistedMobileState,
   history: { past: PersistedMobileState[]; future: PersistedMobileState[] },
 ) {
-  // Drop body refs so physics remounts from the restored shape list.
-  for (const shape of get().shapes) clearBodyRef(shape.id)
+  const physicsEpoch = invalidatePhysics(get)
   set({
     shapes: snapshot.shapes,
     connections: snapshot.connections,
@@ -172,6 +184,7 @@ function applyDesignSnapshot(
     reelPositions: {},
     past: history.past,
     future: history.future,
+    physicsEpoch,
   })
 }
 
@@ -189,6 +202,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       reelPositions: {},
       past: [],
       future: [],
+      physicsEpoch: 0,
 
       pushHistory: () => {
         const state = get()
@@ -543,7 +557,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       reset: () => {
         get().pushHistory()
-        for (const shape of get().shapes) clearBodyRef(shape.id)
+        const physicsEpoch = invalidatePhysics(get)
         set({
           shapes: [],
           connections: [],
@@ -552,12 +566,13 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           activeTool: 'select',
           reelIns: [],
           reelPositions: {},
+          physicsEpoch,
         })
       },
 
       loadProject: (snapshot) => {
         get().pushHistory()
-        for (const shape of get().shapes) clearBodyRef(shape.id)
+        const physicsEpoch = invalidatePhysics(get)
         set({
           shapes: snapshot.shapes,
           connections: snapshot.connections,
@@ -567,6 +582,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           activeTool: 'select',
           reelIns: [],
           reelPositions: {},
+          physicsEpoch,
         })
       },
 
@@ -599,6 +615,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         activeTool: 'select',
         past: [],
         future: [],
+        physicsEpoch: 0,
       }),
     },
   ),
