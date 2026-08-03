@@ -10,52 +10,62 @@ import { getBodyRef } from './bodyRefRegistry'
 import { SHAPE_COLLISION_GROUPS } from './collisionGroups'
 import { registerMeshDriver } from './meshDriveRegistry'
 
-/** Gentle nudge so a freshly hanging piece sways instead of sitting perfectly still. */
-function nudgeHangingBody(body: {
+const ZERO_VEL = { x: 0, y: 0, z: 0 }
+/** Skip settle impulse when the body (or chain) is already moving. */
+const ALREADY_MOVING_SPEED = 0.08
+/** Mild horizontal sway so a newly hung piece doesn't sit perfectly still. */
+const SETTLE_SPEED = 0.12
+
+/**
+ * Soft settle for a piece that just joined the hanging chain.
+ *
+ * Clears leftover reel-in velocity, then — only if the body was nearly still —
+ * applies one small deterministic horizontal impulse. Random multi-axis kicks
+ * used to compound through shared corners when several spokes joined a hub.
+ */
+function settleHangingBody(body: {
   wakeUp: () => void
   mass: () => number
+  linvel: () => { x: number; y: number; z: number }
+  angvel: () => { x: number; y: number; z: number }
   applyImpulse: (impulse: { x: number; y: number; z: number }, wake: boolean) => void
-  applyTorqueImpulse: (torque: { x: number; y: number; z: number }, wake: boolean) => void
   setLinvel: (vel: { x: number; y: number; z: number }, wake: boolean) => void
   setAngvel: (vel: { x: number; y: number; z: number }, wake: boolean) => void
 }) {
   body.wakeUp()
-  const angle = Math.random() * Math.PI * 2
-  const speed = 0.55 + Math.random() * 0.35
-  const linvel = {
-    x: Math.cos(angle) * speed,
-    y: 0.02,
-    z: Math.sin(angle) * speed,
-  }
-  const angvel = {
-    x: (Math.random() - 0.5) * 0.35,
-    y: (Math.random() - 0.5) * 0.2,
-    z: (Math.random() - 0.5) * 0.35,
+
+  // Sample before clearing: an already-swaying body (chain tug) should not get
+  // an extra settle kick on top of the motion joints are already carrying.
+  let alreadyMoving = false
+  try {
+    const v = body.linvel()
+    const w = body.angvel()
+    alreadyMoving =
+      Math.hypot(v.x, v.y, v.z) > ALREADY_MOVING_SPEED ||
+      Math.hypot(w.x, w.y, w.z) > ALREADY_MOVING_SPEED
+  } catch {
+    // Velocity read can fail if the body isn't fully live yet.
   }
 
-  // Prefer impulses when the hull colliders gave the body real mass; otherwise
-  // set velocities directly so a zero-mass body still visibly starts swinging.
+  // Always kill reel-in / kinematic residue before joints take over.
+  body.setLinvel(ZERO_VEL, true)
+  body.setAngvel(ZERO_VEL, true)
+  if (alreadyMoving) return
+
+  // Deterministic mild +X sway — enough to read as life, not a hub kick.
+  const linvel = { x: SETTLE_SPEED, y: 0.01, z: 0 }
   const mass = body.mass()
   if (mass > 1e-4) {
     body.applyImpulse(
       {
-        x: linvel.x * mass * 0.55,
-        y: linvel.y * mass * 0.55,
-        z: linvel.z * mass * 0.55,
-      },
-      true,
-    )
-    body.applyTorqueImpulse(
-      {
-        x: angvel.x * mass * 0.08,
-        y: angvel.y * mass * 0.08,
-        z: angvel.z * mass * 0.08,
+        x: linvel.x * mass * 0.45,
+        y: linvel.y * mass * 0.45,
+        z: linvel.z * mass * 0.45,
       },
       true,
     )
   } else {
     body.setLinvel(linvel, true)
-    body.setAngvel(angvel, true)
   }
 }
 
@@ -173,7 +183,7 @@ export function PhysicsShape({
   const wasDynamicRef = useRef(false)
 
   // When a shape first becomes dynamic (joins the hook chain / finishes reel-in),
-  // give it a small impulse so gravity motion is obvious after the resting snap.
+  // zero leftover reel velocity and apply a soft settle — not a random kick.
   useEffect(() => {
     if (!isDynamic) {
       wasDynamicRef.current = false
@@ -184,7 +194,7 @@ export function PhysicsShape({
     let attempts = 0
     let frameId = 0
     let cancelled = false
-    const tryNudge = () => {
+    const trySettle = () => {
       if (cancelled) return
       const body = ref.current
       if (body) {
@@ -192,10 +202,10 @@ export function PhysicsShape({
           // Wait until auto-colliders have attached so mass > 0 and impulses work.
           if (body.numColliders() === 0 && attempts < 20) {
             attempts += 1
-            frameId = requestAnimationFrame(tryNudge)
+            frameId = requestAnimationFrame(trySettle)
             return
           }
-          nudgeHangingBody(body)
+          settleHangingBody(body)
           wasDynamicRef.current = true
           return
         } catch {
@@ -203,9 +213,9 @@ export function PhysicsShape({
         }
       }
       attempts += 1
-      if (attempts < 24) frameId = requestAnimationFrame(tryNudge)
+      if (attempts < 24) frameId = requestAnimationFrame(trySettle)
     }
-    frameId = requestAnimationFrame(tryNudge)
+    frameId = requestAnimationFrame(trySettle)
     return () => {
       cancelled = true
       cancelAnimationFrame(frameId)
@@ -229,8 +239,9 @@ export function PhysicsShape({
         collisionGroups={SHAPE_COLLISION_GROUPS}
         canSleep={false}
         restitution={0.1}
-        linearDamping={0.4}
-        angularDamping={0.55}
+        // Slightly higher damping kills multi-spoke hub ringing while keeping sway.
+        linearDamping={isDynamic ? 0.65 : 0.4}
+        angularDamping={isDynamic ? 0.8 : 0.55}
       >
         {/* Hull source only — not rendered / not raycast-visible. */}
         <group visible={false}>

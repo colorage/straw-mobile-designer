@@ -59,6 +59,22 @@ export function ReelInController() {
       driveMesh(reel.shapeId, position)
 
       if (t >= 1) {
+        // Zero leftover kinematic drive before the body goes dynamic and
+        // spherical joints engage — otherwise multi-spoke hubs inherit a snap.
+        if (body) {
+          try {
+            body.setLinvel({ x: 0, y: 0, z: 0 }, true)
+            body.setAngvel({ x: 0, y: 0, z: 0 }, true)
+            body.setTranslation({ x: reel.to[0], y: reel.to[1], z: reel.to[2] }, true)
+            body.setNextKinematicTranslation({
+              x: reel.to[0],
+              y: reel.to[1],
+              z: reel.to[2],
+            })
+          } catch {
+            // Body may have been removed mid-animation.
+          }
+        }
         completed.push({ shapeId: reel.shapeId, position: reel.to })
       }
     }
