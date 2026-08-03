@@ -305,6 +305,172 @@ export function computeFreeTightenPoses(
 }
 
 /**
+ * Hook-chain BFS distance from the ceiling anchor. Missing / unreachable
+ * shapes get Infinity so cluster root selection prefers the nearer member.
+ */
+function hangingDistanceFromAnchor(
+  connections: Connection[],
+  shapeId: string,
+): number {
+  const adjacency = buildAdjacency(connections)
+  const dist = new Map<string, number>([['anchor', 0]])
+  const queue = ['anchor']
+  while (queue.length > 0) {
+    const bodyKey = queue.shift()!
+    const d = dist.get(bodyKey)!
+    for (const { other } of adjacency.get(bodyKey) ?? []) {
+      if (other.kind === 'anchor') continue
+      const otherKey = endpointBodyKey(other)
+      if (dist.has(otherKey)) continue
+      dist.set(otherKey, d + 1)
+      queue.push(otherKey)
+    }
+  }
+  return dist.get(shapeId) ?? Infinity
+}
+
+/**
+ * Close residual gaps inside a hanging rigid cycle (e.g. two octahedra tied at
+ * two corners). Keeps the cluster member nearest the hook fixed and orients
+ * the rest via multi-pin projection so every cycle corner coincides before
+ * fixed joints mount. No-op for non-cyclic hanging↔hanging bridges.
+ */
+export function computeHangingClusterTightenPoses(
+  shapes: Shape[],
+  connections: Connection[],
+  newConnection: Connection,
+): Map<string, ShapePose> {
+  const result = new Map<string, ShapePose>()
+  if (newConnection.a.kind !== 'shape' || newConnection.b.kind !== 'shape') {
+    return result
+  }
+
+  const clusterIds = getRigidClusterShapeIds(connections, newConnection.a.shapeId)
+  if (clusterIds.size < 2) return result
+  // New tie must participate in this cluster.
+  if (!clusterIds.has(newConnection.b.shapeId)) return result
+
+  const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
+  let rootId: string | null = null
+  let rootDist = Infinity
+  for (const id of clusterIds) {
+    const d = hangingDistanceFromAnchor(connections, id)
+    if (d < rootDist) {
+      rootDist = d
+      rootId = id
+    }
+  }
+  if (!rootId || !shapesById.has(rootId)) return result
+
+  const poses = new Map<string, MutablePose>()
+  for (const id of clusterIds) {
+    const shape = shapesById.get(id)
+    if (shape) poses.set(id, poseFromShape(shape))
+  }
+
+  const clusterConnections = connections.filter(
+    (connection) =>
+      connection.a.kind === 'shape' &&
+      connection.b.kind === 'shape' &&
+      clusterIds.has(connection.a.shapeId) &&
+      clusterIds.has(connection.b.shapeId),
+  )
+
+  const resolved = new Set<string>([rootId])
+  const queue = [rootId]
+
+  while (queue.length > 0) {
+    const bodyKey = queue.shift()!
+    // Collect every unresolved neighbor of any resolved member, with all pins
+    // to already-resolved shapes, then place once (multi-pin when ≥2).
+    const pendingPins = new Map<string, VertexTarget[]>()
+
+    for (const connection of clusterConnections) {
+      if (connection.a.kind !== 'shape' || connection.b.kind !== 'shape') continue
+      const aId = connection.a.shapeId
+      const bId = connection.b.shapeId
+      const aResolved = resolved.has(aId)
+      const bResolved = resolved.has(bId)
+      if (aResolved === bResolved) continue
+
+      const fixedId = aResolved ? aId : bId
+      const movingId = aResolved ? bId : aId
+      const fixedEnd = aResolved ? connection.a : connection.b
+      const movingEnd = aResolved ? connection.b : connection.a
+      const fixedShape = shapesById.get(fixedId)
+      const fixedPose = poses.get(fixedId)
+      if (!fixedShape || !fixedPose) continue
+
+      const target = worldVertexFromPose(fixedPose, fixedShape, fixedEnd.vertexIndex)
+      const list = pendingPins.get(movingId) ?? []
+      list.push({ vertexIndex: movingEnd.vertexIndex, target })
+      pendingPins.set(movingId, list)
+    }
+
+    // Prefer placing neighbors of the dequeued node first; fall back to any
+    // pending member so multi-edge cycles still progress.
+    const order: string[] = []
+    for (const connection of clusterConnections) {
+      if (connection.a.kind !== 'shape' || connection.b.kind !== 'shape') continue
+      const aId = connection.a.shapeId
+      const bId = connection.b.shapeId
+      if (aId === bodyKey && pendingPins.has(bId) && !order.includes(bId)) order.push(bId)
+      if (bId === bodyKey && pendingPins.has(aId) && !order.includes(aId)) order.push(aId)
+    }
+    for (const id of pendingPins.keys()) {
+      if (!order.includes(id)) order.push(id)
+    }
+
+    for (const movingId of order) {
+      if (resolved.has(movingId)) continue
+      const pins = pendingPins.get(movingId)
+      const shape = shapesById.get(movingId)
+      const pose = poses.get(movingId)
+      if (!pins || !shape || !pose) continue
+
+      // Deduplicate by vertex (average if a corner is multi-tied).
+      const byVertex = new Map<number, THREE.Vector3[]>()
+      for (const pin of pins) {
+        const list = byVertex.get(pin.vertexIndex) ?? []
+        list.push(pin.target)
+        byVertex.set(pin.vertexIndex, list)
+      }
+      const unique: VertexTarget[] = []
+      for (const [vertexIndex, targets] of byVertex) {
+        const avg = new THREE.Vector3()
+        for (const t of targets) avg.add(t)
+        avg.multiplyScalar(1 / targets.length)
+        unique.push({ vertexIndex, target: avg })
+      }
+
+      projectShapeFromPins(shape, pose, unique, 1)
+      resolved.add(movingId)
+      queue.push(movingId)
+    }
+
+    // Leaf with no unresolved neighbors — keep draining the queue.
+  }
+
+  for (const [id, pose] of poseMapToShapePoses(poses)) {
+    if (id === rootId) continue
+    const shape = shapesById.get(id)
+    if (!shape) continue
+    const posDelta = Math.hypot(
+      pose.position[0] - shape.position[0],
+      pose.position[1] - shape.position[1],
+      pose.position[2] - shape.position[2],
+    )
+    const q0 = new THREE.Quaternion(...shape.quaternion)
+    const q1 = new THREE.Quaternion(...pose.quaternion)
+    const angle = q0.angleTo(q1)
+    if (posDelta < MIN_POSE_DELTA && angle < MIN_ANGLE_DELTA) continue
+    result.set(id, pose)
+  }
+
+  return result
+}
+
+/**
  * Free (kinematic) shapes sit wherever they were placed on the workbench, often
  * meters away from where their threads pull them once they join the hanging
  * chain. Left as-is, every joint starts out badly stretched, and the very
