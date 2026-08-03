@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
+import { getEndpointWorldPosition } from '../scene/endpointPosition'
 import { ANCHOR_POSITION, getScaledVertex } from '../state/shapeSpace'
 import {
   endpointBodyKey,
@@ -26,6 +27,65 @@ function endpointWorldPosition(
   const shape = shapesById.get(endpoint.shapeId)
   if (!shape) return null
   return worldVertexOffset(shape, endpoint.vertexIndex).add(new THREE.Vector3(...shape.position))
+}
+
+/**
+ * Body translation that puts `shapeId`'s tied corner onto a live neighbor that
+ * is not currently reeling (hanging hub / anchor). Used so reel-in tracks a
+ * swinging chain instead of finishing on a stale workbench snapshot.
+ */
+export function computeLiveReelClosePosition(
+  shapeId: string,
+  shapes: Shape[],
+  connections: Connection[],
+  reelingIds: ReadonlySet<string>,
+  preferNear?: Vector3Tuple,
+): Vector3Tuple | null {
+  const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
+  const movingShape = shapesById.get(shapeId)
+  if (!movingShape) return null
+
+  let best: Vector3Tuple | null = null
+  let bestDist = Infinity
+
+  for (const connection of connections) {
+    let self: EndpointRef | null = null
+    let other: EndpointRef | null = null
+    if (connection.a.kind === 'shape' && connection.a.shapeId === shapeId) {
+      self = connection.a
+      other = connection.b
+    } else if (connection.b.kind === 'shape' && connection.b.shapeId === shapeId) {
+      self = connection.b
+      other = connection.a
+    }
+    if (!self || !other || self.kind !== 'shape') continue
+
+    const otherKey = endpointBodyKey(other)
+    if (otherKey !== 'anchor' && reelingIds.has(otherKey)) continue
+
+    const targetCorner = getEndpointWorldPosition(other, shapesById)
+    if (!targetCorner) continue
+
+    const localOffset = worldVertexOffset(movingShape, self.vertexIndex)
+    const position: Vector3Tuple = [
+      targetCorner.x - localOffset.x,
+      targetCorner.y - localOffset.y,
+      targetCorner.z - localOffset.z,
+    ]
+
+    if (!preferNear) return position
+    const dist = Math.hypot(
+      position[0] - preferNear[0],
+      position[1] - preferNear[1],
+      position[2] - preferNear[2],
+    )
+    if (dist < bestDist) {
+      bestDist = dist
+      best = position
+    }
+  }
+
+  return best
 }
 
 /** Ease-out cubic: fast start, gentle settle as the thread finishes shortening. */

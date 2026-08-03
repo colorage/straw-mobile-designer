@@ -9,43 +9,62 @@ import type { Shape } from '../state/types'
 import { getBodyRef } from './bodyRefRegistry'
 import { SHAPE_COLLISION_GROUPS } from './collisionGroups'
 import { registerMeshDriver } from './meshDriveRegistry'
+import { getHangingShapeIds } from './restingLayout'
 
 const ZERO_VEL = { x: 0, y: 0, z: 0 }
-/** Skip settle impulse when the body (or chain) is already moving. */
+/** Skip settle impulse when this body or the hanging chain is already moving. */
 const ALREADY_MOVING_SPEED = 0.08
 /** Mild horizontal sway so a newly hung piece doesn't sit perfectly still. */
 const SETTLE_SPEED = 0.12
 
-/**
- * Soft settle for a piece that just joined the hanging chain.
- *
- * Clears leftover reel-in velocity, then — only if the body was nearly still —
- * applies one small deterministic horizontal impulse. Random multi-axis kicks
- * used to compound through shared corners when several spokes joined a hub.
- */
-function settleHangingBody(body: {
-  wakeUp: () => void
-  mass: () => number
+function bodySpeed(body: {
   linvel: () => { x: number; y: number; z: number }
   angvel: () => { x: number; y: number; z: number }
-  applyImpulse: (impulse: { x: number; y: number; z: number }, wake: boolean) => void
-  setLinvel: (vel: { x: number; y: number; z: number }, wake: boolean) => void
-  setAngvel: (vel: { x: number; y: number; z: number }, wake: boolean) => void
-}) {
-  body.wakeUp()
-
-  // Sample before clearing: an already-swaying body (chain tug) should not get
-  // an extra settle kick on top of the motion joints are already carrying.
-  let alreadyMoving = false
+}): number {
   try {
     const v = body.linvel()
     const w = body.angvel()
-    alreadyMoving =
-      Math.hypot(v.x, v.y, v.z) > ALREADY_MOVING_SPEED ||
-      Math.hypot(w.x, w.y, w.z) > ALREADY_MOVING_SPEED
+    return Math.max(Math.hypot(v.x, v.y, v.z), Math.hypot(w.x, w.y, w.z))
   } catch {
-    // Velocity read can fail if the body isn't fully live yet.
+    return 0
   }
+}
+
+/** True when some other hanging body is already swaying — don't pile on kicks. */
+function hangingChainAlreadyMoving(selfId: string): boolean {
+  const { connections } = useStrawMobileStore.getState()
+  for (const id of getHangingShapeIds(connections)) {
+    if (id === selfId) continue
+    const other = getBodyRef(id).current
+    if (other && bodySpeed(other) > ALREADY_MOVING_SPEED) return true
+  }
+  return false
+}
+
+/**
+ * Soft settle for a piece that just joined the hanging chain.
+ *
+ * Clears leftover reel-in velocity, then — only if the body and chain were
+ * nearly still — applies one small deterministic horizontal impulse. Random
+ * multi-axis kicks used to compound through shared corners when several spokes
+ * joined a hub.
+ */
+function settleHangingBody(
+  shapeId: string,
+  body: {
+    wakeUp: () => void
+    mass: () => number
+    linvel: () => { x: number; y: number; z: number }
+    angvel: () => { x: number; y: number; z: number }
+    applyImpulse: (impulse: { x: number; y: number; z: number }, wake: boolean) => void
+    setLinvel: (vel: { x: number; y: number; z: number }, wake: boolean) => void
+    setAngvel: (vel: { x: number; y: number; z: number }, wake: boolean) => void
+  },
+) {
+  body.wakeUp()
+
+  const alreadyMoving =
+    bodySpeed(body) > ALREADY_MOVING_SPEED || hangingChainAlreadyMoving(shapeId)
 
   // Always kill reel-in / kinematic residue before joints take over.
   body.setLinvel(ZERO_VEL, true)
@@ -205,7 +224,7 @@ export function PhysicsShape({
             frameId = requestAnimationFrame(trySettle)
             return
           }
-          settleHangingBody(body)
+          settleHangingBody(shape.id, body)
           wasDynamicRef.current = true
           return
         } catch {
@@ -220,7 +239,7 @@ export function PhysicsShape({
       cancelled = true
       cancelAnimationFrame(frameId)
     }
-  }, [isDynamic, ref])
+  }, [isDynamic, ref, shape.id])
 
   return (
     <>
