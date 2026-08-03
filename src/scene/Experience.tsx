@@ -38,6 +38,9 @@ function CameraViewSync() {
     controls.target.set(...ORBIT_TARGET)
     controls.enabled = true
     controls.update()
+    // onCreated runs before makeDefault attaches controls — refresh debug handle.
+    const debug = (window as unknown as { __strawDebug?: { controls?: unknown } }).__strawDebug
+    if (debug) debug.controls = controls
   }, [])
 
   return (

@@ -1,9 +1,8 @@
-import { PivotControls } from '@react-three/drei'
 import { RigidBody } from '@react-three/rapier'
-import { useThree, type ThreeEvent } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { useLayoutEffect, useRef } from 'react'
-import type { Object3D } from 'three'
-import type { Vector3Tuple } from '../geometry/primitives'
+import type { Group } from 'three'
+import { SelectableShape } from '../scene/SelectableShape'
 import { ShapeGroup } from '../scene/ShapeGroup'
 import { useStrawMobileStore } from '../state/store'
 import type { Shape } from '../state/types'
@@ -23,9 +22,69 @@ interface PhysicsShapeProps {
 }
 
 /**
- * Every shape is a rigid body. Free shapes stay kinematic so they can be
- * dragged on the workbench; once they join the hanging chain they become
- * dynamic and gravity takes over.
+ * Driven visual for hanging / reeling shapes — a plain scene group that follows
+ * the Rapier body (and reel pose) each frame. Keeping meshes outside RigidBody
+ * avoids the stale-identity-matrixWorld bug that hid newly mounted children.
+ */
+function DrivenShapeVisual({
+  shape,
+  onVertexClick,
+  isVertexPending,
+  isVertexConnected,
+}: Omit<PhysicsShapeProps, 'hanging' | 'reeling'>) {
+  const groupRef = useRef<Group>(null)
+
+  useLayoutEffect(() => {
+    return registerMeshDriver(shape.id, (position) => {
+      groupRef.current?.position.set(position[0], position[1], position[2])
+    })
+  }, [shape.id])
+
+  useFrame(() => {
+    const group = groupRef.current
+    if (!group) return
+
+    const reelPosition = useStrawMobileStore.getState().reelPositions[shape.id]
+    if (reelPosition) {
+      group.position.set(reelPosition[0], reelPosition[1], reelPosition[2])
+      group.quaternion.set(
+        shape.quaternion[0],
+        shape.quaternion[1],
+        shape.quaternion[2],
+        shape.quaternion[3],
+      )
+      return
+    }
+
+    const body = getBodyRef(shape.id).current
+    if (!body) return
+    try {
+      const t = body.translation()
+      const r = body.rotation()
+      group.position.set(t.x, t.y, t.z)
+      group.quaternion.set(r.x, r.y, r.z, r.w)
+    } catch {
+      // Body may have been freed between frames.
+    }
+  })
+
+  return (
+    <group ref={groupRef} position={shape.position} quaternion={shape.quaternion}>
+      <ShapeGroup
+        shape={shape}
+        interactive
+        onVertexClick={onVertexClick}
+        isVertexPending={isVertexPending}
+        isVertexConnected={isVertexConnected}
+      />
+    </group>
+  )
+}
+
+/**
+ * Every shape owns a rigid body for joints/colliders. Visuals and edit gizmos
+ * live as sibling plain Three groups so free pieces never mount under a
+ * stationary kinematic/fixed body (the PR #6 matrixWorld regression).
  *
  * Note: deliberately no unmount cleanup of the body ref here. In development,
  * React StrictMode double-invokes effect cleanup/setup on mount without
@@ -42,114 +101,48 @@ export function PhysicsShape({
   isVertexConnected,
 }: PhysicsShapeProps) {
   const ref = getBodyRef(shape.id)
-  const invalidate = useThree((s) => s.invalidate)
   const isSelected = useStrawMobileStore((s) => s.selectedShapeId === shape.id)
-  const selectShape = useStrawMobileStore((s) => s.selectShape)
-  const moveShape = useStrawMobileStore((s) => s.moveShape)
   const reelPosition = useStrawMobileStore((s) => s.reelPositions[shape.id])
   const isDynamic = hanging && !reeling
-  const canDrag = !hanging && !reeling
-  const showGizmo = isSelected && canDrag
+  const isFree = !hanging && !reeling
   const worldPosition = reelPosition ?? shape.position
-  const dragBaseRef = useRef<Vector3Tuple>(worldPosition)
-  const wasShowingGizmo = useRef(false)
-  const rigidObjectRef = useRef<Object3D | null>(null)
-
-  useLayoutEffect(() => {
-    return registerMeshDriver(shape.id, (position) => {
-      rigidObjectRef.current?.position.set(position[0], position[1], position[2])
-    })
-  }, [shape.id])
-
-  /**
-   * Rapier positions the RigidBody Object3D before React mounts its children.
-   * Three only propagates matrixWorld to descendants when a node (or an
-   * ancestor) has matrixWorldNeedsUpdate — which is false for a stationary
-   * kinematic/fixed body. Newly mounted meshes then keep an identity
-   * matrixWorld and render at the origin (invisible in the normal view).
-   * Force a full subtree update after every commit that may have changed kids.
-   */
-  useLayoutEffect(() => {
-    rigidObjectRef.current?.updateWorldMatrix(true, true)
-    invalidate()
-  })
-
-  useLayoutEffect(() => {
-    if (showGizmo && !wasShowingGizmo.current) {
-      dragBaseRef.current = worldPosition
-    }
-    wasShowingGizmo.current = showGizmo
-  }, [showGizmo, worldPosition])
-
-  const handleBodyClick = (event: ThreeEvent<MouseEvent>) => {
-    if (!canDrag) return
-    event.stopPropagation()
-    dragBaseRef.current = worldPosition
-    selectShape(shape.id)
-  }
-
-  const shapeGroup = (
-    <ShapeGroup
-      shape={shape}
-      interactive
-      onVertexClick={onVertexClick}
-      isVertexPending={isVertexPending}
-      isVertexConnected={isVertexConnected}
-      selected={showGizmo}
-      onBodyClick={canDrag ? handleBodyClick : undefined}
-    />
-  )
 
   return (
-    <RigidBody
-      ref={ref}
-      type={isDynamic ? 'dynamic' : 'kinematicPosition'}
-      position={worldPosition}
-      quaternion={shape.quaternion}
-      colliders="hull"
-      collisionGroups={SHAPE_COLLISION_GROUPS}
-      canSleep={false}
-      restitution={0.1}
-      linearDamping={0.5}
-      angularDamping={0.7}
-    >
-      {/* Child parent is RigidBody's object3D — used to drive the mesh during reel-ins. */}
-      <group
-        ref={(node) => {
-          rigidObjectRef.current = node?.parent ?? null
-        }}
-      />
-      {showGizmo ? (
-        <PivotControls
-          autoTransform={false}
-          disableRotations
-          disableScaling
-          scale={0.9}
-          lineWidth={2.5}
-          fixed
-          depthTest={false}
-          onDrag={(l) => {
-            const base = dragBaseRef.current
-            const next: Vector3Tuple = [
-              base[0] + l.elements[12],
-              base[1] + l.elements[13],
-              base[2] + l.elements[14],
-            ]
-            moveShape(shape.id, next)
-            rigidObjectRef.current?.position.set(next[0], next[1], next[2])
-            rigidObjectRef.current?.updateWorldMatrix(true, true)
-            const body = ref.current
-            if (body) {
-              body.setNextKinematicTranslation({ x: next[0], y: next[1], z: next[2] })
-              body.setTranslation({ x: next[0], y: next[1], z: next[2] }, true)
-            }
-          }}
-        >
-          {shapeGroup}
-        </PivotControls>
+    <>
+      <RigidBody
+        ref={ref}
+        type={isDynamic ? 'dynamic' : 'kinematicPosition'}
+        position={worldPosition}
+        quaternion={shape.quaternion}
+        colliders="hull"
+        collisionGroups={SHAPE_COLLISION_GROUPS}
+        canSleep={false}
+        restitution={0.1}
+        linearDamping={0.5}
+        angularDamping={0.7}
+      >
+        {/* Hull source only — not rendered / not raycast-visible. */}
+        <group visible={false}>
+          <ShapeGroup shape={shape} interactive={false} />
+        </group>
+      </RigidBody>
+
+      {isFree ? (
+        <SelectableShape
+          shape={shape}
+          isSelected={isSelected}
+          onVertexClick={onVertexClick}
+          isVertexPending={isVertexPending}
+          isVertexConnected={isVertexConnected}
+        />
       ) : (
-        shapeGroup
+        <DrivenShapeVisual
+          shape={shape}
+          onVertexClick={onVertexClick}
+          isVertexPending={isVertexPending}
+          isVertexConnected={isVertexConnected}
+        />
       )}
-    </RigidBody>
+    </>
   )
 }

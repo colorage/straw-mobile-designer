@@ -1,7 +1,5 @@
 import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
-import { useThree } from '@react-three/fiber'
-import { useLayoutEffect, useMemo, useRef } from 'react'
-import type { Object3D } from 'three'
+import { useMemo } from 'react'
 import { AnchorPoint } from '../scene/AnchorPoint'
 import { ConnectionThread } from '../scene/ConnectionThread'
 import { VertexHandle } from '../scene/VertexHandle'
@@ -17,35 +15,28 @@ import { reelInBodyKeys } from './reelIn'
 
 const GROUND_Y = -6
 
-// The anchor is never removed for the lifetime of the app, so its ref never
-// needs explicit cleanup (see PhysicsShape.tsx for why cleanup-on-unmount is
-// avoided in the first place).
+/**
+ * Fixed Rapier body for the ceiling hook — collider-less joint anchor only.
+ * Visuals render as a plain scene group so they never inherit a stale
+ * RigidBody matrixWorld.
+ */
 function FixedAnchorBody() {
   const ref = getBodyRef('anchor')
+  return <RigidBody ref={ref} type="fixed" position={ANCHOR_POSITION} colliders={false} />
+}
+
+function CeilingHookVisual() {
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
   const connections = useStrawMobileStore((s) => s.connections)
   const selectVertex = useStrawMobileStore((s) => s.selectVertex)
-  const rigidObjectRef = useRef<Object3D | null>(null)
-  const invalidate = useThree((s) => s.invalidate)
 
   const connected = useMemo(
     () => connections.some((c) => c.a.kind === 'anchor' || c.b.kind === 'anchor'),
     [connections],
   )
 
-  // See PhysicsShape — force world-matrix propagation after children mount.
-  useLayoutEffect(() => {
-    rigidObjectRef.current?.updateWorldMatrix(true, true)
-    invalidate()
-  })
-
   return (
-    <RigidBody ref={ref} type="fixed" position={ANCHOR_POSITION} colliders={false}>
-      <group
-        ref={(node) => {
-          rigidObjectRef.current = node?.parent ?? null
-        }}
-      />
+    <group position={ANCHOR_POSITION}>
       <AnchorPoint />
       <VertexHandle
         position={[0, 0, 0]}
@@ -53,7 +44,7 @@ function FixedAnchorBody() {
         connected={connected}
         onSelect={() => selectVertex({ kind: 'anchor' })}
       />
-    </RigidBody>
+    </group>
   )
 }
 
@@ -69,6 +60,10 @@ function GroundBody() {
 /**
  * Unified edit + gravity scene: free shapes stay kinematic on the workbench;
  * shapes in the hook-rooted connection chain are dynamic and hang on joints.
+ *
+ * Visuals / gizmos for free shapes are plain Three groups (SelectableShape);
+ * hanging visuals are driven from Rapier each frame. RigidBodies only own
+ * colliders so mount-time matrixWorld bugs cannot hide geometry.
  */
 export function PhysicsScene() {
   const shapes = useStrawMobileStore((s) => s.shapes)
@@ -98,6 +93,7 @@ export function PhysicsScene() {
   return (
     <Physics gravity={[0, -9.81, 0]}>
       <FixedAnchorBody />
+      <CeilingHookVisual />
       <ReelInController />
       {shapes.map((shape) => (
         <PhysicsShape
