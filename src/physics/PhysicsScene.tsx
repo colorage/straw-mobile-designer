@@ -97,7 +97,13 @@ export function PhysicsScene() {
   }, [connections])
 
   return (
-    <Physics key={physicsEpoch} gravity={[0, -9.81, 0]} updatePriority={-1}>
+    <Physics
+      key={physicsEpoch}
+      gravity={[0, -9.81, 0]}
+      updatePriority={-1}
+      // Extra solver iterations keep fixed welds on rigid clusters from soft-separating.
+      numSolverIterations={8}
+    >
       <FixedAnchorBody />
       <CeilingHookVisual />
       <ReelInController />
