@@ -156,3 +156,13 @@ export function getRigidConnectionIds(connections: Connection[]): Set<string> {
   }
   return rigid
 }
+
+/**
+ * True when the cream thread line should render for this joint role.
+ * Cycle edges inside a rigid cluster (fixed + visual) are straw-to-straw joins —
+ * the closed shape itself is the structure, so no hanging-thread line.
+ * Only floppy / hook links keep a visible thread.
+ */
+export function jointRoleShowsThread(role: JointRole | undefined): boolean {
+  return role === 'spherical' || role === undefined
+}
