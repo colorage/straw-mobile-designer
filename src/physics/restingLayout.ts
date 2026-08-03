@@ -253,6 +253,66 @@ function poseMapToShapePoses(poses: Map<string, MutablePose>): Map<string, Shape
 }
 
 /**
+ * Translation-only close for a new tie between pieces that are already on the
+ * hanging chain (hanging↔hanging, or hanging↔hook). Moves only the endpoints of
+ * `newConnection` so their tied corners meet — midpoint for shape↔shape, the
+ * hook for shape↔anchor — without the free workbench tightener that would yank
+ * pinned chain links. Quaternions stay as-is so mid-sway pieces don't spin.
+ */
+export function computeHangingClosePoses(
+  shapes: Shape[],
+  newConnection: Connection,
+): Map<string, ShapePose> {
+  const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
+  const result = new Map<string, ShapePose>()
+
+  const worldOf = (endpoint: EndpointRef): THREE.Vector3 | null => {
+    if (endpoint.kind === 'anchor') return new THREE.Vector3(...ANCHOR_POSITION)
+    const shape = shapesById.get(endpoint.shapeId)
+    if (!shape) return null
+    return worldVertexFromPose(poseFromShape(shape), shape, endpoint.vertexIndex)
+  }
+
+  const cornerA = worldOf(newConnection.a)
+  const cornerB = worldOf(newConnection.b)
+  if (!cornerA || !cornerB) return result
+
+  const aIsAnchor = newConnection.a.kind === 'anchor'
+  const bIsAnchor = newConnection.b.kind === 'anchor'
+  const meet = aIsAnchor
+    ? cornerA.clone()
+    : bIsAnchor
+      ? cornerB.clone()
+      : cornerA.clone().add(cornerB).multiplyScalar(0.5)
+
+  const placeCorner = (endpoint: EndpointRef) => {
+    if (endpoint.kind !== 'shape') return
+    const shape = shapesById.get(endpoint.shapeId)
+    if (!shape) return
+    const quaternion = shape.quaternion
+    const localOffset = localVertex(shape, endpoint.vertexIndex).applyQuaternion(
+      new THREE.Quaternion(...quaternion),
+    )
+    const position: Vector3Tuple = [
+      meet.x - localOffset.x,
+      meet.y - localOffset.y,
+      meet.z - localOffset.z,
+    ]
+    const posDelta = Math.hypot(
+      position[0] - shape.position[0],
+      position[1] - shape.position[1],
+      position[2] - shape.position[2],
+    )
+    if (posDelta < MIN_POSE_DELTA) return
+    result.set(shape.id, { position, quaternion: [...quaternion] as QuatTuple })
+  }
+
+  placeCorner(newConnection.a)
+  placeCorner(newConnection.b)
+  return result
+}
+
+/**
  * Target poses for a free↔free (or free cluster) thread tie. Moves every shape
  * in the connected free component — not just the newly clicked piece — so a
  * cycle of straws tightens into a closed polygon before anything hangs.
