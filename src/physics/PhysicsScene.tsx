@@ -9,6 +9,7 @@ import { ANCHOR_POSITION, useStrawMobileStore } from '../state/store'
 import { endpointVertexKey, endpointsEqual, type Shape } from '../state/types'
 import { getBodyRef } from './bodyRefRegistry'
 import { ENVIRONMENT_COLLISION_GROUPS } from './collisionGroups'
+import { HangingEnergyLimiter } from './hangingEnergyLimiter'
 import { getHangingShapeIds } from './restingLayout'
 import { JointsLayer } from './JointsLayer'
 import { PhysicsShape } from './PhysicsShape'
@@ -107,10 +108,19 @@ export function PhysicsScene() {
   }, [connections])
 
   return (
-    <Physics key={physicsEpoch} gravity={[0, -9.81, 0]} updatePriority={-1}>
+    <Physics
+      key={physicsEpoch}
+      gravity={[0, -9.81, 0]}
+      updatePriority={-1}
+      // Long spherical-joint chains need more solver effort than Rapier's
+      // defaults (4 / 1) or residual joint error resonates as N grows.
+      numSolverIterations={12}
+      numInternalPgsIterations={2}
+    >
       <FixedAnchorBody />
       <CeilingHookVisual />
       <ReelInController />
+      <HangingEnergyLimiter />
       <OverlapConnectController />
       {shapes.map((shape) => (
         <PhysicsShape

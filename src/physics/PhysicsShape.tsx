@@ -16,6 +16,11 @@ const ZERO_VEL = { x: 0, y: 0, z: 0 }
 const ALREADY_MOVING_SPEED = 0.08
 /** Mild horizontal sway so a newly hung piece doesn't sit perfectly still. */
 const SETTLE_SPEED = 0.12
+/**
+ * Once this many shapes already hang, skip the settle kick entirely —
+ * extra impulses resonate through multi-spoke / long-chain joints.
+ */
+const SETTLE_IMPULSE_MAX_HANGING = 2
 
 function bodySpeed(body: {
   linvel: () => { x: number; y: number; z: number }
@@ -45,9 +50,10 @@ function hangingChainAlreadyMoving(selfId: string): boolean {
  * Soft settle for a piece that just joined the hanging chain.
  *
  * Clears leftover reel-in velocity, then — only if the body and chain were
- * nearly still — applies one small deterministic horizontal impulse. Random
- * multi-axis kicks used to compound through shared corners when several spokes
- * joined a hub.
+ * nearly still and the hanging count is still small — applies one small
+ * deterministic horizontal impulse. Random multi-axis kicks used to compound
+ * through shared corners when several spokes joined a hub; with 3+ hangers
+ * we only zero velocity so the kick itself cannot start a resonance.
  */
 function settleHangingBody(
   shapeId: string,
@@ -63,13 +69,15 @@ function settleHangingBody(
 ) {
   body.wakeUp()
 
+  const { connections } = useStrawMobileStore.getState()
+  const hangingCount = getHangingShapeIds(connections).size
   const alreadyMoving =
     bodySpeed(body) > ALREADY_MOVING_SPEED || hangingChainAlreadyMoving(shapeId)
 
   // Always kill reel-in / kinematic residue before joints take over.
   body.setLinvel(ZERO_VEL, true)
   body.setAngvel(ZERO_VEL, true)
-  if (alreadyMoving) return
+  if (alreadyMoving || hangingCount > SETTLE_IMPULSE_MAX_HANGING) return
 
   // Deterministic mild +X sway — enough to read as life, not a hub kick.
   const linvel = { x: SETTLE_SPEED, y: 0.01, z: 0 }
@@ -267,7 +275,8 @@ export function PhysicsShape({
         collisionGroups={SHAPE_COLLISION_GROUPS}
         canSleep={false}
         restitution={0.1}
-        // Slightly higher damping kills multi-spoke hub ringing while keeping sway.
+        // Higher damping + world solver iters + soft velocity caps kill
+        // multi-spoke / long-chain ringing while keeping a readable sway.
         linearDamping={isDynamic ? 0.65 : 0.4}
         angularDamping={isDynamic ? 0.8 : 0.55}
       >
