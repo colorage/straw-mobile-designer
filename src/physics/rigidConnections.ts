@@ -166,3 +166,46 @@ export function getRigidConnectionIds(connections: Connection[]): Set<string> {
 export function jointRoleShowsThread(role: JointRole | undefined): boolean {
   return role === 'spherical' || role === undefined
 }
+
+/**
+ * Shape ids that share a rigid cyclic cluster with `shapeId` (including itself).
+ * Returns a single-element set when the shape is not part of any cycle.
+ */
+export function getRigidClusterShapeIds(
+  connections: Connection[],
+  shapeId: string,
+): Set<string> {
+  const roles = getConnectionJointRoles(connections)
+  const clusterAdj = new Map<string, string[]>()
+
+  const link = (a: string, b: string) => {
+    const listA = clusterAdj.get(a) ?? []
+    listA.push(b)
+    clusterAdj.set(a, listA)
+    const listB = clusterAdj.get(b) ?? []
+    listB.push(a)
+    clusterAdj.set(b, listB)
+  }
+
+  for (const connection of connections) {
+    const role = roles.get(connection.id)
+    if (role !== 'fixed' && role !== 'visual') continue
+    if (connection.a.kind !== 'shape' || connection.b.kind !== 'shape') continue
+    link(connection.a.shapeId, connection.b.shapeId)
+  }
+
+  if (!clusterAdj.has(shapeId)) return new Set([shapeId])
+
+  const members = new Set<string>()
+  const stack = [shapeId]
+  members.add(shapeId)
+  while (stack.length > 0) {
+    const u = stack.pop()!
+    for (const v of clusterAdj.get(u) ?? []) {
+      if (members.has(v)) continue
+      members.add(v)
+      stack.push(v)
+    }
+  }
+  return members
+}

@@ -6,6 +6,7 @@ import { useStrawMobileStore } from '../state/store'
 import { getBodyRef } from './bodyRefRegistry'
 import { driveMesh } from './meshDriveRegistry'
 import { computeLiveReelClosePosition, easeOutCubic, reelInBodyKeys } from './reelIn'
+import { getRigidClusterShapeIds } from './rigidConnections'
 
 /**
  * Drives in-progress thread reel-ins.
@@ -50,17 +51,31 @@ export function ReelInController() {
       outQ.copy(fromQ).slerp(toQ, e)
       const quaternion: QuatTuple = [outQ.x, outQ.y, outQ.z, outQ.w]
 
+      // Rigid clusters (triangles) reel with precomputed relative poses — do not
+      // live-retarget one member toward the hook or the triangle tears apart.
+      const cluster = getRigidClusterShapeIds(connections, reel.shapeId)
+      let clusterMateReeling = false
+      if (cluster.size > 1) {
+        for (const id of cluster) {
+          if (id !== reel.shapeId && reelingIds.has(id)) {
+            clusterMateReeling = true
+            break
+          }
+        }
+      }
+
       // Track the live hanging corner so hub sway during reel-in doesn't leave
-      // a teleport-sized joint error when the spherical joint engages.
-      const liveTo =
-        computeLiveReelClosePosition(
-          reel.shapeId,
-          shapes,
-          connections,
-          reelingIds,
-          reel.to,
-          quaternion,
-        ) ?? reel.to
+      // a teleport-sized joint error when a floppy spherical joint engages.
+      const liveTo = clusterMateReeling
+        ? reel.to
+        : (computeLiveReelClosePosition(
+            reel.shapeId,
+            shapes,
+            connections,
+            reelingIds,
+            reel.to,
+            quaternion,
+          ) ?? reel.to)
 
       const position: Vector3Tuple = [
         reel.from[0] + (liveTo[0] - reel.from[0]) * e,
