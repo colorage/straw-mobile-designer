@@ -1,6 +1,6 @@
 import { RigidBody } from '@react-three/rapier'
 import { useFrame } from '@react-three/fiber'
-import { useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import type { Group } from 'three'
 import { SelectableShape } from '../scene/SelectableShape'
 import { ShapeGroup } from '../scene/ShapeGroup'
@@ -9,6 +9,33 @@ import type { Shape } from '../state/types'
 import { getBodyRef } from './bodyRefRegistry'
 import { SHAPE_COLLISION_GROUPS } from './collisionGroups'
 import { registerMeshDriver } from './meshDriveRegistry'
+
+/** Gentle nudge so a freshly hanging piece sways instead of sitting perfectly still. */
+function nudgeHangingBody(body: {
+  wakeUp: () => void
+  applyImpulse: (impulse: { x: number; y: number; z: number }, wake: boolean) => void
+  applyTorqueImpulse: (torque: { x: number; y: number; z: number }, wake: boolean) => void
+}) {
+  body.wakeUp()
+  const lateral = 0.04 + Math.random() * 0.06
+  const angle = Math.random() * Math.PI * 2
+  body.applyImpulse(
+    {
+      x: Math.cos(angle) * lateral,
+      y: 0.01,
+      z: Math.sin(angle) * lateral,
+    },
+    true,
+  )
+  body.applyTorqueImpulse(
+    {
+      x: (Math.random() - 0.5) * 0.02,
+      y: (Math.random() - 0.5) * 0.01,
+      z: (Math.random() - 0.5) * 0.02,
+    },
+    true,
+  )
+}
 
 interface PhysicsShapeProps {
   shape: Shape
@@ -106,6 +133,36 @@ export function PhysicsShape({
   const isDynamic = hanging && !reeling
   const isFree = !hanging && !reeling
   const worldPosition = reelPosition ?? shape.position
+  const wasDynamicRef = useRef(false)
+
+  // When a shape first becomes dynamic (joins the hook chain / finishes reel-in),
+  // give it a small impulse so gravity motion is obvious after the resting snap.
+  useEffect(() => {
+    if (!isDynamic) {
+      wasDynamicRef.current = false
+      return
+    }
+    if (wasDynamicRef.current) return
+    wasDynamicRef.current = true
+
+    let attempts = 0
+    let frameId = 0
+    const tryNudge = () => {
+      const body = ref.current
+      if (body) {
+        try {
+          nudgeHangingBody(body)
+          return
+        } catch {
+          // Body may not be ready for impulses yet.
+        }
+      }
+      attempts += 1
+      if (attempts < 8) frameId = requestAnimationFrame(tryNudge)
+    }
+    frameId = requestAnimationFrame(tryNudge)
+    return () => cancelAnimationFrame(frameId)
+  }, [isDynamic, ref])
 
   return (
     <>
@@ -118,8 +175,8 @@ export function PhysicsShape({
         collisionGroups={SHAPE_COLLISION_GROUPS}
         canSleep={false}
         restitution={0.1}
-        linearDamping={0.5}
-        angularDamping={0.7}
+        linearDamping={0.35}
+        angularDamping={0.45}
       >
         {/* Hull source only — not rendered / not raycast-visible. */}
         <group visible={false}>
