@@ -30,23 +30,33 @@ function JointBridge({ connection, shapesById }: { connection: Connection; shape
 }
 
 /**
- * Spherical joints for every settled connection. Joints that touch a shape still
- * reeling in are omitted so a live hanging body isn't yanked across the gap.
+ * Spherical joints for every settled connection.
+ *
+ * - `deferredConnectionIds`: the new hanging tie waiting on reel-in (parent
+ *   joints stay mounted so the chain doesn't drift and snap on remount).
+ * - Unlocked reels (free / first-hang): omit every joint touching a reeling
+ *   body so kinematic shorten isn't fought by physics.
  */
 export function JointsLayer({ connections }: { connections: Connection[] }) {
   const shapes = useStrawMobileStore((s) => s.shapes)
   const reelIns = useStrawMobileStore((s) => s.reelIns ?? [])
+  const deferredConnectionIds = useStrawMobileStore((s) => s.deferredConnectionIds ?? [])
   const shapesById = useMemo(() => {
     const map = new Map<string, Shape>()
     for (const shape of shapes) map.set(shape.id, shape)
     return map
   }, [shapes])
-  const reelingIds = useMemo(() => reelInBodyKeys(reelIns), [reelIns])
+  const deferredIds = useMemo(() => new Set(deferredConnectionIds), [deferredConnectionIds])
+  const unlockedReelingIds = useMemo(
+    () => reelInBodyKeys(reelIns.filter((reel) => !reel.lockTarget)),
+    [reelIns],
+  )
 
   return (
     <>
       {connections.map((connection) =>
-        connectionInvolvesReelIn(connection, reelingIds) ? null : (
+        deferredIds.has(connection.id) ||
+        connectionInvolvesReelIn(connection, unlockedReelingIds) ? null : (
           <JointBridge key={connection.id} connection={connection} shapesById={shapesById} />
         ),
       )}

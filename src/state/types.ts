@@ -56,6 +56,12 @@ export interface ShapeReelIn {
   toQuat: QuatTuple
   startedAt: number
   durationMs: number
+  /**
+   * Hanging multi-pin close: slerp toward `toQuat` while pinning an existing
+   * attachment to its live neighbor (parent joints stay mounted). Only the new
+   * connection id is deferred via `deferredConnectionIds`.
+   */
+  lockTarget?: boolean
 }
 
 export interface StrawCounts {

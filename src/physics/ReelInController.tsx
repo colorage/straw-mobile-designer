@@ -50,23 +50,48 @@ export function ReelInController() {
       outQ.copy(fromQ).slerp(toQ, e)
       const quaternion: QuatTuple = [outQ.x, outQ.y, outQ.z, outQ.w]
 
-      // Track the live hanging corner so hub sway during reel-in doesn't leave
-      // a teleport-sized joint error when the spherical joint engages.
-      const liveTo =
-        computeLiveReelClosePosition(
+      // Free / first-hang: track a live non-reeling neighbor toward reel.to.
+      // Hanging multi-pin (lockTarget): slerp orientation while pinning an
+      // existing parent attachment to its live corner so parent joints — which
+      // stay mounted — never accumulate a remount gap.
+      let position: Vector3Tuple
+      let liveTo: Vector3Tuple = reel.to
+      if (reel.lockTarget) {
+        const pinned = computeLiveReelClosePosition(
           reel.shapeId,
           shapes,
           connections,
           reelingIds,
-          reel.to,
+          undefined,
           quaternion,
-        ) ?? reel.to
-
-      const position: Vector3Tuple = [
-        reel.from[0] + (liveTo[0] - reel.from[0]) * e,
-        reel.from[1] + (liveTo[1] - reel.from[1]) * e,
-        reel.from[2] + (liveTo[2] - reel.from[2]) * e,
-      ]
+        )
+        if (pinned) {
+          position = pinned
+          liveTo = pinned
+        } else {
+          position = [
+            reel.from[0] + (reel.to[0] - reel.from[0]) * e,
+            reel.from[1] + (reel.to[1] - reel.from[1]) * e,
+            reel.from[2] + (reel.to[2] - reel.from[2]) * e,
+          ]
+          liveTo = position
+        }
+      } else {
+        liveTo =
+          computeLiveReelClosePosition(
+            reel.shapeId,
+            shapes,
+            connections,
+            reelingIds,
+            reel.to,
+            quaternion,
+          ) ?? reel.to
+        position = [
+          reel.from[0] + (liveTo[0] - reel.from[0]) * e,
+          reel.from[1] + (liveTo[1] - reel.from[1]) * e,
+          reel.from[2] + (liveTo[2] - reel.from[2]) * e,
+        ]
+      }
 
       framePositions[reel.shapeId] = position
       frameQuaternions[reel.shapeId] = quaternion
