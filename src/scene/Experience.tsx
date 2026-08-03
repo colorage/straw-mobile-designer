@@ -121,7 +121,7 @@ export function Experience() {
       onPointerMissed={() => selectShape(null)}
     >
       <color attach="background" args={['#11131a']} />
-      <fog attach="fog" args={['#11131a', 14, 32]} />
+      <fog attach="fog" args={['#11131a', 45, 120]} />
       <ambientLight intensity={0.22} />
       <hemisphereLight intensity={0.65} groundColor="#20222c" />
       <directionalLight
@@ -143,7 +143,7 @@ export function Experience() {
         args={[40, 40]}
         cellColor="#262a37"
         sectionColor="#3a4054"
-        fadeDistance={26}
+        fadeDistance={90}
         infiniteGrid
       />
       {/* Physics no longer suspends — see vite.config.ts rapierSyncPhysicsPlugin. */}
