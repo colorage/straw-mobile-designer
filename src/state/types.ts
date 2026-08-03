@@ -34,6 +34,13 @@ export interface Connection {
   b: EndpointRef
 }
 
+/** Transient dwell suggestion while two free corners overlap. */
+export interface OverlapSuggest {
+  a: EndpointRef
+  b: EndpointRef
+  startedAt: number
+}
+
 /** Solved world pose for a shape (reel-in target or resting layout). */
 export interface ShapePose {
   position: Vector3Tuple

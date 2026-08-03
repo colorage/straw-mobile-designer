@@ -14,6 +14,7 @@ import {
   STRAW_SIZES,
   type Connection,
   type EndpointRef,
+  type OverlapSuggest,
   type QuatTuple,
   type Shape,
   type ShapeReelIn,
@@ -113,6 +114,8 @@ interface StrawMobileState {
   connections: Connection[]
   strawSize: StrawSize
   pendingVertex: EndpointRef | null
+  /** Free corners currently overlapping long enough to suggest auto-connect. */
+  overlapSuggest: OverlapSuggest | null
   /** Shapes currently selected (last id is the primary / gizmo target). */
   selectedShapeIds: string[]
   /** Anchor for Shift+range selection in the sidebar list. */
@@ -144,7 +147,10 @@ interface StrawMobileState {
   removeShapes: (ids: string[]) => void
   setStrawSize: (size: StrawSize) => void
   selectVertex: (endpoint: EndpointRef) => void
+  /** Tie two corners (manual second-click or overlap dwell). Returns true if created. */
+  connectEndpoints: (a: EndpointRef, b: EndpointRef) => boolean
   clearPendingVertex: () => void
+  setOverlapSuggest: (suggest: OverlapSuggest | null) => void
   removeConnection: (id: string) => void
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: QuatTuple) => void
   moveShape: (id: string, position: Vector3Tuple) => void
@@ -189,6 +195,7 @@ function applyDesignSnapshot(
     connections: snapshot.connections,
     strawSize: snapshot.strawSize,
     pendingVertex: null,
+    overlapSuggest: null,
     ...EMPTY_SELECTION,
     activeTool: 'select',
     reelIns: [],
@@ -207,6 +214,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       connections: [],
       strawSize: 1,
       pendingVertex: null,
+      overlapSuggest: null,
       selectedShapeIds: [],
       selectionAnchorId: null,
       activeTool: 'select',
@@ -285,8 +293,15 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (ids.length === 0) return
         const removeSet = new Set(ids)
         get().pushHistory()
-        const { connections, shapes, selectedShapeIds, selectionAnchorId, pendingVertex, reelIns } =
-          get()
+        const {
+          connections,
+          shapes,
+          selectedShapeIds,
+          selectionAnchorId,
+          pendingVertex,
+          overlapSuggest,
+          reelIns,
+        } = get()
         const previousHanging = getHangingShapeIds(connections)
         const nextConnections = connections.filter(
           (connection) =>
@@ -304,6 +319,9 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           delete nextReelQuaternions[id]
         }
 
+        const touchesRemoved = (endpoint: EndpointRef | undefined) =>
+          endpoint?.kind === 'shape' && removeSet.has(endpoint.shapeId)
+
         const nextSelected = selectedShapeIds.filter((id) => !removeSet.has(id))
         set({
           shapes: syncedShapes.filter((shape) => !removeSet.has(shape.id)),
@@ -315,6 +333,10 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             pendingVertex?.kind === 'shape' && removeSet.has(pendingVertex.shapeId)
               ? null
               : pendingVertex,
+          overlapSuggest:
+            touchesRemoved(overlapSuggest?.a) || touchesRemoved(overlapSuggest?.b)
+              ? null
+              : overlapSuggest,
           selectedShapeIds: nextSelected,
           selectionAnchorId:
             selectionAnchorId && removeSet.has(selectionAnchorId) ? null : selectionAnchorId,
@@ -328,7 +350,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       selectVertex: (endpoint) => {
-        const { pendingVertex, connections, shapes, selectedShapeIds } = get()
+        const { pendingVertex, selectedShapeIds } = get()
         // Picking a corner to tie thread is a distinct interaction from dragging a
         // shape around; clear any active drag selection so its gizmo doesn't
         // linger over (and steal clicks from) the corner handles.
@@ -344,23 +366,33 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           return
         }
 
+        get().connectEndpoints(pendingVertex, endpoint)
+      },
+
+      connectEndpoints: (a, b) => {
+        if (endpointsEqual(a, b)) {
+          set({ pendingVertex: null, overlapSuggest: null })
+          return false
+        }
+
+        const { connections, shapes } = get()
         const alreadyConnected = connections.some(
           (connection) =>
-            (endpointsEqual(connection.a, pendingVertex) && endpointsEqual(connection.b, endpoint)) ||
-            (endpointsEqual(connection.a, endpoint) && endpointsEqual(connection.b, pendingVertex)),
+            (endpointsEqual(connection.a, a) && endpointsEqual(connection.b, b)) ||
+            (endpointsEqual(connection.a, b) && endpointsEqual(connection.b, a)),
         )
 
         if (alreadyConnected) {
-          set({ pendingVertex: null })
-          return
+          set({ pendingVertex: null, overlapSuggest: null })
+          return false
         }
 
         get().pushHistory()
 
         const connection: Connection = {
           id: createId(),
-          a: pendingVertex,
-          b: endpoint,
+          a,
+          b,
         }
         const previousHanging = getHangingShapeIds(connections)
         const nextConnections = [...connections, connection]
@@ -406,6 +438,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           return {
             connections: nextConnections,
             pendingVertex: null,
+            overlapSuggest: null,
             ...EMPTY_SELECTION,
             shapes: shapesForLayout.map((shape) => {
               if (reelingIds.has(shape.id)) return shape
@@ -423,9 +456,26 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             reelQuaternions: nextReelQuaternions,
           }
         })
+        return true
       },
 
       clearPendingVertex: () => set({ pendingVertex: null }),
+
+      setOverlapSuggest: (suggest) => {
+        const current = get().overlapSuggest
+        if (current === suggest) return
+        if (
+          current &&
+          suggest &&
+          current.startedAt === suggest.startedAt &&
+          ((endpointsEqual(current.a, suggest.a) && endpointsEqual(current.b, suggest.b)) ||
+            (endpointsEqual(current.a, suggest.b) && endpointsEqual(current.b, suggest.a)))
+        ) {
+          return
+        }
+        if (!current && !suggest) return
+        set({ overlapSuggest: suggest })
+      },
 
       removeConnection: (id) => {
         get().pushHistory()
@@ -557,7 +607,12 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       setActiveTool: (tool) => {
         if (tool === 'scissors') {
-          set({ activeTool: tool, ...EMPTY_SELECTION, pendingVertex: null })
+          set({
+            activeTool: tool,
+            ...EMPTY_SELECTION,
+            pendingVertex: null,
+            overlapSuggest: null,
+          })
           return
         }
         set({ activeTool: tool })
@@ -606,6 +661,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           shapes: [],
           connections: [],
           pendingVertex: null,
+          overlapSuggest: null,
           ...EMPTY_SELECTION,
           activeTool: 'select',
           reelIns: [],
@@ -623,6 +679,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: snapshot.connections,
           strawSize: snapshot.strawSize,
           pendingVertex: null,
+          overlapSuggest: null,
           ...EMPTY_SELECTION,
           activeTool: 'select',
           reelIns: [],
@@ -658,6 +715,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         reelPositions: {},
         reelQuaternions: {},
         pendingVertex: null,
+        overlapSuggest: null,
         ...EMPTY_SELECTION,
         activeTool: 'select',
         past: [],

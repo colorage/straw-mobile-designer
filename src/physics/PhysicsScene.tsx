@@ -2,9 +2,11 @@ import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
 import { useMemo } from 'react'
 import { AnchorPoint } from '../scene/AnchorPoint'
 import { ConnectionThread } from '../scene/ConnectionThread'
+import { OverlapConnectController } from '../scene/OverlapConnectController'
+import { OverlapPreviewThread } from '../scene/OverlapPreviewThread'
 import { VertexHandle } from '../scene/VertexHandle'
 import { ANCHOR_POSITION, useStrawMobileStore } from '../state/store'
-import { endpointVertexKey, type Shape } from '../state/types'
+import { endpointVertexKey, endpointsEqual, type Shape } from '../state/types'
 import { getBodyRef } from './bodyRefRegistry'
 import { ENVIRONMENT_COLLISION_GROUPS } from './collisionGroups'
 import { getHangingShapeIds } from './restingLayout'
@@ -27,6 +29,7 @@ function FixedAnchorBody() {
 
 function CeilingHookVisual() {
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
+  const overlapSuggest = useStrawMobileStore((s) => s.overlapSuggest)
   const connections = useStrawMobileStore((s) => s.connections)
   const selectVertex = useStrawMobileStore((s) => s.selectVertex)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
@@ -36,6 +39,11 @@ function CeilingHookVisual() {
     [connections],
   )
 
+  const suggested =
+    !!overlapSuggest &&
+    (endpointsEqual(overlapSuggest.a, { kind: 'anchor' }) ||
+      endpointsEqual(overlapSuggest.b, { kind: 'anchor' }))
+
   return (
     <group position={ANCHOR_POSITION}>
       <AnchorPoint />
@@ -43,6 +51,7 @@ function CeilingHookVisual() {
         <VertexHandle
           position={[0, 0, 0]}
           pending={pendingVertex?.kind === 'anchor'}
+          suggested={suggested}
           connected={connected}
           onSelect={() => selectVertex({ kind: 'anchor' })}
         />
@@ -72,6 +81,7 @@ export function PhysicsScene() {
   const shapes = useStrawMobileStore((s) => s.shapes)
   const connections = useStrawMobileStore((s) => s.connections)
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
+  const overlapSuggest = useStrawMobileStore((s) => s.overlapSuggest)
   const selectVertex = useStrawMobileStore((s) => s.selectVertex)
   // Remount the whole Rapier world after undo/redo/load so body refs and
   // hull mass are rebuilt — registry clears alone leave stale forwarded refs.
@@ -107,6 +117,7 @@ export function PhysicsScene() {
       <FixedAnchorBody />
       <CeilingHookVisual />
       <ReelInController />
+      <OverlapConnectController />
       {shapes.map((shape) => (
         <PhysicsShape
           key={shape.id}
@@ -121,6 +132,18 @@ export function PhysicsScene() {
             pendingVertex.shapeId === shape.id &&
             pendingVertex.vertexIndex === vertexIndex
           }
+          isVertexSuggested={(vertexIndex) => {
+            if (!overlapSuggest) return false
+            const endpoint = {
+              kind: 'shape' as const,
+              shapeId: shape.id,
+              vertexIndex,
+            }
+            return (
+              endpointsEqual(overlapSuggest.a, endpoint) ||
+              endpointsEqual(overlapSuggest.b, endpoint)
+            )
+          }}
           isVertexConnected={(vertexIndex) =>
             connectedVertexKeys.has(
               endpointVertexKey({ kind: 'shape', shapeId: shape.id, vertexIndex }),
@@ -132,6 +155,7 @@ export function PhysicsScene() {
       {connections.map((connection) => (
         <ConnectionThread key={connection.id} connection={connection} shapesById={shapesById} />
       ))}
+      <OverlapPreviewThread />
       <GroundBody />
     </Physics>
   )

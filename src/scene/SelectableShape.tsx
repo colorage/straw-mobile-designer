@@ -14,6 +14,7 @@ interface SelectableShapeProps {
   showGizmo: boolean
   onVertexClick: (vertexIndex: number) => void
   isVertexPending: (vertexIndex: number) => boolean
+  isVertexSuggested: (vertexIndex: number) => boolean
   isVertexConnected: (vertexIndex: number) => boolean
 }
 
@@ -30,6 +31,7 @@ export function SelectableShape({
   showGizmo,
   onVertexClick,
   isVertexPending,
+  isVertexSuggested,
   isVertexConnected,
 }: SelectableShapeProps) {
   const selectShape = useStrawMobileStore((s) => s.selectShape)
@@ -57,6 +59,7 @@ export function SelectableShape({
       interactive={!isScissors}
       onVertexClick={onVertexClick}
       isVertexPending={isVertexPending}
+      isVertexSuggested={isVertexSuggested}
       isVertexConnected={isVertexConnected}
       selected={isSelected}
       scissorsHover={isScissors}

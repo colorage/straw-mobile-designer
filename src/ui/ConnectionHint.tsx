@@ -3,6 +3,7 @@ import { useStrawMobileStore } from '../state/store'
 /** Short status text guiding the click-corner, click-corner connect flow. */
 export function ConnectionHint() {
   const pendingVertex = useStrawMobileStore((s) => s.pendingVertex)
+  const overlapSuggest = useStrawMobileStore((s) => s.overlapSuggest)
   const shapeCount = useStrawMobileStore((s) => s.shapes.length)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
 
@@ -13,6 +14,9 @@ export function ConnectionHint() {
   } else if (shapeCount === 0) {
     message =
       'Drag a shape from the toolbar onto the scene, or click to add one in view. Tie a corner to the ceiling hook to hang it under gravity.'
+  } else if (overlapSuggest) {
+    message =
+      'Holding corners together… connecting soon. Move them apart to cancel, or wait a moment to tie the thread.'
   } else if (pendingVertex) {
     message =
       pendingVertex.kind === 'anchor'
@@ -20,7 +24,7 @@ export function ConnectionHint() {
         : 'Now click another corner — or the ceiling hook — to tie a thread. Connected free pieces tighten together; the hook chain hangs under gravity.'
   } else {
     message =
-      'Click a corner, then another corner (or the ceiling hook) to connect thread. Free pieces pull together as the thread tightens — a cycle of straws forms a polygon on the workbench. Pieces on the hook chain hang and sway under gravity. Click a free straw body to select & drag it.'
+      'Click a corner, then another corner (or the ceiling hook) to connect thread — or hold two free corners together for a couple of seconds to auto-tie. Free pieces pull together as the thread tightens — a cycle of straws forms a polygon on the workbench. Pieces on the hook chain hang and sway under gravity. Click a free straw body to select & drag it.'
   }
 
   return (
