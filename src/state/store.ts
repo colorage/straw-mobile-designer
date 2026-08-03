@@ -2,8 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geometry/primitives'
 import { clearBodyRef, getBodyRef } from '../physics/bodyRefRegistry'
-import { computeFreeClusterLayout } from '../physics/freeClusterLayout'
-import { buildReelIns, posesFromPositions } from '../physics/reelIn'
+import { buildReelIns, computeFreeCloseTarget } from '../physics/reelIn'
 import { computeRestingPositions, getHangingShapeIds } from '../physics/restingLayout'
 import { findAddPosition } from '../scene/placement'
 import {
@@ -119,8 +118,6 @@ interface StrawMobileState {
   reelIns: ShapeReelIn[]
   /** Live poses while reeling — drives the mesh without touching persisted shapes. */
   reelPositions: Record<string, Vector3Tuple>
-  /** Live orientations while reeling (pairs with reelPositions). */
-  reelQuaternions: Record<string, [number, number, number, number]>
   /** Prior design snapshots for Undo (not persisted across reloads). */
   past: PersistedMobileState[]
   /** Snapshots undone, available for Redo (not persisted across reloads). */
@@ -151,14 +148,7 @@ interface StrawMobileState {
   duplicateSelection: () => void
   setActiveTool: (tool: ActiveTool) => void
   setReelPositions: (positions: Record<string, Vector3Tuple>) => void
-  setReelQuaternions: (quaternions: Record<string, [number, number, number, number]>) => void
-  finishReelIns: (
-    completed: {
-      shapeId: string
-      position: Vector3Tuple
-      quaternion: [number, number, number, number]
-    }[],
-  ) => void
+  finishReelIns: (completed: { shapeId: string; position: Vector3Tuple }[]) => void
   reset: () => void
   /** Replace the working draft with a gallery / import snapshot. */
   loadProject: (snapshot: PersistedMobileState) => void
@@ -192,7 +182,6 @@ function applyDesignSnapshot(
     activeTool: 'select',
     reelIns: [],
     reelPositions: {},
-    reelQuaternions: {},
     past: history.past,
     future: history.future,
     physicsEpoch,
@@ -211,7 +200,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       activeTool: 'select',
       reelIns: [],
       reelPositions: {},
-      reelQuaternions: {},
       past: [],
       future: [],
       physicsEpoch: 0,
@@ -297,11 +285,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
         for (const id of removeSet) clearBodyRef(id)
         const nextReelPositions = { ...get().reelPositions }
-        const nextReelQuaternions = { ...get().reelQuaternions }
-        for (const id of removeSet) {
-          delete nextReelPositions[id]
-          delete nextReelQuaternions[id]
-        }
+        for (const id of removeSet) delete nextReelPositions[id]
 
         const nextSelected = selectedShapeIds.filter((id) => !removeSet.has(id))
         set({
@@ -309,7 +293,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: nextConnections,
           reelIns: reelIns.filter((reel) => !removeSet.has(reel.shapeId)),
           reelPositions: nextReelPositions,
-          reelQuaternions: nextReelQuaternions,
           pendingVertex:
             pendingVertex?.kind === 'shape' && removeSet.has(pendingVertex.shapeId)
               ? null
@@ -382,11 +365,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
         const joinsHanging = [...nextHanging].some((id) => !previousHanging.has(id))
         const targets = joinsHanging
-          ? posesFromPositions(
-              shapesForLayout,
-              computeRestingPositions(shapesForLayout, nextConnections, previousHanging),
-            )
-          : computeFreeClusterLayout(shapesForLayout, nextConnections, connection)
+          ? computeRestingPositions(shapesForLayout, nextConnections, previousHanging)
+          : computeFreeCloseTarget(shapesForLayout, connection)
 
         // Keep current poses for animated shapes; apply already-closed gaps now.
         const newReelIns = buildReelIns(shapesForLayout, targets)
@@ -394,16 +374,11 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
         set((state) => {
           const nextReelPositions = { ...state.reelPositions }
-          const nextReelQuaternions = { ...state.reelQuaternions }
           for (const reel of newReelIns) {
             nextReelPositions[reel.shapeId] = reel.from
-            nextReelQuaternions[reel.shapeId] = reel.fromQuat
           }
           for (const shapeId of targets.keys()) {
-            if (!reelingIds.has(shapeId)) {
-              delete nextReelPositions[shapeId]
-              delete nextReelQuaternions[shapeId]
-            }
+            if (!reelingIds.has(shapeId)) delete nextReelPositions[shapeId]
           }
           return {
             connections: nextConnections,
@@ -411,10 +386,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             ...EMPTY_SELECTION,
             shapes: shapesForLayout.map((shape) => {
               if (reelingIds.has(shape.id)) return shape
-              const pose = targets.get(shape.id)
-              return pose
-                ? { ...shape, position: pose.position, quaternion: pose.quaternion }
-                : shape
+              const position = targets.get(shape.id)
+              return position ? { ...shape, position } : shape
             }),
             // Replace any in-flight reel for the same shape with the new target.
             reelIns: [
@@ -422,7 +395,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
               ...newReelIns,
             ],
             reelPositions: nextReelPositions,
-            reelQuaternions: nextReelQuaternions,
           }
         })
       },
@@ -441,17 +413,12 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (removed?.b.kind === 'shape') touched.add(removed.b.shapeId)
 
         const nextReelPositions = { ...get().reelPositions }
-        const nextReelQuaternions = { ...get().reelQuaternions }
-        for (const shapeId of touched) {
-          delete nextReelPositions[shapeId]
-          delete nextReelQuaternions[shapeId]
-        }
+        for (const shapeId of touched) delete nextReelPositions[shapeId]
         set({
           connections: nextConnections,
           shapes: withSyncedLeavingHanging(shapes, previousHanging, nextHanging),
           reelIns: reelIns.filter((reel) => !touched.has(reel.shapeId)),
           reelPositions: nextReelPositions,
-          reelQuaternions: nextReelQuaternions,
         })
       },
 
@@ -570,36 +537,19 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           reelPositions: { ...state.reelPositions, ...positions },
         })),
 
-      setReelQuaternions: (quaternions) =>
-        set((state) => ({
-          reelQuaternions: { ...state.reelQuaternions, ...quaternions },
-        })),
-
       finishReelIns: (completed) => {
         if (completed.length === 0) return
         const completedIds = new Set(completed.map((item) => item.shapeId))
         const positionById = new Map(completed.map((item) => [item.shapeId, item.position]))
-        const quaternionById = new Map(completed.map((item) => [item.shapeId, item.quaternion]))
         set((state) => {
           const nextReelPositions = { ...state.reelPositions }
-          const nextReelQuaternions = { ...state.reelQuaternions }
-          for (const id of completedIds) {
-            delete nextReelPositions[id]
-            delete nextReelQuaternions[id]
-          }
+          for (const id of completedIds) delete nextReelPositions[id]
           return {
             reelIns: state.reelIns.filter((reel) => !completedIds.has(reel.shapeId)),
             reelPositions: nextReelPositions,
-            reelQuaternions: nextReelQuaternions,
             shapes: state.shapes.map((shape) => {
               const position = positionById.get(shape.id)
-              const quaternion = quaternionById.get(shape.id)
-              if (!position && !quaternion) return shape
-              return {
-                ...shape,
-                ...(position ? { position } : {}),
-                ...(quaternion ? { quaternion } : {}),
-              }
+              return position ? { ...shape, position } : shape
             }),
           }
         })
@@ -616,7 +566,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           activeTool: 'select',
           reelIns: [],
           reelPositions: {},
-          reelQuaternions: {},
           physicsEpoch,
         })
       },
@@ -633,7 +582,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           activeTool: 'select',
           reelIns: [],
           reelPositions: {},
-          reelQuaternions: {},
           physicsEpoch,
         })
       },
@@ -662,7 +610,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         // Never restore in-flight UI animations or undo stacks from storage.
         reelIns: [],
         reelPositions: {},
-        reelQuaternions: {},
         pendingVertex: null,
         ...EMPTY_SELECTION,
         activeTool: 'select',

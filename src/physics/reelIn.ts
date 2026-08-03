@@ -1,16 +1,32 @@
+import * as THREE from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
+import { ANCHOR_POSITION, getScaledVertex } from '../state/shapeSpace'
 import {
   endpointBodyKey,
   type Connection,
+  type EndpointRef,
   type Shape,
   type ShapeReelIn,
 } from '../state/types'
-import type { ShapePose } from './freeClusterLayout'
 
 export type { ShapeReelIn }
 
 const MIN_REEL_DISTANCE = 0.02
-const MIN_REEL_ANGLE = 0.02
+
+function worldVertexOffset(shape: Shape, vertexIndex: number): THREE.Vector3 {
+  const [x, y, z] = getScaledVertex(shape, vertexIndex)
+  return new THREE.Vector3(x, y, z).applyQuaternion(new THREE.Quaternion(...shape.quaternion))
+}
+
+function endpointWorldPosition(
+  endpoint: EndpointRef,
+  shapesById: Map<string, Shape>,
+): THREE.Vector3 | null {
+  if (endpoint.kind === 'anchor') return new THREE.Vector3(...ANCHOR_POSITION)
+  const shape = shapesById.get(endpoint.shapeId)
+  if (!shape) return null
+  return worldVertexOffset(shape, endpoint.vertexIndex).add(new THREE.Vector3(...shape.position))
+}
 
 /** Ease-out cubic: fast start, gentle settle as the thread finishes shortening. */
 export function easeOutCubic(t: number): number {
@@ -27,57 +43,54 @@ export function reelDurationMs(from: Vector3Tuple, to: Vector3Tuple): number {
   return Math.min(1400, Math.max(550, 450 + dist * 140))
 }
 
-function quatAngle(
-  a: [number, number, number, number],
-  b: [number, number, number, number],
-): number {
-  const dot = Math.abs(a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3])
-  return 2 * Math.acos(Math.min(1, Math.max(0, dot)))
-}
-
-/** Convert translation-only targets (hanging BFS) into full pose targets. */
-export function posesFromPositions(
+/**
+ * Target translation that brings `moving`'s corner onto `fixed`'s corner.
+ * Used for free↔free ties (no hook chain involved yet).
+ */
+export function computeFreeCloseTarget(
   shapes: Shape[],
-  positions: Map<string, Vector3Tuple>,
-): Map<string, ShapePose> {
+  connection: Connection,
+): Map<string, Vector3Tuple> {
   const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
-  const poses = new Map<string, ShapePose>()
-  for (const [shapeId, position] of positions) {
-    const shape = shapesById.get(shapeId)
-    if (!shape) continue
-    poses.set(shapeId, {
-      position,
-      quaternion: [...shape.quaternion] as [number, number, number, number],
-    })
+  let fixed = connection.a
+  let moving = connection.b
+
+  if (moving.kind === 'anchor') {
+    fixed = connection.b
+    moving = connection.a
   }
-  return poses
+
+  if (moving.kind === 'anchor') return new Map()
+  if (fixed.kind === 'shape' && fixed.shapeId === moving.shapeId) return new Map()
+
+  const movingShape = shapesById.get(moving.shapeId)
+  const targetCorner = endpointWorldPosition(fixed, shapesById)
+  if (!movingShape || !targetCorner) return new Map()
+
+  const localOffset = worldVertexOffset(movingShape, moving.vertexIndex)
+  const newPosition = targetCorner.clone().sub(localOffset)
+  return new Map([[movingShape.id, [newPosition.x, newPosition.y, newPosition.z]]])
 }
 
-/** Build reel-in entries for every shape that still has a meaningful gap or spin to close. */
+/** Build reel-in entries for every shape that still has a meaningful gap to close. */
 export function buildReelIns(
   shapes: Shape[],
-  targets: Map<string, ShapePose>,
+  targets: Map<string, Vector3Tuple>,
   now = performance.now(),
 ): ShapeReelIn[] {
   const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
   const reelIns: ShapeReelIn[] = []
 
-  for (const [shapeId, pose] of targets) {
+  for (const [shapeId, to] of targets) {
     const shape = shapesById.get(shapeId)
     if (!shape) continue
     const from = shape.position
-    const to = pose.position
-    const fromQuat = [...shape.quaternion] as [number, number, number, number]
-    const toQuat = pose.quaternion
     const dist = Math.hypot(to[0] - from[0], to[1] - from[1], to[2] - from[2])
-    const angle = quatAngle(fromQuat, toQuat)
-    if (dist < MIN_REEL_DISTANCE && angle < MIN_REEL_ANGLE) continue
+    if (dist < MIN_REEL_DISTANCE) continue
     reelIns.push({
       shapeId,
       from: [...from] as Vector3Tuple,
       to,
-      fromQuat,
-      toQuat,
       startedAt: now,
       durationMs: reelDurationMs(from, to),
     })
