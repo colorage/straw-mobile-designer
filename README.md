@@ -34,8 +34,4 @@ npm run build
 
 This repo deploys to GitHub Pages automatically via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to `main`.
 
-One-time setup after pushing to GitHub: in the repo's **Settings → Pages**, set **Source** to **GitHub Actions**. The site will then be available at:
-
-```
-https://<your-github-username>.github.io/straw-mobile-designer/
-```
+One-time setup after pushing to GitHub: in the repo's **Settings → Pages**, set **Source** to **GitHub Actions**. With the project custom domain, the site is served from the domain root (Vite `base` is `/`).
