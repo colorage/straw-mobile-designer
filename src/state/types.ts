@@ -37,6 +37,8 @@ export interface ShapeReelIn {
   shapeId: string
   from: Vector3Tuple
   to: Vector3Tuple
+  fromQuat: [number, number, number, number]
+  toQuat: [number, number, number, number]
   startedAt: number
   durationMs: number
 }

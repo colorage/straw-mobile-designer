@@ -1,6 +1,8 @@
 import type { Vector3Tuple } from '../geometry/primitives'
 
-type MeshDriver = (position: Vector3Tuple) => void
+export type QuatTuple = [number, number, number, number]
+
+type MeshDriver = (position: Vector3Tuple, quaternion?: QuatTuple) => void
 
 /** Imperative mesh movers keyed by shape id — used while reeling so visuals track without waiting on React. */
 const drivers = new Map<string, MeshDriver>()
@@ -12,6 +14,6 @@ export function registerMeshDriver(shapeId: string, driver: MeshDriver) {
   }
 }
 
-export function driveMesh(shapeId: string, position: Vector3Tuple) {
-  drivers.get(shapeId)?.(position)
+export function driveMesh(shapeId: string, position: Vector3Tuple, quaternion?: QuatTuple) {
+  drivers.get(shapeId)?.(position, quaternion)
 }
