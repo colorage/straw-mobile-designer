@@ -7,7 +7,6 @@ import { ConnectionHint } from './ui/ConnectionHint'
 import { GalleryPanel } from './ui/GalleryPanel'
 import { ModeBar } from './ui/ModeBar'
 import { SaveStatus } from './ui/SaveStatus'
-import { ShapesList } from './ui/ShapesList'
 import { SizeSelector } from './ui/SizeSelector'
 import { StrawInventory } from './ui/StrawInventory'
 import { Toolbar } from './ui/Toolbar'
@@ -60,7 +59,6 @@ function App() {
         <ToolPanel />
         <Toolbar />
         <SizeSelector />
-        <ShapesList />
         <StrawInventory />
         <GalleryPanel />
         <ModeBar />
