@@ -1,3 +1,17 @@
+/*
+ * Buy Me a Coffee sits fixed in the bottom-right. Straw inventory stats stack
+ * above it; keep these in sync so the button (and its shadow) never covers the
+ * summary — including when safe-area insets raise the control.
+ */
+:root {
+  --bmc-size: 44px;
+  --bmc-gap: 20px;
+  --bmc-right: max(18px, env(safe-area-inset-right, 0px));
+  --bmc-bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 10px));
+  --hud-stats-right: max(22px, env(safe-area-inset-right, 0px));
+  --hud-stats-bottom: calc(var(--bmc-bottom) + var(--bmc-size) + var(--bmc-gap));
+}
+
 .app-shell {
   position: relative;
   width: 100%;
@@ -140,8 +154,8 @@
 }
 
 .hud-bottom-right {
-  right: max(22px, env(safe-area-inset-right, 0px));
-  bottom: max(70px, calc(env(safe-area-inset-bottom, 0px) + 58px));
+  right: var(--hud-stats-right);
+  bottom: var(--hud-stats-bottom);
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
@@ -197,8 +211,10 @@
 
 .bmc-button {
   position: fixed;
-  right: max(18px, env(safe-area-inset-right, 0px));
-  bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 10px));
+  right: var(--bmc-right);
+  bottom: var(--bmc-bottom);
+  width: var(--bmc-size);
+  height: var(--bmc-size);
   z-index: 20;
 }
 
@@ -630,7 +646,15 @@
   gap: 16px;
 }
 
-@media (max-width: 640px), (max-height: 700px) {
+@media (max-width: 900px), (max-height: 700px) {
+  :root {
+    --bmc-size: 40px;
+    --bmc-gap: 18px;
+    --bmc-right: max(12px, env(safe-area-inset-right, 0px));
+    --bmc-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+    --hud-stats-right: max(14px, env(safe-area-inset-right, 0px));
+  }
+
   .hud-project-name,
   .hud-project-input {
     font-size: 18px;
@@ -675,7 +699,8 @@
 
   .hud-middle-right {
     top: max(72px, calc(env(safe-area-inset-top, 0px) + 56px));
-    bottom: max(66px, calc(env(safe-area-inset-bottom, 0px) + 54px));
+    /* Clear straw inventory + coffee button stacked in the bottom-right. */
+    bottom: max(var(--hud-stats-bottom), calc(env(safe-area-inset-bottom, 0px) + 54px));
     right: max(12px, env(safe-area-inset-right, 0px));
     transform: none;
     overflow-x: hidden;
@@ -688,16 +713,6 @@
   .hud-middle-right::-webkit-scrollbar {
     width: 0;
     height: 0;
-  }
-
-  .hud-bottom-right {
-    right: max(14px, env(safe-area-inset-right, 0px));
-    bottom: max(60px, calc(env(safe-area-inset-bottom, 0px) + 52px));
-  }
-
-  .bmc-button {
-    right: max(12px, env(safe-area-inset-right, 0px));
-    bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
   }
 
   .hud-bottom-center {
