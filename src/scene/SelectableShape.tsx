@@ -3,6 +3,7 @@ import { PivotControls } from '@react-three/drei'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { Vector3Tuple } from '../geometry/primitives'
 import { getBodyRef } from '../physics/bodyRefRegistry'
+import { getFreeComponentIds, getHangingShapeIds } from '../physics/restingLayout'
 import { useStrawMobileStore } from '../state/store'
 import type { Shape } from '../state/types'
 import { ShapeGroup } from './ShapeGroup'
@@ -103,19 +104,48 @@ function syncKinematicBody(shapeId: string, position: Vector3Tuple) {
 }
 
 /**
+ * Free selected shapes plus free thread-connected neighbors (not hanging).
+ * Snapshot positions at drag start so every cohort member shares one delta.
+ */
+function snapshotDragCohortBases(): Map<string, Vector3Tuple> {
+  const { shapes, connections, selectedShapeIds } = useStrawMobileStore.getState()
+  const hanging = getHangingShapeIds(connections)
+  const shapeById = new Map(shapes.map((shape) => [shape.id, shape]))
+  const cohortIds = new Set<string>()
+
+  for (const seedId of selectedShapeIds) {
+    if (!shapeById.has(seedId) || hanging.has(seedId)) continue
+    for (const id of getFreeComponentIds(connections, seedId)) {
+      if (!shapeById.has(id) || hanging.has(id)) continue
+      cohortIds.add(id)
+    }
+  }
+
+  // Primary gizmo target is always included even if selection was cleared mid-gesture.
+  const bases = new Map<string, Vector3Tuple>()
+  for (const id of cohortIds) {
+    const shape = shapeById.get(id)
+    if (!shape) continue
+    bases.set(id, [...shape.position] as Vector3Tuple)
+  }
+  return bases
+}
+
+/**
  * Translate-only PivotControls gizmo.
  *
  * Freezes position/quaternion at mount (selection time) for the inner group.
  * PivotControls sits untransformed under the scene root, so its onDrag matrix
  * `l` is the accumulated world-space translation since mount — adding that to
- * basePosition gives the live store position without double-counting the drag
- * delta that PivotControls already applies imperatively to its subtree.
+ * each snapshotted cohort base gives live store positions without double-counting
+ * the drag delta that PivotControls already applies imperatively to its subtree.
  */
 function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) {
-  const moveShape = useStrawMobileStore((s) => s.moveShape)
+  const moveShapes = useStrawMobileStore((s) => s.moveShapes)
   const pushHistory = useStrawMobileStore((s) => s.pushHistory)
   const basePosition = useRef(position).current
   const baseQuaternion = useRef(quaternion).current
+  const cohortBasesRef = useRef<Map<string, Vector3Tuple>>(new Map())
 
   return (
     <PivotControls
@@ -128,15 +158,38 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
       onDragStart={() => {
         // One history entry per drag gesture — not per onDrag frame.
         pushHistory()
+        const bases = snapshotDragCohortBases()
+        // Ensure the gizmo owner is in the cohort even if selection drifted.
+        if (!bases.has(shapeId)) {
+          bases.set(shapeId, [...basePosition] as Vector3Tuple)
+        }
+        cohortBasesRef.current = bases
       }}
       onDrag={(l) => {
-        const next: Vector3Tuple = [
+        // `l` is translation since gizmo mount (same as primary basePosition).
+        // Cohort siblings were snapshotted at drag start from the store, so
+        // apply the primary's gesture delta rather than the raw mount offset.
+        const primaryNext: Vector3Tuple = [
           basePosition[0] + l.elements[12],
           basePosition[1] + l.elements[13],
           basePosition[2] + l.elements[14],
         ]
-        moveShape(shapeId, next)
-        syncKinematicBody(shapeId, next)
+        const bases = cohortBasesRef.current
+        const primaryBase = bases.get(shapeId) ?? basePosition
+        const gestureDx = primaryNext[0] - primaryBase[0]
+        const gestureDy = primaryNext[1] - primaryBase[1]
+        const gestureDz = primaryNext[2] - primaryBase[2]
+
+        const updates: { id: string; position: Vector3Tuple }[] = []
+        for (const [id, base] of bases) {
+          const next: Vector3Tuple =
+            id === shapeId
+              ? primaryNext
+              : [base[0] + gestureDx, base[1] + gestureDy, base[2] + gestureDz]
+          updates.push({ id, position: next })
+          syncKinematicBody(id, next)
+        }
+        moveShapes(updates)
       }}
     >
       <group position={basePosition} quaternion={baseQuaternion}>

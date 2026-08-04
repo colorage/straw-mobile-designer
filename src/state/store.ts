@@ -300,6 +300,8 @@ interface StrawMobileState {
   removeConnection: (id: string) => void
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: QuatTuple) => void
   moveShape: (id: string, position: Vector3Tuple) => void
+  /** Apply multiple position updates in one store write (one overlap-scan wake). */
+  moveShapes: (updates: { id: string; position: Vector3Tuple }[]) => void
   selectShape: (id: string | null) => void
   toggleShapeSelection: (id: string) => void
   selectShapeRange: (id: string) => void
@@ -752,11 +754,21 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         }))
       },
 
-      moveShape: (id, position) =>
+      moveShape: (id, position) => {
+        get().moveShapes([{ id, position }])
+      },
+
+      moveShapes: (updates) => {
+        if (updates.length === 0) return
+        const byId = new Map(updates.map((update) => [update.id, update.position]))
         set((state) => ({
-          shapes: state.shapes.map((shape) => (shape.id === id ? { ...shape, position } : shape)),
+          shapes: state.shapes.map((shape) => {
+            const position = byId.get(shape.id)
+            return position ? { ...shape, position } : shape
+          }),
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
-        })),
+        }))
+      },
 
       selectShape: (id) =>
         set(
