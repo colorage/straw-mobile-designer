@@ -219,3 +219,27 @@ export function CoffeeIcon({ className, title }: IconProps) {
   )
 }
 
+/** Horseshoe magnet for the connection-scanner toggle. */
+export function MagnetIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7 4.5v7.25a5 5 0 0 0 10 0V4.5"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M7 4.5H4.75M17 4.5h2.25M7 8.5H4.75M17 8.5h2.25"
+      />
+    </svg>
+  )
+}
+

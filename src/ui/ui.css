@@ -258,6 +258,13 @@
   color: #ffffff;
 }
 
+.hud-magnet.is-active,
+.hud-magnet.is-active:hover:not(:disabled) {
+  background: #b36b00;
+  border-color: #ffd166;
+  color: #ffffff;
+}
+
 .hud-slot-label {
   font-size: 16px;
   font-weight: 600;

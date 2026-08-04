@@ -95,6 +95,7 @@ export function OverlapConnectController() {
       reelIns,
       overlapSuggest,
       overlapScanWakeToken,
+      overlapScannerEnabled,
       setOverlapSuggest,
       setOverlapScanUi,
       connectEndpoints,
@@ -127,8 +128,8 @@ export function OverlapConnectController() {
       showAwakeUi(1)
     }
 
-    // Cheap mode gates run every frame so scissors/empty clear suggest immediately.
-    if (activeTool === 'scissors' || shapes.length === 0) {
+    // Cheap mode gates run every frame so scissors/empty/disabled clear suggest immediately.
+    if (!overlapScannerEnabled || activeTool === 'scissors' || shapes.length === 0) {
       scanAccumulatorRef.current = 0
       idleMsRef.current = 0
       asleepRef.current = false

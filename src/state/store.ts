@@ -243,6 +243,11 @@ interface StrawMobileState {
    * countdown). Session-only; not persisted.
    */
   overlapScanUi: OverlapScanUi | null
+  /**
+   * User toggle for the overlap proximity scanner. Session-only; not reset by
+   * undo/redo/load/reset.
+   */
+  overlapScannerEnabled: boolean
   /** Shapes currently selected (last id is the primary / gizmo target). */
   selectedShapeIds: string[]
   /** Anchor for Shift+range selection in the sidebar list. */
@@ -285,6 +290,10 @@ interface StrawMobileState {
   pushHistory: () => void
   /** Re-enable the overlap proximity scanner after an idle sleep. */
   wakeOverlapScanner: () => void
+  /** Turn the overlap proximity scanner on or off (clears HUD when disabling). */
+  setOverlapScannerEnabled: (enabled: boolean) => void
+  /** Toggle the overlap proximity scanner on/off. */
+  toggleOverlapScanner: () => void
   setAnchorY: (y: number) => void
   undo: () => void
   redo: () => void
@@ -381,6 +390,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       overlapSuggest: null,
       overlapScanWakeToken: 0,
       overlapScanUi: null,
+      overlapScannerEnabled: true,
       selectedShapeIds: [],
       selectionAnchorId: null,
       activeTool: 'none',
@@ -402,6 +412,26 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       wakeOverlapScanner: () => {
         set((state) => ({ overlapScanWakeToken: state.overlapScanWakeToken + 1 }))
+      },
+
+      setOverlapScannerEnabled: (enabled) => {
+        if (get().overlapScannerEnabled === enabled) return
+        if (enabled) {
+          set((state) => ({
+            overlapScannerEnabled: true,
+            overlapScanWakeToken: state.overlapScanWakeToken + 1,
+          }))
+          return
+        }
+        set({
+          overlapScannerEnabled: false,
+          overlapSuggest: null,
+          overlapScanUi: null,
+        })
+      },
+
+      toggleOverlapScanner: () => {
+        get().setOverlapScannerEnabled(!get().overlapScannerEnabled)
       },
 
       pushHistory: () => {
