@@ -10,7 +10,7 @@ import {
 export const OVERLAP_RADIUS = 0.2
 
 /** Continuous proximity required before auto-connecting (ms). */
-export const OVERLAP_DWELL_MS = 2500
+export const OVERLAP_DWELL_MS = 1000
 
 /**
  * Max lin/ang speed (m/s, rad/s) for a hanging body to count as settled enough

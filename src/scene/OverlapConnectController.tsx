@@ -12,7 +12,7 @@ import {
   overlapPairKey,
 } from './cornerProximity'
 
-/** Proximity scans are far cheaper than 60 Hz; dwell is 2.5s so ~15 Hz is plenty. */
+/** Proximity scans are far cheaper than 60 Hz; dwell is 1s so ~15 Hz is plenty. */
 const SCAN_INTERVAL_S = 1 / 15
 
 function bodySpeed(bodyKey: string): number {
