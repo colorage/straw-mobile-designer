@@ -118,29 +118,27 @@ function viewBasis(camera: THREE.Camera | null, target: THREE.Vector3) {
 }
 
 /**
- * Pick a workbench position that stays in the current camera view and does not
- * overlap existing shapes. Falls back to the nearest clear candidate if nothing
- * lands fully in-frustum.
+ * Pick a workbench position for `localAabb` (relative to the placement point)
+ * that stays in the current camera view and does not overlap occupied bounds.
+ * Falls back to the nearest clear candidate if nothing lands fully in-frustum.
  */
-export function findAddPosition(shapes: Shape[], kind: ShapeKind, size: StrawSize): Vector3Tuple {
+function findFreeSpacePosition(occupied: Aabb[], localAabb: Aabb): Vector3Tuple {
   const { camera, target } = getCameraView()
-  const localAabb = newShapeLocalAabb(kind, size)
-  const occupied = shapes.map(shapeWorldAabb)
   const { right, up } = viewBasis(camera, target)
 
   const origin = target.clone()
-  if (shapes.length === 0) {
+  if (occupied.length === 0) {
     origin.y += EMPTY_SCENE_Y_OFFSET
   }
 
   let fallback: THREE.Vector3 | null = null
 
   for (let step = 0; step < MAX_SPIRAL_STEPS; step++) {
-    if (step === 0 && shapes.length === 0) {
+    if (step === 0 && occupied.length === 0) {
       _candidate.copy(origin)
     } else {
       // Archimedean spiral on the camera-facing plane so later adds fan out beside content.
-      const index = shapes.length === 0 ? step : step + 1
+      const index = occupied.length === 0 ? step : step + 1
       const radius = SPIRAL_STEP * Math.sqrt(index)
       const angle = index * 2.399963 // golden angle
       _candidate
@@ -175,4 +173,49 @@ export function findAddPosition(shapes: Shape[], kind: ShapeKind, size: StrawSiz
   }
 
   return [origin.x, origin.y, origin.z]
+}
+
+/**
+ * Pick a workbench position that stays in the current camera view and does not
+ * overlap existing shapes. Falls back to the nearest clear candidate if nothing
+ * lands fully in-frustum.
+ */
+export function findAddPosition(shapes: Shape[], kind: ShapeKind, size: StrawSize): Vector3Tuple {
+  return findFreeSpacePosition(shapes.map(shapeWorldAabb), newShapeLocalAabb(kind, size))
+}
+
+function unionAabb(aabbs: Aabb[]): Aabb | null {
+  if (aabbs.length === 0) return null
+  const min = aabbs[0].min.clone()
+  const max = aabbs[0].max.clone()
+  for (let i = 1; i < aabbs.length; i++) {
+    min.min(aabbs[i].min)
+    max.max(aabbs[i].max)
+  }
+  return { min, max }
+}
+
+/**
+ * Translation that moves `groupShapes` into free space near the camera look-at
+ * (same spiral / frustum logic as adding a straw), preserving relative layout.
+ */
+export function findGroupAddDelta(occupiedShapes: Shape[], groupShapes: Shape[]): Vector3Tuple {
+  if (groupShapes.length === 0) return [0, 0, 0]
+
+  const groupAabbs = groupShapes.map(shapeWorldAabb)
+  const union = unionAabb(groupAabbs)
+  if (!union) return [0, 0, 0]
+
+  const center = new THREE.Vector3(
+    (union.min.x + union.max.x) * 0.5,
+    (union.min.y + union.max.y) * 0.5,
+    (union.min.z + union.max.z) * 0.5,
+  )
+  const localAabb: Aabb = {
+    min: union.min.clone().sub(center),
+    max: union.max.clone().sub(center),
+  }
+
+  const [x, y, z] = findFreeSpacePosition(occupiedShapes.map(shapeWorldAabb), localAabb)
+  return [x - center.x, y - center.y, z - center.z]
 }

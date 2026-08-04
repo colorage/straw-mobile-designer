@@ -9,7 +9,7 @@ import {
   computeRestingPoses,
   getHangingShapeIds,
 } from '../physics/restingLayout'
-import { findAddPosition } from '../scene/placement'
+import { findAddPosition, findGroupAddDelta } from '../scene/placement'
 import {
   DEFAULT_PROJECT_NAME,
   endpointBodyKey,
@@ -185,9 +185,14 @@ function snapshotSelectedBuffer(
 
 /**
  * Materialize a buffer into new scene objects: fresh ids, remapped threads,
- * and a world offset so copies don't stack on the originals.
+ * and a world translation so copies don't stack on the originals.
+ * Pass `translation` to place relative to free space (slot paste); otherwise
+ * use the fixed duplicate offset next to the source selection.
  */
-function materializeBuffer(buffer: SlotBuffer): {
+function materializeBuffer(
+  buffer: SlotBuffer,
+  translation: Vector3Tuple = DUPLICATE_OFFSET,
+): {
   shapes: Shape[]
   connections: Connection[]
   newIds: string[]
@@ -202,9 +207,9 @@ function materializeBuffer(buffer: SlotBuffer): {
       vertices: shape.vertices.map((vertex) => [...vertex] as Vector3Tuple),
       edges: shape.edges.map((edge) => [...edge] as [number, number]),
       position: [
-        shape.position[0] + DUPLICATE_OFFSET[0],
-        shape.position[1] + DUPLICATE_OFFSET[1],
-        shape.position[2] + DUPLICATE_OFFSET[2],
+        shape.position[0] + translation[0],
+        shape.position[1] + translation[1],
+        shape.position[2] + translation[2],
       ] as Vector3Tuple,
       quaternion: [...shape.quaternion] as QuatTuple,
     }
@@ -858,8 +863,11 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (!buffer) return
 
         get().pushHistory()
+        // Same free-space search as adding a straw: land near the camera
+        // look-at (hanging mobile) instead of the absolute stored pose.
+        const translation = findGroupAddDelta(shapes, buffer.shapes)
         const { shapes: clones, connections: clonedConnections, newIds } =
-          materializeBuffer(buffer)
+          materializeBuffer(buffer, translation)
 
         set((state) => ({
           shapes: [...state.shapes, ...clones],
