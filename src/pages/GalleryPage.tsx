@@ -1,5 +1,6 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { suppressNextGalleryPersist } from '../gallery/autoPersist'
 import { useGalleryStore } from '../gallery/galleryStore'
 import { readGalleryFile } from '../gallery/jsonIo'
 import type { GalleryEntry } from '../gallery/types'
@@ -56,6 +57,7 @@ export function GalleryPage() {
   const handleNew = () => {
     setError(null)
     if (!confirmStartNew()) return
+    suppressNextGalleryPersist()
     reset()
     clearActive()
     goToDesigner()
@@ -64,6 +66,7 @@ export function GalleryPage() {
   const handleLoad = (entry: GalleryEntry) => {
     setError(null)
     if (!confirmOverwriteDraft()) return
+    suppressNextGalleryPersist()
     if (!loadEntry(entry.id)) {
       setError('Could not load that mobile.')
       return
@@ -90,6 +93,7 @@ export function GalleryPage() {
       const envelope = await readGalleryFile(file)
       const id = importEnvelope(envelope)
       if (!confirmOverwriteDraft()) return
+      suppressNextGalleryPersist()
       if (!loadEntry(id)) {
         setError('Imported, but could not load into the designer.')
         return
@@ -136,8 +140,7 @@ export function GalleryPage() {
         <div className="gallery-page-empty">
           <p className="panel-hint">No saved mobiles yet.</p>
           <p className="panel-hint">
-            Build something in the designer, then use <strong>Save to gallery</strong> to keep a named
-            copy here.
+            Build something in the designer — your current project is saved here automatically.
           </p>
           <Link to="/" className="primary-button gallery-page-action gallery-page-empty-cta">
             Open designer

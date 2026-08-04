@@ -161,3 +161,26 @@ export const useGalleryStore = create<GalleryState>()(
     },
   ),
 )
+
+/**
+ * Write the working draft into the gallery library.
+ * Creates a new entry when none is active; otherwise updates the active one.
+ * Skips empty drafts so "New" / cleared scenes do not create blank cards.
+ */
+export function persistDraftToGallery(): boolean {
+  const { shapes, projectName } = useStrawMobileStore.getState()
+  if (shapes.length === 0) return false
+
+  const { activeGalleryId, entries, saveCurrent, updateActive } = useGalleryStore.getState()
+  const activeEntry = activeGalleryId
+    ? entries.find((entry) => entry.id === activeGalleryId)
+    : undefined
+
+  if (activeEntry) {
+    updateActive()
+    return true
+  }
+
+  saveCurrent(projectName.trim() || 'Untitled mobile')
+  return true
+}
