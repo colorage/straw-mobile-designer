@@ -51,6 +51,7 @@ export function ShapeGroup({
 
   return (
     <group
+      userData={{ selectableShapeId: shape.id }}
       onClick={onBodyClick}
       onPointerOver={
         scissorsHover
