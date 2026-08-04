@@ -15,6 +15,7 @@ import { getBodyRef } from '../physics/bodyRefRegistry'
 import { getFreeComponentIds, getHangingShapeIds } from '../physics/restingLayout'
 import { useStrawMobileStore } from '../state/store'
 import type { Shape } from '../state/types'
+import { beginGizmoDrag, DRAG_GIZMO_USER_DATA, endGizmoDrag } from './gizmoDrag'
 import { ShapeGroup } from './ShapeGroup'
 
 /**
@@ -370,8 +371,11 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
       fixed
       depthTest={false}
       offset={offset}
+      // Tags handle hit-meshes so marquee selection ignores gizmo pointerdowns.
+      userData={DRAG_GIZMO_USER_DATA}
       onDragStart={() => {
         cursor.beginDrag()
+        beginGizmoDrag()
         // One history entry per drag gesture — not per onDrag frame.
         pushHistory()
         const bases = snapshotDragCohortBases()
@@ -409,6 +413,7 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
       }}
       onDragEnd={() => {
         cursor.endDrag()
+        endGizmoDrag()
       }}
     >
       <group position={basePosition} quaternion={baseQuaternion}>

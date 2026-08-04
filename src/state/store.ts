@@ -9,11 +9,14 @@ import {
   computeRestingPoses,
   getHangingShapeIds,
 } from '../physics/restingLayout'
-import { findAddPosition } from '../scene/placement'
+import { syncShapeTransformsFromPhysics } from '../physics/syncTransforms'
+import { findAddPosition, findGroupAddDelta } from '../scene/placement'
 import {
   DEFAULT_PROJECT_NAME,
   endpointBodyKey,
   endpointsEqual,
+  EMPTY_SLOTS,
+  normalizeSlots,
   type Connection,
   type EndpointRef,
   type OverlapScanUi,
@@ -22,11 +25,16 @@ import {
   type Shape,
   type ShapePose,
   type ShapeReelIn,
+  type SlotBuffer,
+  type SlotBuffers,
+  type SlotIndex,
   type StrawCounts,
   type StrawSize,
 } from './types'
 
 import { BASE_ANCHOR_Y } from './shapeSpace'
+
+export type { SlotBuffer, SlotBuffers, SlotIndex } from './types'
 
 export {
   ANCHOR_POSITION,
@@ -40,12 +48,13 @@ export {
  * The current design (shapes, thread connections, and enough bookkeeping to
  * keep adding to it sensibly) is auto-saved to localStorage on every change,
  * so reloading the page — or closing and reopening the tab later — picks up
- * right where things were left off. Only the durable design lives here;
- * transient UI state (what's mid-click / selected / reeling) intentionally
+ * right where things were left off. Selection buffer slots are persisted with
+ * the draft (and each gallery project) so they stay per-project.
+ * Transient UI state (what's mid-click / selected / reeling) intentionally
  * always starts fresh, see `partialize` below.
  */
 const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
-const PERSISTED_STORAGE_VERSION = 3
+const PERSISTED_STORAGE_VERSION = 4
 /** Max design snapshots kept for undo / redo. */
 const HISTORY_LIMIT = 50
 /** World offset applied to duplicated shapes so copies don't stack. */
@@ -79,6 +88,8 @@ export type PersistedMobileState = {
 export type PersistedDraftState = PersistedMobileState & {
   projectName: string
   lastSavedAt: number
+  /** Per-project selection buffers (toolbar 1/2/3). */
+  slots: SlotBuffers
 }
 
 /** Clone the durable design fields for a history entry. */
@@ -134,21 +145,6 @@ function withSyncedLeavingHanging(
 /** Transient edit tool: orbit/navigate, select/marquee, or click-to-cut. */
 export type ActiveTool = 'none' | 'select' | 'scissors'
 
-/** Index of a selection buffer slot (toolbar buttons 1 / 2 / 3). */
-export type SlotIndex = 0 | 1 | 2
-
-/** Deep-cloned shapes + internal threads held in a buffer slot. */
-export type SlotBuffer = {
-  shapes: Shape[]
-  connections: Connection[]
-}
-
-const EMPTY_SLOTS: [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null] = [
-  null,
-  null,
-  null,
-]
-
 /** Snapshot selected shapes and threads that connect only within the set. */
 function snapshotSelectedBuffer(
   shapes: Shape[],
@@ -185,9 +181,14 @@ function snapshotSelectedBuffer(
 
 /**
  * Materialize a buffer into new scene objects: fresh ids, remapped threads,
- * and a world offset so copies don't stack on the originals.
+ * and a world translation so copies don't stack on the originals.
+ * Pass `translation` to place relative to free space (slot paste); otherwise
+ * use the fixed duplicate offset next to the source selection.
  */
-function materializeBuffer(buffer: SlotBuffer): {
+function materializeBuffer(
+  buffer: SlotBuffer,
+  translation: Vector3Tuple = DUPLICATE_OFFSET,
+): {
   shapes: Shape[]
   connections: Connection[]
   newIds: string[]
@@ -202,9 +203,9 @@ function materializeBuffer(buffer: SlotBuffer): {
       vertices: shape.vertices.map((vertex) => [...vertex] as Vector3Tuple),
       edges: shape.edges.map((edge) => [...edge] as [number, number]),
       position: [
-        shape.position[0] + DUPLICATE_OFFSET[0],
-        shape.position[1] + DUPLICATE_OFFSET[1],
-        shape.position[2] + DUPLICATE_OFFSET[2],
+        shape.position[0] + translation[0],
+        shape.position[1] + translation[1],
+        shape.position[2] + translation[2],
       ] as Vector3Tuple,
       quaternion: [...shape.quaternion] as QuatTuple,
     }
@@ -249,10 +250,11 @@ interface StrawMobileState {
   /** Current edit tool (not persisted). */
   activeTool: ActiveTool
   /**
-   * Session-only selection buffers (toolbar 1/2/3). Not persisted.
+   * Per-project selection buffers (toolbar 1/2/3). Persisted with the draft and
+   * each gallery save so slots follow the open project, not a global clipboard.
    * Occupied slots store a deep clone of shapes + internal connections.
    */
-  slots: [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null]
+  slots: SlotBuffers
   /** In-progress thread shorten animations (not persisted). */
   reelIns: ShapeReelIn[]
   /**
@@ -323,7 +325,8 @@ interface StrawMobileState {
   ) => void
   reset: () => void
   /** Replace the working draft with a gallery / import snapshot. */
-  loadProject: (snapshot: PersistedMobileState) => void
+  /** Replace the working design with a saved snapshot (gallery load / import). */
+  loadProject: (snapshot: PersistedMobileState & { slots?: SlotBuffers }) => void
   getStrawCounts: () => StrawCounts
 }
 
@@ -858,15 +861,21 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (!buffer) return
 
         get().pushHistory()
-        const { shapes: clones, connections: clonedConnections, newIds } =
-          materializeBuffer(buffer)
+        // Pull live Rapier poses into the store so free (unconnected) pieces
+        // and hanging ones both count as occupied near the look-at.
+        syncShapeTransformsFromPhysics()
+        const occupiedShapes = get().shapes
+        const translation = findGroupAddDelta(occupiedShapes, buffer.shapes)
+        const { shapes: clones, connections: clonedConnections } = materializeBuffer(
+          buffer,
+          translation,
+        )
 
         set((state) => ({
           shapes: [...state.shapes, ...clones],
           connections: [...state.connections, ...clonedConnections],
-          selectedShapeIds: newIds,
-          selectionAnchorId: newIds[newIds.length - 1] ?? null,
-          activeTool: 'select',
+          // Leave selection empty so another slot click pastes again into new free space.
+          ...EMPTY_SELECTION,
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
         }))
       },
@@ -951,6 +960,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
           activeTool: 'none',
+          slots: [...EMPTY_SLOTS],
           reelIns: [],
           deferredConnectionIds: [],
           reelPositions: {},
@@ -967,6 +977,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           shapes: snapshot.shapes,
           connections: snapshot.connections,
           strawSize: snapshot.strawSize,
+          slots: normalizeSlots(snapshot.slots),
           pendingVertex: null,
           overlapSuggest: null,
           overlapScanUi: null,
@@ -995,6 +1006,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         strawSize: state.strawSize,
         projectName: state.projectName,
         lastSavedAt: state.lastSavedAt,
+        slots: state.slots,
       }),
       migrate: (persisted, version) => {
         const state = persisted as PersistedDraftState & { placedCount?: number }
@@ -1005,31 +1017,44 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             ...rest,
             projectName: rest.projectName ?? DEFAULT_PROJECT_NAME,
             lastSavedAt: rest.lastSavedAt ?? Date.now(),
+            slots: normalizeSlots(rest.slots),
           }
         }
-        return rest
+        if (version < 4) {
+          return {
+            ...rest,
+            slots: normalizeSlots(rest.slots),
+          }
+        }
+        return {
+          ...rest,
+          slots: normalizeSlots(rest.slots),
+        }
       },
-      merge: (persisted, current) => ({
-        ...current,
-        ...(persisted as Partial<StrawMobileState>),
-        // Never restore in-flight UI animations or undo stacks from storage.
-        reelIns: [],
-        deferredConnectionIds: [],
-        reelPositions: {},
-        reelQuaternions: {},
-        pendingVertex: null,
-        overlapSuggest: null,
-        overlapScanUi: null,
-        // Wake the scanner after hydrating a saved draft.
-        overlapScanWakeToken: current.overlapScanWakeToken + 1,
-        ...EMPTY_SELECTION,
-        activeTool: 'none',
-        slots: [...EMPTY_SLOTS],
-        past: [],
-        future: [],
-        physicsEpoch: 0,
-        anchorY: BASE_ANCHOR_Y,
-      }),
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<PersistedDraftState>
+        return {
+          ...current,
+          ...saved,
+          // Never restore in-flight UI animations or undo stacks from storage.
+          reelIns: [],
+          deferredConnectionIds: [],
+          reelPositions: {},
+          reelQuaternions: {},
+          pendingVertex: null,
+          overlapSuggest: null,
+          overlapScanUi: null,
+          // Wake the scanner after hydrating a saved draft.
+          overlapScanWakeToken: current.overlapScanWakeToken + 1,
+          ...EMPTY_SELECTION,
+          activeTool: 'none',
+          slots: normalizeSlots(saved.slots),
+          past: [],
+          future: [],
+          physicsEpoch: 0,
+          anchorY: BASE_ANCHOR_Y,
+        }
+      },
     },
   ),
 )
@@ -1050,7 +1075,8 @@ useStrawMobileStore.subscribe((state, prev) => {
     state.shapes !== prev.shapes ||
     state.connections !== prev.connections ||
     state.strawSize !== prev.strawSize ||
-    state.projectName !== prev.projectName
+    state.projectName !== prev.projectName ||
+    state.slots !== prev.slots
   if (!designChanged) return
   if (state.lastSavedAt !== prev.lastSavedAt) return
   syncingLastSavedAt = true

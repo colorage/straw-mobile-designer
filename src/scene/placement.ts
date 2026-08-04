@@ -4,6 +4,7 @@ import {
   type ShapeKind,
   type Vector3Tuple,
 } from '../geometry/primitives'
+import { getBodyRef } from '../physics/bodyRefRegistry'
 import type { Shape, StrawSize } from '../state/types'
 import { getCameraView } from './cameraView'
 
@@ -12,7 +13,7 @@ const BASE_STRAW_LENGTH = 1.4
 const OVERLAP_PADDING = 0.4
 const NDC_MARGIN = 0.75
 const SPIRAL_STEP = 0.55
-const MAX_SPIRAL_STEPS = 48
+const MAX_SPIRAL_STEPS = 64
 const EMPTY_SCENE_Y_OFFSET = -0.8
 
 interface Aabb {
@@ -36,10 +37,48 @@ function scaledLocalVertex(shape: Pick<Shape, 'vertices' | 'size'>, vertexIndex:
   return _local.set(x * scale, y * scale, z * scale)
 }
 
-/** World-space axis-aligned bounds of a shape's vertices. */
-export function shapeWorldAabb(shape: Shape): Aabb {
+/**
+ * Resolve the pose used for occupancy / bounds.
+ * Live Rapier pose when available so hanging AND free (unconnected) bodies
+ * occupy their on-screen space; otherwise the store pose.
+ */
+function readPoseForAabb(shape: Shape, useLivePose: boolean): void {
+  if (useLivePose) {
+    const body = getBodyRef(shape.id).current
+    if (body) {
+      try {
+        const t = body.translation()
+        const r = body.rotation()
+        if (
+          Number.isFinite(t.x) &&
+          Number.isFinite(t.y) &&
+          Number.isFinite(t.z) &&
+          Number.isFinite(r.x) &&
+          Number.isFinite(r.y) &&
+          Number.isFinite(r.z) &&
+          Number.isFinite(r.w)
+        ) {
+          _pos.set(t.x, t.y, t.z)
+          _quat.set(r.x, r.y, r.z, r.w)
+          return
+        }
+      } catch {
+        // Body may have been freed; fall through to store pose.
+      }
+    }
+  }
   _quat.set(...shape.quaternion)
   _pos.set(...shape.position)
+}
+
+/**
+ * World-space axis-aligned bounds of a shape's vertices.
+ * @param useLivePose Prefer the live physics body pose (default true) so free
+ *   workbench pieces and swaying hanging pieces both count as occupied.
+ *   Pass false for buffer snapshots whose ids may still refer to other bodies.
+ */
+export function shapeWorldAabb(shape: Shape, useLivePose = true): Aabb {
+  readPoseForAabb(shape, useLivePose)
 
   const min = new THREE.Vector3(Infinity, Infinity, Infinity)
   const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity)
@@ -118,29 +157,27 @@ function viewBasis(camera: THREE.Camera | null, target: THREE.Vector3) {
 }
 
 /**
- * Pick a workbench position that stays in the current camera view and does not
- * overlap existing shapes. Falls back to the nearest clear candidate if nothing
- * lands fully in-frustum.
+ * Pick a workbench position for `localAabb` (relative to the placement point)
+ * that stays in the current camera view and does not overlap occupied bounds.
+ * Falls back to the nearest clear candidate if nothing lands fully in-frustum.
  */
-export function findAddPosition(shapes: Shape[], kind: ShapeKind, size: StrawSize): Vector3Tuple {
+function findFreeSpacePosition(occupied: Aabb[], localAabb: Aabb): Vector3Tuple {
   const { camera, target } = getCameraView()
-  const localAabb = newShapeLocalAabb(kind, size)
-  const occupied = shapes.map(shapeWorldAabb)
   const { right, up } = viewBasis(camera, target)
 
   const origin = target.clone()
-  if (shapes.length === 0) {
+  if (occupied.length === 0) {
     origin.y += EMPTY_SCENE_Y_OFFSET
   }
 
   let fallback: THREE.Vector3 | null = null
 
   for (let step = 0; step < MAX_SPIRAL_STEPS; step++) {
-    if (step === 0 && shapes.length === 0) {
+    if (step === 0 && occupied.length === 0) {
       _candidate.copy(origin)
     } else {
       // Archimedean spiral on the camera-facing plane so later adds fan out beside content.
-      const index = shapes.length === 0 ? step : step + 1
+      const index = occupied.length === 0 ? step : step + 1
       const radius = SPIRAL_STEP * Math.sqrt(index)
       const angle = index * 2.399963 // golden angle
       _candidate
@@ -175,4 +212,59 @@ export function findAddPosition(shapes: Shape[], kind: ShapeKind, size: StrawSiz
   }
 
   return [origin.x, origin.y, origin.z]
+}
+
+/**
+ * Pick a workbench position that stays in the current camera view and does not
+ * overlap existing shapes. Falls back to the nearest clear candidate if nothing
+ * lands fully in-frustum.
+ */
+export function findAddPosition(shapes: Shape[], kind: ShapeKind, size: StrawSize): Vector3Tuple {
+  // Live poses so free workbench shapes occupy space the same as hanging ones.
+  return findFreeSpacePosition(
+    shapes.map((shape) => shapeWorldAabb(shape, true)),
+    newShapeLocalAabb(kind, size),
+  )
+}
+
+function unionAabb(aabbs: Aabb[]): Aabb | null {
+  if (aabbs.length === 0) return null
+  const min = aabbs[0].min.clone()
+  const max = aabbs[0].max.clone()
+  for (let i = 1; i < aabbs.length; i++) {
+    min.min(aabbs[i].min)
+    max.max(aabbs[i].max)
+  }
+  return { min, max }
+}
+
+/**
+ * Translation that moves `groupShapes` into free space near the camera look-at
+ * (same spiral / frustum logic as adding a straw), preserving relative layout.
+ *
+ * Occupancy uses live poses of every scene shape — hanging (connected) and free
+ * (unconnected) — so a second paste does not land on the first. Group bounds
+ * always use the buffer's stored poses (ids may still point at other bodies).
+ */
+export function findGroupAddDelta(occupiedShapes: Shape[], groupShapes: Shape[]): Vector3Tuple {
+  if (groupShapes.length === 0) return [0, 0, 0]
+
+  // Buffer snapshots keep source ids; never read those bodies for group bounds.
+  const groupAabbs = groupShapes.map((shape) => shapeWorldAabb(shape, false))
+  const union = unionAabb(groupAabbs)
+  if (!union) return [0, 0, 0]
+
+  const center = new THREE.Vector3(
+    (union.min.x + union.max.x) * 0.5,
+    (union.min.y + union.max.y) * 0.5,
+    (union.min.z + union.max.z) * 0.5,
+  )
+  const localAabb: Aabb = {
+    min: union.min.clone().sub(center),
+    max: union.max.clone().sub(center),
+  }
+
+  const occupied = occupiedShapes.map((shape) => shapeWorldAabb(shape, true))
+  const [x, y, z] = findFreeSpacePosition(occupied, localAabb)
+  return [x - center.x, y - center.y, z - center.z]
 }

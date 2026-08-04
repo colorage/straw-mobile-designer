@@ -10,6 +10,7 @@ import { useThemeStore } from '../state/themeStore'
 import { setCameraView } from './cameraView'
 import { setCanvasBridge } from './canvasBridge'
 import { MarqueeSelectController } from './MarqueeSelectController'
+import { consumeGizmoClick } from './gizmoDrag'
 import { consumeMarqueeClick } from './marqueeSelect'
 import { detectSoftwareGL } from './renderCapability'
 
@@ -140,6 +141,8 @@ export function Experience() {
       }}
       onPointerMissed={() => {
         if (consumeMarqueeClick()) return
+        // Keep select mode after a gizmo move so further selections stay available.
+        if (consumeGizmoClick()) return
         // Empty single-click leaves selection mode so orbit is uncontested.
         if (useStrawMobileStore.getState().activeTool === 'select') {
           setActiveTool('none')

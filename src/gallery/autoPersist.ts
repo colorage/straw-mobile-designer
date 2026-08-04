@@ -61,7 +61,8 @@ useStrawMobileStore.subscribe((state, prev) => {
     state.shapes !== prev.shapes ||
     state.connections !== prev.connections ||
     state.strawSize !== prev.strawSize ||
-    state.projectName !== prev.projectName
+    state.projectName !== prev.projectName ||
+    state.slots !== prev.slots
 
   if (!designChanged) return
 
