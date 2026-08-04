@@ -44,11 +44,13 @@ const ORBIT_TARGET: [number, number, number] = [0, 2, 0]
  *
  * The orbit target is applied once on mount (not as a declarative prop) so
  * React re-renders cannot reset the look-at while the user is panning.
+ * Orbit is disabled while the selection tool is active (marquee / click select).
  */
 function CameraViewSync() {
   const camera = useThree((s) => s.camera)
   const get = useThree((s) => s.get)
   const controlsRef = useRef<OrbitControlsImpl | null>(null)
+  const selectActive = useStrawMobileStore((s) => s.activeTool === 'select')
 
   useFrame(() => {
     const controls = controlsRef.current ?? (get().controls as OrbitControlsImpl | null)
@@ -63,16 +65,17 @@ function CameraViewSync() {
     const controls = controlsRef.current
     if (!controls) return
     controls.target.set(...ORBIT_TARGET)
-    controls.enabled = true
+    controls.enabled = !selectActive
     controls.update()
     // onCreated runs before makeDefault attaches controls — refresh debug handle.
     const debug = (window as unknown as { __strawDebug?: { controls?: unknown } }).__strawDebug
     if (debug) debug.controls = controls
-  }, [])
+  }, [selectActive])
 
   return (
     <OrbitControls
       ref={controlsRef}
+      enabled={!selectActive}
       enableDamping
       makeDefault
       onChange={() => {
@@ -86,7 +89,8 @@ function CameraViewSync() {
 /**
  * PivotControls sets `controls.enabled = false` while a gizmo is dragged. If
  * pointerup is missed (released outside the window), orbit stays dead. Restore
- * on window-level pointerup/cancel after drei's own handler runs.
+ * on window-level pointerup/cancel after drei's own handler runs — but keep
+ * orbit off while the selection tool owns the pointer.
  */
 function OrbitEnabledGuard() {
   const get = useThree((s) => s.get)
@@ -95,7 +99,9 @@ function OrbitEnabledGuard() {
     const restore = () => {
       requestAnimationFrame(() => {
         const controls = get().controls as OrbitControlsImpl | null
-        if (controls) controls.enabled = true
+        if (!controls) return
+        const selectActive = useStrawMobileStore.getState().activeTool === 'select'
+        controls.enabled = !selectActive
       })
     }
     window.addEventListener('pointerup', restore)

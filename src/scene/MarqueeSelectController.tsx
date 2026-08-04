@@ -1,7 +1,6 @@
 import { useThree } from '@react-three/fiber'
 import { useEffect } from 'react'
 import * as THREE from 'three'
-import type { OrbitControls as OrbitControlsImpl } from 'three-stdlib'
 import { getHangingShapeIds } from '../physics/restingLayout'
 import { useStrawMobileStore } from '../state/store'
 import {
@@ -20,16 +19,15 @@ type DragState = {
   shiftKey: boolean
   active: boolean
   overlay: HTMLDivElement | null
-  orbitWasEnabled: boolean | null
 }
 
 /**
  * Select-mode rectangle selection: drag on empty canvas to marquee free shapes.
- * Single-click selection stays on shape bodies; empty click still clears via
- * Experience onPointerMissed (unless a marquee just completed).
+ * Orbit is disabled for the whole selection tool (see Experience CameraViewSync);
+ * single-click selection stays on shape bodies.
  */
 export function MarqueeSelectController() {
-  const { camera, gl, scene, get } = useThree()
+  const { camera, gl, scene } = useThree()
 
   useEffect(() => {
     const canvas = gl.domElement
@@ -38,8 +36,6 @@ export function MarqueeSelectController() {
     const raycaster = new THREE.Raycaster()
     const pointer = new THREE.Vector2()
     let drag: DragState | null = null
-
-    const getControls = () => get().controls as OrbitControlsImpl | null
 
     const hitsShapeAt = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect()
@@ -54,13 +50,6 @@ export function MarqueeSelectController() {
     const removeOverlay = (state: DragState) => {
       state.overlay?.remove()
       state.overlay = null
-    }
-
-    const restoreOrbit = (state: DragState) => {
-      if (state.orbitWasEnabled == null) return
-      const controls = getControls()
-      if (controls) controls.enabled = state.orbitWasEnabled
-      state.orbitWasEnabled = null
     }
 
     const ensureOverlay = (state: DragState) => {
@@ -86,7 +75,6 @@ export function MarqueeSelectController() {
 
     const finishDrag = (state: DragState, clientX: number, clientY: number) => {
       removeOverlay(state)
-      restoreOrbit(state)
 
       if (!state.active) {
         drag = null
@@ -134,7 +122,6 @@ export function MarqueeSelectController() {
         shiftKey: event.shiftKey,
         active: false,
         overlay: null,
-        orbitWasEnabled: null,
       }
     }
 
@@ -145,17 +132,7 @@ export function MarqueeSelectController() {
       const dy = event.clientY - drag.startY
       if (!drag.active) {
         if (dx * dx + dy * dy < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return
-
-        // Gizmo / other capture may have disabled orbit already — abort marquee.
-        const controls = getControls()
-        if (controls && !controls.enabled) {
-          drag = null
-          return
-        }
-
         drag.active = true
-        drag.orbitWasEnabled = controls ? controls.enabled : null
-        if (controls) controls.enabled = false
         try {
           canvas.setPointerCapture(event.pointerId)
         } catch {
@@ -182,7 +159,6 @@ export function MarqueeSelectController() {
     const onPointerCancel = (event: PointerEvent) => {
       if (!drag || event.pointerId !== drag.pointerId) return
       removeOverlay(drag)
-      restoreOrbit(drag)
       drag = null
     }
 
@@ -192,16 +168,13 @@ export function MarqueeSelectController() {
     window.addEventListener('pointercancel', onPointerCancel)
 
     return () => {
-      if (drag) {
-        removeOverlay(drag)
-        restoreOrbit(drag)
-      }
+      if (drag) removeOverlay(drag)
       canvas.removeEventListener('pointerdown', onPointerDown)
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
       window.removeEventListener('pointercancel', onPointerCancel)
     }
-  }, [camera, get, gl, scene])
+  }, [camera, gl, scene])
 
   return null
 }
