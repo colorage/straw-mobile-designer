@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useGalleryStore } from '../gallery/galleryStore'
 import { useStrawMobileStore } from '../state/store'
 
 function formatAutosavedAgo(lastSavedAt: number, now: number): string {
@@ -21,6 +22,8 @@ export function ProjectHeader() {
   const projectName = useStrawMobileStore((s) => s.projectName)
   const lastSavedAt = useStrawMobileStore((s) => s.lastSavedAt)
   const setProjectName = useStrawMobileStore((s) => s.setProjectName)
+  const activeGalleryId = useGalleryStore((s) => s.activeGalleryId)
+  const renameEntry = useGalleryStore((s) => s.renameEntry)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(projectName)
   const [now, setNow] = useState(() => Date.now())
@@ -43,6 +46,10 @@ export function ProjectHeader() {
 
   const commit = () => {
     setProjectName(draft)
+    if (activeGalleryId) {
+      const trimmed = draft.trim()
+      if (trimmed) renameEntry(activeGalleryId, trimmed)
+    }
     setEditing(false)
   }
 

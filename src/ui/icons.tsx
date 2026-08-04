@@ -143,3 +143,25 @@ export function GridIcon({ className, title }: IconProps) {
     </svg>
   )
 }
+
+export function SaveIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        d="M6.5 4.5h9.2L19.5 8.3V19.5a1 1 0 0 1-1 1h-13a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1Z"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+        d="M8 4.5v5h7.5v-5M8.5 19.5v-5.5h7v5.5"
+      />
+    </svg>
+  )
+}
