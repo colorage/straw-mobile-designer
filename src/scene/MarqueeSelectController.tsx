@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import * as THREE from 'three'
 import { getHangingShapeIds } from '../physics/restingLayout'
 import { useStrawMobileStore } from '../state/store'
+import { hitDragGizmo, isGizmoDragging, shouldIgnoreMarquee } from './gizmoDrag'
 import {
   hitSelectableShape,
   markMarqueeClick,
@@ -24,7 +25,8 @@ type DragState = {
 /**
  * Select-mode rectangle selection: drag on empty canvas to marquee free shapes.
  * Orbit is disabled for the whole selection tool (see Experience CameraViewSync);
- * single-click selection stays on shape bodies.
+ * single-click selection stays on shape bodies. Pointerdowns on the drag gizmo
+ * are ignored so moving shapes never draws a marquee or changes selection.
  */
 export function MarqueeSelectController() {
   const { camera, gl, scene } = useThree()
@@ -37,14 +39,23 @@ export function MarqueeSelectController() {
     const pointer = new THREE.Vector2()
     let drag: DragState | null = null
 
-    const hitsShapeAt = (clientX: number, clientY: number) => {
+    /** True when the pointer is over a shape or gizmo handle (not empty canvas). */
+    const hitsOccupiedAt = (clientX: number, clientY: number) => {
       const rect = canvas.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) return false
       pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1
       pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1
       raycaster.setFromCamera(pointer, camera)
       const hits = raycaster.intersectObjects(scene.children, true)
-      return hits.some((hit) => hitSelectableShape(hit.object))
+      return hits.some(
+        (hit) => hitSelectableShape(hit.object) || hitDragGizmo(hit.object),
+      )
+    }
+
+    const cancelDrag = () => {
+      if (!drag) return
+      removeOverlay(drag)
+      drag = null
     }
 
     const removeOverlay = (state: DragState) => {
@@ -81,6 +92,12 @@ export function MarqueeSelectController() {
         return
       }
 
+      // Gizmo move owns the gesture — do not replace the selection via marquee.
+      if (shouldIgnoreMarquee()) {
+        drag = null
+        return
+      }
+
       const store = useStrawMobileStore.getState()
       if (store.activeTool !== 'select') {
         drag = null
@@ -113,7 +130,9 @@ export function MarqueeSelectController() {
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return
       if (useStrawMobileStore.getState().activeTool !== 'select') return
-      if (hitsShapeAt(event.clientX, event.clientY)) return
+      // Skip marquee when starting over a shape body or the drag gizmo.
+      if (hitsOccupiedAt(event.clientX, event.clientY)) return
+      if (isGizmoDragging()) return
 
       drag = {
         pointerId: event.pointerId,
@@ -127,6 +146,12 @@ export function MarqueeSelectController() {
 
     const onPointerMove = (event: PointerEvent) => {
       if (!drag || event.pointerId !== drag.pointerId) return
+
+      // Gizmo drag started after our pointerdown — abandon the marquee.
+      if (isGizmoDragging()) {
+        cancelDrag()
+        return
+      }
 
       const dx = event.clientX - drag.startX
       const dy = event.clientY - drag.startY
