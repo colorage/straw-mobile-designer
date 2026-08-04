@@ -138,11 +138,18 @@
 
 .hud-bottom-right {
   right: 22px;
-  bottom: 22px;
+  bottom: 70px;
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
   text-align: right;
+}
+
+.bmc-button {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  z-index: 20;
 }
 
 .hud-icon-button {
@@ -597,7 +604,12 @@
 
   .hud-bottom-right {
     right: 14px;
-    bottom: 14px;
+    bottom: 60px;
+  }
+
+  .bmc-button {
+    right: 12px;
+    bottom: 12px;
   }
 
   .gallery-page {

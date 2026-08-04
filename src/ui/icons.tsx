@@ -188,3 +188,34 @@ export function MoonIcon({ className, title }: IconProps) {
   )
 }
 
+export function CoffeeIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.5 9h9.5a1.5 1.5 0 0 1 1.5 1.5V14a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4V9.5A.5.5 0 0 1 6.5 9Z"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M17 10.5h1.25A2.25 2.25 0 0 1 20.5 12.75v0A2.25 2.25 0 0 1 18.25 15H17"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M8 7.5c.4-.7.4-1.4 0-2M11 7.5c.4-.7.4-1.4 0-2M14 7.5c.4-.7.4-1.4 0-2"
+      />
+    </svg>
+  )
+}
+
