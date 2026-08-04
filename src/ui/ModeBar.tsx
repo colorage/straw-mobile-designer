@@ -16,6 +16,14 @@ export function ModeBar() {
       const target = event.target as HTMLElement | null
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
 
+      if (event.key === 'Delete' || event.key === 'Backspace') {
+        const { selectedShapeIds, removeShapes } = useStrawMobileStore.getState()
+        if (selectedShapeIds.length === 0) return
+        event.preventDefault()
+        removeShapes(selectedShapeIds)
+        return
+      }
+
       const mod = event.metaKey || event.ctrlKey
       if (!mod) return
 
