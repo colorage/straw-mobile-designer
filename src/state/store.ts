@@ -866,7 +866,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: [...state.connections, ...clonedConnections],
           selectedShapeIds: newIds,
           selectionAnchorId: newIds[newIds.length - 1] ?? null,
-          // Keep the current tool (do not enter selection mode on paste).
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
         }))
       },
