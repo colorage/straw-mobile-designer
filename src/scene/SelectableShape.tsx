@@ -1,7 +1,7 @@
-import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react'
+import { useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { PivotControls } from '@react-three/drei'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
-import { Raycaster, Vector2, type Group, type Mesh, type Object3D } from 'three'
+import type { Group, Object3D } from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
 import { getBodyRef } from '../physics/bodyRefRegistry'
 import { getFreeComponentIds, getHangingShapeIds } from '../physics/restingLayout'
@@ -9,114 +9,98 @@ import { useStrawMobileStore } from '../state/store'
 import type { Shape } from '../state/types'
 import { ShapeGroup } from './ShapeGroup'
 
-/**
- * PivotControls hit volumes: invisible cylinders on axes, translucent planes
- * on sliders. Skip vertex-handle spheres and visible straw cylinders.
- */
-function isGizmoHitMesh(obj: Object3D): obj is Mesh {
-  if (!(obj as Mesh).isMesh) return false
-  const geoType = (obj as Mesh).geometry?.type
-  if (geoType === 'CylinderGeometry' && obj.visible === false) return true
-  if (geoType === 'PlaneGeometry') return true
-  return false
+type PointerHandler = (event: ThreeEvent<PointerEvent>) => void
+
+type R3FHandlers = {
+  onPointerMove?: PointerHandler
+  onPointerOut?: PointerHandler
+  onPointerDown?: PointerHandler
+  onPointerUp?: PointerHandler
 }
 
-function collectGizmoHitMeshes(root: Object3D | null): Object3D[] {
-  if (!root) return []
-  const meshes: Object3D[] = []
-  root.traverse((obj) => {
-    if (isGizmoHitMesh(obj)) meshes.push(obj)
-  })
-  return meshes
+type R3FInstance = {
+  handlers: R3FHandlers
+}
+
+type WrappedPointerHandler = PointerHandler & { __gizmoCursorWrap?: true }
+
+function getR3F(obj: Object3D): R3FInstance | null {
+  const instance = (obj as Object3D & { __r3f?: R3FInstance }).__r3f
+  return instance ?? null
+}
+
+function wrapHandler(base: PointerHandler, wrap: PointerHandler): WrappedPointerHandler {
+  const wrapped: WrappedPointerHandler = (event) => {
+    wrap(event)
+    base(event)
+  }
+  wrapped.__gizmoCursorWrap = true
+  return wrapped
 }
 
 /**
- * Shows a grab cursor over translation gizmo handles (grabbing while dragged).
- * PivotControls has no cursor prop and stops pointer bubbling, so we raycast
- * its invisible hit meshes instead of relying on parent pointer events.
+ * PivotControls handle roots already own pointer move/down/out for hover+drag.
+ * Wrap those handlers to drive grab/grabbing cursors (no cursor API on the gizmo).
+ *
+ * Re-runs every layout because AxisArrow replaces handlers when hover state
+ * changes; skip when our wrapper is already installed.
  */
 function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
   const gl = useThree((s) => s.gl)
-  const get = useThree((s) => s.get)
-  const hitMeshesRef = useRef<Object3D[]>([])
   const hoveringRef = useRef(false)
   const draggingRef = useRef(false)
-  const pointerNdc = useRef(new Vector2())
-  const raycaster = useRef(new Raycaster()).current
 
   useLayoutEffect(() => {
-    hitMeshesRef.current = collectGizmoHitMeshes(rootRef.current)
-  })
-
-  useEffect(() => {
+    const root = rootRef.current
     const canvas = gl.domElement
+    if (!root) return
 
     const setCursor = (cursor: string) => {
       document.body.style.cursor = cursor
       canvas.style.cursor = cursor
     }
 
-    const clearIfOurs = () => {
+    root.traverse((obj) => {
+      const r3f = getR3F(obj)
+      if (!r3f) return
+      const { handlers } = r3f
+      // AxisArrow / PlaneSlider both register move + down + out on the handle.
+      if (!handlers.onPointerMove || !handlers.onPointerDown || !handlers.onPointerOut) return
+      if ((handlers.onPointerMove as WrappedPointerHandler).__gizmoCursorWrap) return
+
+      handlers.onPointerMove = wrapHandler(handlers.onPointerMove, () => {
+        hoveringRef.current = true
+        if (!draggingRef.current) setCursor('grab')
+      })
+      handlers.onPointerOut = wrapHandler(handlers.onPointerOut, () => {
+        hoveringRef.current = false
+        if (!draggingRef.current) setCursor('')
+      })
+      handlers.onPointerDown = wrapHandler(handlers.onPointerDown, () => {
+        draggingRef.current = true
+        setCursor('grabbing')
+      })
+      if (handlers.onPointerUp) {
+        handlers.onPointerUp = wrapHandler(handlers.onPointerUp, () => {
+          draggingRef.current = false
+          setCursor(hoveringRef.current ? 'grab' : '')
+        })
+      }
+    })
+  })
+
+  // Clear cursor if this gizmo unmounts while hovered/dragging.
+  useLayoutEffect(() => {
+    const canvas = gl.domElement
+    return () => {
       if (hoveringRef.current || draggingRef.current) {
         hoveringRef.current = false
         draggingRef.current = false
-        setCursor('')
+        document.body.style.cursor = ''
+        canvas.style.cursor = ''
       }
     }
-
-    const onPointerMove = (event: PointerEvent) => {
-      if (draggingRef.current) {
-        setCursor('grabbing')
-        return
-      }
-
-      // Remount / late gizmo children: refresh if we haven't found hits yet.
-      if (hitMeshesRef.current.length === 0) {
-        hitMeshesRef.current = collectGizmoHitMeshes(rootRef.current)
-      }
-      if (hitMeshesRef.current.length === 0) return
-
-      const { camera } = get()
-      const rect = canvas.getBoundingClientRect()
-      if (rect.width === 0 || rect.height === 0) return
-      pointerNdc.current.set(
-        ((event.clientX - rect.left) / rect.width) * 2 - 1,
-        -((event.clientY - rect.top) / rect.height) * 2 + 1,
-      )
-      raycaster.setFromCamera(pointerNdc.current, camera)
-      // fixed PivotControls mutates gizmo scale every frame — refresh matrices.
-      for (const mesh of hitMeshesRef.current) {
-        mesh.updateWorldMatrix(true, false)
-      }
-      const overGizmo = raycaster.intersectObjects(hitMeshesRef.current, false).length > 0
-
-      if (overGizmo) {
-        hoveringRef.current = true
-        setCursor('grab')
-      } else if (hoveringRef.current) {
-        // Only reset when we previously claimed the cursor — leave vertex
-        // handles and other hover cursors alone.
-        hoveringRef.current = false
-        setCursor('')
-      }
-    }
-
-    const onPointerLeave = () => {
-      if (draggingRef.current) return
-      if (hoveringRef.current) {
-        hoveringRef.current = false
-        setCursor('')
-      }
-    }
-
-    canvas.addEventListener('pointermove', onPointerMove)
-    canvas.addEventListener('pointerleave', onPointerLeave)
-    return () => {
-      canvas.removeEventListener('pointermove', onPointerMove)
-      canvas.removeEventListener('pointerleave', onPointerLeave)
-      clearIfOurs()
-    }
-  }, [gl, get, raycaster, rootRef])
+  }, [gl])
 
   return {
     beginDrag() {
