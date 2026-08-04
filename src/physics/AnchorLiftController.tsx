@@ -1,16 +1,19 @@
 import { useFrame } from '@react-three/fiber'
+import type { Vector3Tuple } from '../geometry/primitives'
 import {
   BASE_ANCHOR_Y,
   BASE_STRAW_LENGTH,
   useStrawMobileStore,
 } from '../state/store'
 import { getBodyRef } from './bodyRefRegistry'
+import { driveMesh } from './meshDriveRegistry'
 import { getHangingShapeIds } from './restingLayout'
 
 /** Lowest hanging extent must stay at or above this world Y. */
 const CLEARANCE_Y = -2
 /** Max units/sec the hook may rise or fall. */
 const LIFT_SPEED = 4
+const LIFT_EPS = 1e-5
 
 /**
  * Raise the ceiling hook when the hanging chain would dip below clearance;
@@ -20,19 +23,24 @@ const LIFT_SPEED = 4
  * (`anchorY - minY`) so lifting does not ratchet upward while the chain
  * catches up through joints.
  *
+ * Each lift step translates the hook and every hanging body by the same ΔY
+ * so spherical joints keep their rest length — moving only the fixed hook
+ * used to stretch the live chain and inject wobble into tall builds.
+ *
  * Runs at default useFrame priority (0). Physics uses updatePriority={-1},
  * so this still runs after the Rapier step.
  */
 export function AnchorLiftController() {
   useFrame((_, delta) => {
-    const { connections, shapes, anchorY, setAnchorY } = useStrawMobileStore.getState()
+    const { connections, shapes, anchorY, setAnchorY, reelPositions } =
+      useStrawMobileStore.getState()
     const hangingIds = getHangingShapeIds(connections)
 
     let targetY = BASE_ANCHOR_Y
 
     if (hangingIds.size > 0) {
       let minCenterY = Infinity
-      let maxSize = 1
+      let maxSize = 0
       const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
 
       for (const id of hangingIds) {
@@ -54,7 +62,8 @@ export function AnchorLiftController() {
 
       if (Number.isFinite(minCenterY)) {
         // Approximate bottom of the largest hanging piece from its center.
-        const margin = BASE_STRAW_LENGTH * maxSize * 0.75
+        const size = maxSize > 0 ? maxSize : 1
+        const margin = BASE_STRAW_LENGTH * size * 0.75
         const minY = minCenterY - margin
         const hangDepth = anchorY - minY
         targetY = Math.max(BASE_ANCHOR_Y, CLEARANCE_Y + hangDepth)
@@ -70,15 +79,53 @@ export function AnchorLiftController() {
 
     setAnchorY(nextY)
 
-    const body = getBodyRef('anchor').current
-    if (!body) return
-    try {
-      const t = body.translation()
-      if (Math.abs(t.y - nextY) > 1e-5) {
-        body.setTranslation({ x: 0, y: nextY, z: 0 }, true)
+    const anchorBody = getBodyRef('anchor').current
+    let currentY = anchorY
+    if (anchorBody) {
+      try {
+        const t = anchorBody.translation()
+        if (Number.isFinite(t.y)) currentY = t.y
+      } catch {
+        // Body may be freed during remount.
       }
-    } catch {
-      // Body may be freed during remount.
+    }
+
+    const dy = nextY - currentY
+    if (Math.abs(dy) < LIFT_EPS) return
+
+    if (anchorBody) {
+      try {
+        anchorBody.setTranslation({ x: 0, y: nextY, z: 0 }, false)
+      } catch {
+        // Body may be freed during remount.
+      }
+    }
+
+    let nextReelPositions: Record<string, Vector3Tuple> | null = null
+
+    for (const id of hangingIds) {
+      const body = getBodyRef(id).current
+      if (body) {
+        try {
+          const t = body.translation()
+          const position: Vector3Tuple = [t.x, t.y + dy, t.z]
+          body.setTranslation({ x: position[0], y: position[1], z: position[2] }, false)
+          // Sleeping visuals skip body reads for FPS — push the mesh so it tracks.
+          driveMesh(id, position)
+        } catch {
+          // Body may have been freed between frames.
+        }
+      }
+
+      const reelPos = reelPositions[id]
+      if (reelPos) {
+        if (!nextReelPositions) nextReelPositions = { ...reelPositions }
+        nextReelPositions[id] = [reelPos[0], reelPos[1] + dy, reelPos[2]]
+      }
+    }
+
+    if (nextReelPositions) {
+      useStrawMobileStore.setState({ reelPositions: nextReelPositions })
     }
   })
 
