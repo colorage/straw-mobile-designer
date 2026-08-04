@@ -121,7 +121,7 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
     <PivotControls
       disableRotations
       disableScaling
-      scale={0.9}
+      scale={3.6}
       lineWidth={2.5}
       fixed
       depthTest={false}
