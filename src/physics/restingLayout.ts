@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
-import { ANCHOR_POSITION } from '../state/shapeSpace'
+import { BASE_ANCHOR_Y } from '../state/shapeSpace'
 import {
   endpointBodyKey,
   type Connection,
@@ -9,6 +9,7 @@ import {
   type Shape,
   type ShapePose,
 } from '../state/types'
+import { getBodyRef } from './bodyRefRegistry'
 import {
   hangQuaternionForVertex,
   localVertex,
@@ -25,6 +26,22 @@ const FREE_SOLVER_ITERATIONS = 56
 const ROTATION_BLEND = 0.55
 const MIN_POSE_DELTA = 0.015
 const MIN_ANGLE_DELTA = 0.02
+
+/** World position of the ceiling hook — prefers the live Rapier body. */
+function anchorWorldPosition(): THREE.Vector3 {
+  const body = getBodyRef('anchor').current
+  if (body) {
+    try {
+      const t = body.translation()
+      if (Number.isFinite(t.x) && Number.isFinite(t.y) && Number.isFinite(t.z)) {
+        return new THREE.Vector3(t.x, t.y, t.z)
+      }
+    } catch {
+      // Body may be freed during remount.
+    }
+  }
+  return new THREE.Vector3(0, BASE_ANCHOR_Y, 0)
+}
 
 /** Undirected adjacency over body keys ('anchor' or shape id) derived from connections. */
 export function buildAdjacency(
@@ -284,7 +301,7 @@ export function computeHangingClosePoses(
   }
 
   const worldOfFixed = (endpoint: EndpointRef): THREE.Vector3 | null => {
-    if (endpoint.kind === 'anchor') return new THREE.Vector3(...ANCHOR_POSITION)
+    if (endpoint.kind === 'anchor') return anchorWorldPosition()
     // Non-mover shapes keep their authored/live pose (not in `poses`).
     if (moverIds.has(endpoint.shapeId)) return null
     const shape = shapesById.get(endpoint.shapeId)
@@ -457,7 +474,7 @@ export function computeRestingPoses(
   const adjacency = buildAdjacency(connections)
 
   const worldPositionOf = (endpoint: EndpointRef): THREE.Vector3 | null => {
-    if (endpoint.kind === 'anchor') return new THREE.Vector3(...ANCHOR_POSITION)
+    if (endpoint.kind === 'anchor') return anchorWorldPosition()
     const shape = shapesById.get(endpoint.shapeId)
     if (!shape) return null
     const pose = resolved.get(shape.id)

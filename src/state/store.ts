@@ -25,7 +25,15 @@ import {
   type StrawSize,
 } from './types'
 
-export { ANCHOR_POSITION, BASE_STRAW_LENGTH, getScaledVertex } from './shapeSpace'
+import { BASE_ANCHOR_Y } from './shapeSpace'
+
+export {
+  ANCHOR_POSITION,
+  BASE_ANCHOR_POSITION,
+  BASE_ANCHOR_Y,
+  BASE_STRAW_LENGTH,
+  getScaledVertex,
+} from './shapeSpace'
 
 /**
  * The current design (shapes, thread connections, and enough bookkeeping to
@@ -162,9 +170,15 @@ interface StrawMobileState {
    * refs and correct hull mass — clearing the registry alone is not enough.
    */
   physicsEpoch: number
+  /**
+   * Live ceiling-hook world Y. Raised by AnchorLiftController when the hanging
+   * chain would dip below clearance; not persisted (re-lifts after remount).
+   */
+  anchorY: number
 
   /** Snapshot the current design before an undoable mutation (or drag-start). */
   pushHistory: () => void
+  setAnchorY: (y: number) => void
   undo: () => void
   redo: () => void
   addShape: (kind: ShapeKind, position?: Vector3Tuple) => string
@@ -231,6 +245,7 @@ function applyDesignSnapshot(
     past: history.past,
     future: history.future,
     physicsEpoch,
+    anchorY: BASE_ANCHOR_Y,
   })
 }
 
@@ -254,6 +269,13 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       past: [],
       future: [],
       physicsEpoch: 0,
+      anchorY: BASE_ANCHOR_Y,
+
+      setAnchorY: (y) => {
+        const next = Math.max(BASE_ANCHOR_Y, y)
+        if (Math.abs(get().anchorY - next) < 1e-5) return
+        set({ anchorY: next })
+      },
 
       pushHistory: () => {
         const state = get()
@@ -737,6 +759,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           reelPositions: {},
           reelQuaternions: {},
           physicsEpoch,
+          anchorY: BASE_ANCHOR_Y,
         })
       },
 
@@ -756,6 +779,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           reelPositions: {},
           reelQuaternions: {},
           physicsEpoch,
+          anchorY: BASE_ANCHOR_Y,
         })
       },
 
@@ -801,6 +825,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         past: [],
         future: [],
         physicsEpoch: 0,
+        anchorY: BASE_ANCHOR_Y,
       }),
     },
   ),

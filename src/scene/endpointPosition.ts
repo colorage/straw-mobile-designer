@@ -2,8 +2,7 @@ import * as THREE from 'three'
 import type { RapierRigidBody } from '@react-three/rapier'
 import { getBodyRef } from '../physics/bodyRefRegistry'
 import type { Vector3Tuple } from '../geometry/primitives'
-import { ANCHOR_POSITION, BASE_STRAW_LENGTH } from '../state/shapeSpace'
-import { useStrawMobileStore } from '../state/store'
+import { BASE_STRAW_LENGTH, useStrawMobileStore } from '../state/store'
 import type { EndpointRef, QuatTuple, Shape } from '../state/types'
 
 const scratchQuat = new THREE.Quaternion()
@@ -69,7 +68,7 @@ export function writeEndpointWorldPosition(
         return true
       }
     }
-    target.set(ANCHOR_POSITION[0], ANCHOR_POSITION[1], ANCHOR_POSITION[2])
+    target.set(0, useStrawMobileStore.getState().anchorY, 0)
     return true
   }
 

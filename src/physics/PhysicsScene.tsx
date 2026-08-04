@@ -5,8 +5,9 @@ import { ConnectionThread } from '../scene/ConnectionThread'
 import { OverlapConnectController } from '../scene/OverlapConnectController'
 import { OverlapPreviewThread } from '../scene/OverlapPreviewThread'
 import { VertexHandle } from '../scene/VertexHandle'
-import { ANCHOR_POSITION, useStrawMobileStore } from '../state/store'
+import { BASE_ANCHOR_Y, useStrawMobileStore } from '../state/store'
 import { endpointVertexKey, endpointsEqual, type Shape } from '../state/types'
+import { AnchorLiftController } from './AnchorLiftController'
 import { getBodyRef } from './bodyRefRegistry'
 import { ENVIRONMENT_COLLISION_GROUPS } from './collisionGroups'
 import { HangingEnergyLimiter } from './hangingEnergyLimiter'
@@ -21,11 +22,11 @@ const GROUND_Y = -6
 /**
  * Fixed Rapier body for the ceiling hook — collider-less joint anchor only.
  * Visuals render as a plain scene group so they never inherit a stale
- * RigidBody matrixWorld.
+ * RigidBody matrixWorld. Live height is driven by AnchorLiftController.
  */
 function FixedAnchorBody() {
   const ref = getBodyRef('anchor')
-  return <RigidBody ref={ref} type="fixed" position={ANCHOR_POSITION} colliders={false} />
+  return <RigidBody ref={ref} type="fixed" position={[0, BASE_ANCHOR_Y, 0]} colliders={false} />
 }
 
 function CeilingHookVisual() {
@@ -34,6 +35,7 @@ function CeilingHookVisual() {
   const connections = useStrawMobileStore((s) => s.connections)
   const selectVertex = useStrawMobileStore((s) => s.selectVertex)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
+  const anchorY = useStrawMobileStore((s) => s.anchorY)
 
   const connected = useMemo(
     () => connections.some((c) => c.a.kind === 'anchor' || c.b.kind === 'anchor'),
@@ -46,7 +48,7 @@ function CeilingHookVisual() {
       endpointsEqual(overlapSuggest.b, { kind: 'anchor' }))
 
   return (
-    <group position={ANCHOR_POSITION}>
+    <group position={[0, anchorY, 0]}>
       <AnchorPoint />
       {activeTool !== 'scissors' && (
         <VertexHandle
@@ -121,6 +123,7 @@ export function PhysicsScene() {
     >
       <FixedAnchorBody />
       <CeilingHookVisual />
+      <AnchorLiftController />
       <ReelInController />
       <HangingEnergyLimiter />
       <OverlapConnectController />
