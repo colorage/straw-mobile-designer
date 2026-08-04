@@ -5,6 +5,9 @@ import './gallery/autoPersist'
 import './index.css'
 import App from './App.tsx'
 import { ensureRapier } from './physics/initRapier'
+import './state/themeStore'
+
+// themeStore applies the persisted dark/light preference on import.
 
 const root = document.getElementById('root')!
 

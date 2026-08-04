@@ -156,3 +156,35 @@ export function GridIcon({ className, title }: IconProps) {
   )
 }
 
+export function SunIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M12 3.5v2.25M12 18.25V20.5M3.5 12h2.25M18.25 12H20.5M6.05 6.05l1.6 1.6M16.35 16.35l1.6 1.6M6.05 17.95l1.6-1.6M16.35 7.65l1.6-1.6"
+      />
+    </svg>
+  )
+}
+
+export function MoonIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.5 14.2A6.75 6.75 0 0 1 9.8 7.5 6.5 6.5 0 1 0 16.5 14.2Z"
+      />
+    </svg>
+  )
+}
+
