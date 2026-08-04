@@ -600,13 +600,28 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         }))
       },
 
-      setShapeTransform: (id, position, quaternion) =>
+      setShapeTransform: (id, position, quaternion) => {
+        const current = get().shapes.find((shape) => shape.id === id)
+        if (!current) return
+        const poseEps = 1e-5
+        if (
+          Math.abs(current.position[0] - position[0]) < poseEps &&
+          Math.abs(current.position[1] - position[1]) < poseEps &&
+          Math.abs(current.position[2] - position[2]) < poseEps &&
+          Math.abs(current.quaternion[0] - quaternion[0]) < poseEps &&
+          Math.abs(current.quaternion[1] - quaternion[1]) < poseEps &&
+          Math.abs(current.quaternion[2] - quaternion[2]) < poseEps &&
+          Math.abs(current.quaternion[3] - quaternion[3]) < poseEps
+        ) {
+          return
+        }
+        // Persistence sync only — do not wake the overlap scanner.
         set((state) => ({
           shapes: state.shapes.map((shape) =>
             shape.id === id ? { ...shape, position, quaternion } : shape,
           ),
-          overlapScanWakeToken: state.overlapScanWakeToken + 1,
-        })),
+        }))
+      },
 
       moveShape: (id, position) =>
         set((state) => ({

@@ -1,5 +1,6 @@
 import { useStrawMobileStore } from '../state/store'
 import { persistDraftToGallery, useGalleryStore } from './galleryStore'
+import { isPhysicsTransformSyncing } from './physicsSyncGate'
 
 const GALLERY_PERSIST_DEBOUNCE_MS = 400
 
@@ -52,6 +53,9 @@ useGalleryStore.persist.onFinishHydration(() => {
 
 useStrawMobileStore.subscribe((state, prev) => {
   if (!bothStoresHydrated()) return
+
+  // Pose sync for gallery/unload must not re-arm another persist cycle.
+  if (isPhysicsTransformSyncing()) return
 
   const designChanged =
     state.shapes !== prev.shapes ||
