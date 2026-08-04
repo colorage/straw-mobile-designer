@@ -144,6 +144,11 @@ interface StrawMobileState {
   pendingVertex: EndpointRef | null
   /** Free corners currently overlapping long enough to suggest auto-connect. */
   overlapSuggest: OverlapSuggest | null
+  /**
+   * Bumped on scene-changing actions so OverlapConnectController re-enables
+   * proximity scanning after an idle sleep. Not persisted.
+   */
+  overlapScanWakeToken: number
   /** Shapes currently selected (last id is the primary / gizmo target). */
   selectedShapeIds: string[]
   /** Anchor for Shift+range selection in the sidebar list. */
@@ -178,6 +183,8 @@ interface StrawMobileState {
 
   /** Snapshot the current design before an undoable mutation (or drag-start). */
   pushHistory: () => void
+  /** Re-enable the overlap proximity scanner after an idle sleep. */
+  wakeOverlapScanner: () => void
   setAnchorY: (y: number) => void
   undo: () => void
   redo: () => void
@@ -236,6 +243,7 @@ function applyDesignSnapshot(
     strawSize: snapshot.strawSize,
     pendingVertex: null,
     overlapSuggest: null,
+    overlapScanWakeToken: get().overlapScanWakeToken + 1,
     ...EMPTY_SELECTION,
     activeTool: 'select',
     reelIns: [],
@@ -259,6 +267,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       lastSavedAt: Date.now(),
       pendingVertex: null,
       overlapSuggest: null,
+      overlapScanWakeToken: 0,
       selectedShapeIds: [],
       selectionAnchorId: null,
       activeTool: 'select',
@@ -275,6 +284,10 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         const next = Math.max(BASE_ANCHOR_Y, y)
         if (Math.abs(get().anchorY - next) < 1e-5) return
         set({ anchorY: next })
+      },
+
+      wakeOverlapScanner: () => {
+        set((state) => ({ overlapScanWakeToken: state.overlapScanWakeToken + 1 }))
       },
 
       pushHistory: () => {
@@ -328,6 +341,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         }
         set((state) => ({
           shapes: [...state.shapes, shape],
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
           // Drop-placed shapes get selected so the gizmo appears immediately;
           // click-to-add (no position) keeps clearing selection as before.
           ...(position !== undefined
@@ -375,7 +389,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           endpoint?.kind === 'shape' && removeSet.has(endpoint.shapeId)
 
         const nextSelected = selectedShapeIds.filter((id) => !removeSet.has(id))
-        set({
+        set((state) => ({
           shapes: syncedShapes.filter((shape) => !removeSet.has(shape.id)),
           connections: nextConnections,
           reelIns: reelIns.filter((reel) => !removeSet.has(reel.shapeId)),
@@ -389,10 +403,11 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             touchesRemoved(overlapSuggest?.a) || touchesRemoved(overlapSuggest?.b)
               ? null
               : overlapSuggest,
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
           selectedShapeIds: nextSelected,
           selectionAnchorId:
             selectionAnchorId && removeSet.has(selectionAnchorId) ? null : selectionAnchorId,
-        })
+        }))
       },
 
       setStrawSize: (size) => {
@@ -515,6 +530,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             connections: nextConnections,
             pendingVertex: null,
             overlapSuggest: null,
+            overlapScanWakeToken: state.overlapScanWakeToken + 1,
             ...EMPTY_SELECTION,
             shapes: shapesForLayout.map((shape) => {
               if (reelingIds.has(shape.id)) return shape
@@ -574,13 +590,14 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           delete nextReelPositions[shapeId]
           delete nextReelQuaternions[shapeId]
         }
-        set({
+        set((state) => ({
           connections: nextConnections,
           shapes: withSyncedLeavingHanging(shapes, previousHanging, nextHanging),
           reelIns: reelIns.filter((reel) => !touched.has(reel.shapeId)),
           reelPositions: nextReelPositions,
           reelQuaternions: nextReelQuaternions,
-        })
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
+        }))
       },
 
       setShapeTransform: (id, position, quaternion) =>
@@ -588,11 +605,13 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           shapes: state.shapes.map((shape) =>
             shape.id === id ? { ...shape, position, quaternion } : shape,
           ),
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
         })),
 
       moveShape: (id, position) =>
         set((state) => ({
           shapes: state.shapes.map((shape) => (shape.id === id ? { ...shape, position } : shape)),
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
         })),
 
       selectShape: (id) =>
@@ -682,6 +701,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: [...state.connections, ...clonedConnections],
           selectedShapeIds: newIds,
           selectionAnchorId: newIds[newIds.length - 1] ?? null,
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
         }))
       },
 
@@ -747,11 +767,12 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       reset: () => {
         get().pushHistory()
         const physicsEpoch = invalidatePhysics(get)
-        set({
+        set((state) => ({
           shapes: [],
           connections: [],
           pendingVertex: null,
           overlapSuggest: null,
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
           activeTool: 'select',
           reelIns: [],
@@ -760,18 +781,19 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           reelQuaternions: {},
           physicsEpoch,
           anchorY: BASE_ANCHOR_Y,
-        })
+        }))
       },
 
       loadProject: (snapshot) => {
         get().pushHistory()
         const physicsEpoch = invalidatePhysics(get)
-        set({
+        set((state) => ({
           shapes: snapshot.shapes,
           connections: snapshot.connections,
           strawSize: snapshot.strawSize,
           pendingVertex: null,
           overlapSuggest: null,
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
           activeTool: 'select',
           reelIns: [],
@@ -780,7 +802,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           reelQuaternions: {},
           physicsEpoch,
           anchorY: BASE_ANCHOR_Y,
-        })
+        }))
       },
 
       getStrawCounts: () => computeStrawCounts(get().shapes),
@@ -820,6 +842,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         reelQuaternions: {},
         pendingVertex: null,
         overlapSuggest: null,
+        // Wake the scanner after hydrating a saved draft.
+        overlapScanWakeToken: current.overlapScanWakeToken + 1,
         ...EMPTY_SELECTION,
         activeTool: 'select',
         past: [],

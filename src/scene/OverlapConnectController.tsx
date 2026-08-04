@@ -8,6 +8,7 @@ import {
   findClosestOverlappingPair,
   OVERLAP_DWELL_MS,
   OVERLAP_RADIUS,
+  OVERLAP_SCAN_IDLE_MS,
   OVERLAP_SETTLE_SPEED,
   overlapPairKey,
 } from './cornerProximity'
@@ -73,12 +74,17 @@ function pairIsSettled(
  * a positive priority or R3F will skip automatic rendering.
  *
  * Scans are throttled to SCAN_INTERVAL_S; the pairwise search itself is also
- * spatially hashed (see findClosestOverlappingPair).
+ * spatially hashed (see findClosestOverlappingPair). After OVERLAP_SCAN_IDLE_MS
+ * of consecutive no-pair scans the scanner sleeps until a scene action bumps
+ * overlapScanWakeToken (or a reel-in starts).
  */
 export function OverlapConnectController() {
   const dwellKeyRef = useRef<string | null>(null)
   const dwellStartedAtRef = useRef<number>(0)
   const scanAccumulatorRef = useRef(0)
+  const asleepRef = useRef(false)
+  const idleMsRef = useRef(0)
+  const lastWakeTokenRef = useRef(-1)
 
   useFrame((_, delta) => {
     const {
@@ -87,6 +93,7 @@ export function OverlapConnectController() {
       activeTool,
       reelIns,
       overlapSuggest,
+      overlapScanWakeToken,
       setOverlapSuggest,
       connectEndpoints,
     } = useStrawMobileStore.getState()
@@ -101,9 +108,27 @@ export function OverlapConnectController() {
     // Cheap mode gates run every frame so scissors/empty clear suggest immediately.
     if (activeTool === 'scissors' || shapes.length === 0) {
       scanAccumulatorRef.current = 0
+      idleMsRef.current = 0
+      asleepRef.current = false
       clearDwell()
       return
     }
+
+    // Scene-changing actions bump the wake token; resume scanning immediately.
+    if (overlapScanWakeToken !== lastWakeTokenRef.current) {
+      lastWakeTokenRef.current = overlapScanWakeToken
+      asleepRef.current = false
+      idleMsRef.current = 0
+      scanAccumulatorRef.current = SCAN_INTERVAL_S
+    }
+
+    // Stay awake while a reel-in is animating — corners may meet as it finishes.
+    if (reelIns.length > 0 && asleepRef.current) {
+      asleepRef.current = false
+      idleMsRef.current = 0
+    }
+
+    if (asleepRef.current) return
 
     scanAccumulatorRef.current += delta
     if (scanAccumulatorRef.current < SCAN_INTERVAL_S) return
@@ -116,8 +141,22 @@ export function OverlapConnectController() {
 
     if (!pair) {
       clearDwell()
+      // Don't idle-sleep mid reel-in — wait until the scene settles.
+      if (reelIns.length === 0) {
+        idleMsRef.current += SCAN_INTERVAL_S * 1000
+        if (idleMsRef.current >= OVERLAP_SCAN_IDLE_MS) {
+          asleepRef.current = true
+          idleMsRef.current = 0
+          scanAccumulatorRef.current = 0
+        }
+      } else {
+        idleMsRef.current = 0
+      }
       return
     }
+
+    // A finding resets the idle timer so dwell/connect can finish.
+    idleMsRef.current = 0
 
     // Skip while either end is mid reel-in (poses are animating).
     const bodyA = endpointBodyKey(pair.a)
