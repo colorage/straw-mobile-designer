@@ -1,18 +1,9 @@
 import { useRef, useState, type ChangeEvent } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useGalleryStore } from '../gallery/galleryStore'
 import { readGalleryFile } from '../gallery/jsonIo'
 import type { GalleryEntry } from '../gallery/types'
 import { useStrawMobileStore } from '../state/store'
-
-function defaultSaveName(): string {
-  const date = new Date()
-  const stamp = date.toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-  return `Mobile ${stamp}`
-}
 
 function formatRelativeDate(iso: string): string {
   const then = new Date(iso).getTime()
@@ -36,45 +27,30 @@ function confirmOverwriteDraft(): boolean {
   )
 }
 
-/** Named local saves with thumbnails, plus JSON import/export. */
-export function GalleryPanel() {
+/** Full-page gallery: browse, load, import, export, and delete named saves. */
+export function GalleryPage() {
+  const navigate = useNavigate()
   const entries = useGalleryStore((s) => s.entries)
   const activeGalleryId = useGalleryStore((s) => s.activeGalleryId)
-  const saveCurrent = useGalleryStore((s) => s.saveCurrent)
-  const updateActive = useGalleryStore((s) => s.updateActive)
   const loadEntry = useGalleryStore((s) => s.loadEntry)
   const deleteEntry = useGalleryStore((s) => s.deleteEntry)
   const exportEntry = useGalleryStore((s) => s.exportEntry)
   const importEnvelope = useGalleryStore((s) => s.importEnvelope)
-  const shapeCount = useStrawMobileStore((s) => s.shapes.length)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSave = () => {
-    setError(null)
-    if (shapeCount === 0) {
-      setError('Add some shapes before saving to the gallery.')
-      return
-    }
-    const name = window.prompt('Name this mobile', defaultSaveName())
-    if (name === null) return
-    saveCurrent(name)
-  }
-
-  const handleUpdate = () => {
-    setError(null)
-    if (!activeGalleryId) return
-    if (shapeCount === 0) {
-      setError('Nothing to update — the draft is empty.')
-      return
-    }
-    updateActive()
+  const goToDesigner = () => {
+    navigate('/')
   }
 
   const handleLoad = (entry: GalleryEntry) => {
     setError(null)
     if (!confirmOverwriteDraft()) return
-    loadEntry(entry.id)
+    if (!loadEntry(entry.id)) {
+      setError('Could not load that mobile.')
+      return
+    }
+    goToDesigner()
   }
 
   const handleDelete = (entry: GalleryEntry) => {
@@ -96,61 +72,76 @@ export function GalleryPanel() {
       const envelope = await readGalleryFile(file)
       const id = importEnvelope(envelope)
       if (!confirmOverwriteDraft()) return
-      loadEntry(id)
+      if (!loadEntry(id)) {
+        setError('Imported, but could not load into the designer.')
+        return
+      }
+      goToDesigner()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not import that file.')
     }
   }
 
-  const activeEntry = activeGalleryId
-    ? entries.find((entry) => entry.id === activeGalleryId)
-    : undefined
-
   return (
-    <div className="panel gallery-panel">
-      <h2 className="panel-title">Gallery</h2>
-      <p className="panel-hint gallery-hint">
-        Save named mobiles in this browser. Export JSON to back them up or move between devices.
-      </p>
-
-      <div className="gallery-actions">
-        <button type="button" className="primary-button gallery-save-button" onClick={handleSave}>
-          Save to gallery
-        </button>
-        {activeEntry && (
-          <button type="button" className="ghost-button" onClick={handleUpdate}>
-            Update “{activeEntry.name}”
+    <div className="gallery-page">
+      <header className="gallery-page-header">
+        <div className="gallery-page-header-text">
+          <p className="gallery-page-eyebrow">Straw Mobile Designer</p>
+          <h1 className="gallery-page-title">Gallery</h1>
+          <p className="gallery-page-subtitle">
+            Named mobiles saved in this browser. Export JSON to back them up or move between devices.
+          </p>
+        </div>
+        <div className="gallery-page-header-actions">
+          <button type="button" className="ghost-button gallery-page-action" onClick={handleImportClick}>
+            Import JSON
           </button>
-        )}
-        <button type="button" className="ghost-button" onClick={handleImportClick}>
-          Import JSON
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="application/json,.json"
-          className="gallery-file-input"
-          onChange={handleImportFile}
-        />
-      </div>
+          <Link to="/" className="primary-button gallery-page-action gallery-page-back">
+            Back to designer
+          </Link>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="gallery-file-input"
+            onChange={handleImportFile}
+          />
+        </div>
+      </header>
 
-      {error && <p className="gallery-error">{error}</p>}
+      {error && <p className="gallery-error gallery-page-error">{error}</p>}
 
       {entries.length === 0 ? (
-        <p className="panel-hint">No saved mobiles yet.</p>
+        <div className="gallery-page-empty">
+          <p className="panel-hint">No saved mobiles yet.</p>
+          <p className="panel-hint">
+            Build something in the designer, then use <strong>Save to gallery</strong> to keep a named
+            copy here.
+          </p>
+          <Link to="/" className="primary-button gallery-page-action gallery-page-empty-cta">
+            Open designer
+          </Link>
+        </div>
       ) : (
-        <ul className="gallery-list">
+        <ul className="gallery-page-grid">
           {entries.map((entry) => {
             const isActive = entry.id === activeGalleryId
             return (
               <li key={entry.id} className={`gallery-item${isActive ? ' is-active' : ''}`}>
-                <img
-                  className="gallery-thumb"
-                  src={entry.thumbnailDataUrl}
-                  alt=""
-                  width={320}
-                  height={200}
-                />
+                <button
+                  type="button"
+                  className="gallery-thumb-button"
+                  onClick={() => handleLoad(entry)}
+                  aria-label={`Load ${entry.name}`}
+                >
+                  <img
+                    className="gallery-thumb"
+                    src={entry.thumbnailDataUrl}
+                    alt=""
+                    width={320}
+                    height={200}
+                  />
+                </button>
                 <div className="gallery-item-body">
                   <div className="gallery-item-meta">
                     <span className="gallery-item-name">{entry.name}</span>
