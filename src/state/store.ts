@@ -15,6 +15,8 @@ import {
   DEFAULT_PROJECT_NAME,
   endpointBodyKey,
   endpointsEqual,
+  EMPTY_SLOTS,
+  normalizeSlots,
   type Connection,
   type EndpointRef,
   type OverlapScanUi,
@@ -23,11 +25,16 @@ import {
   type Shape,
   type ShapePose,
   type ShapeReelIn,
+  type SlotBuffer,
+  type SlotBuffers,
+  type SlotIndex,
   type StrawCounts,
   type StrawSize,
 } from './types'
 
 import { BASE_ANCHOR_Y } from './shapeSpace'
+
+export type { SlotBuffer, SlotBuffers, SlotIndex } from './types'
 
 export {
   ANCHOR_POSITION,
@@ -41,7 +48,8 @@ export {
  * The current design (shapes, thread connections, and enough bookkeeping to
  * keep adding to it sensibly) is auto-saved to localStorage on every change,
  * so reloading the page — or closing and reopening the tab later — picks up
- * right where things were left off. Selection buffer slots are persisted too.
+ * right where things were left off. Selection buffer slots are persisted with
+ * the draft (and each gallery project) so they stay per-project.
  * Transient UI state (what's mid-click / selected / reeling) intentionally
  * always starts fresh, see `partialize` below.
  */
@@ -76,35 +84,12 @@ export type PersistedMobileState = {
   strawSize: StrawSize
 }
 
-/** Index of a selection buffer slot (toolbar buttons 1 / 2 / 3). */
-export type SlotIndex = 0 | 1 | 2
-
-/** Deep-cloned shapes + internal threads held in a buffer slot. */
-export type SlotBuffer = {
-  shapes: Shape[]
-  connections: Connection[]
-}
-
-const EMPTY_SLOTS: [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null] = [
-  null,
-  null,
-  null,
-]
-
-/** Normalize a persisted slots array into a fixed 3-tuple (legacy / corrupt safe). */
-function normalizeSlots(
-  value: unknown,
-): [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null] {
-  if (!Array.isArray(value)) return [...EMPTY_SLOTS]
-  return [value[0] ?? null, value[1] ?? null, value[2] ?? null]
-}
-
 /** Full draft persisted to localStorage (includes metadata outside undo history). */
 export type PersistedDraftState = PersistedMobileState & {
   projectName: string
   lastSavedAt: number
-  /** Toolbar 1/2/3 selection buffers (independent of the open draft). */
-  slots: [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null]
+  /** Per-project selection buffers (toolbar 1/2/3). */
+  slots: SlotBuffers
 }
 
 /** Clone the durable design fields for a history entry. */
@@ -265,11 +250,11 @@ interface StrawMobileState {
   /** Current edit tool (not persisted). */
   activeTool: ActiveTool
   /**
-   * Selection buffers (toolbar 1/2/3). Persisted to localStorage so occupied
-   * slots survive reloads. Occupied slots store a deep clone of shapes +
-   * internal connections.
+   * Per-project selection buffers (toolbar 1/2/3). Persisted with the draft and
+   * each gallery save so slots follow the open project, not a global clipboard.
+   * Occupied slots store a deep clone of shapes + internal connections.
    */
-  slots: [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null]
+  slots: SlotBuffers
   /** In-progress thread shorten animations (not persisted). */
   reelIns: ShapeReelIn[]
   /**
@@ -340,7 +325,8 @@ interface StrawMobileState {
   ) => void
   reset: () => void
   /** Replace the working draft with a gallery / import snapshot. */
-  loadProject: (snapshot: PersistedMobileState) => void
+  /** Replace the working design with a saved snapshot (gallery load / import). */
+  loadProject: (snapshot: PersistedMobileState & { slots?: SlotBuffers }) => void
   getStrawCounts: () => StrawCounts
 }
 
@@ -974,6 +960,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
           activeTool: 'none',
+          slots: [...EMPTY_SLOTS],
           reelIns: [],
           deferredConnectionIds: [],
           reelPositions: {},
@@ -990,6 +977,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           shapes: snapshot.shapes,
           connections: snapshot.connections,
           strawSize: snapshot.strawSize,
+          slots: normalizeSlots(snapshot.slots),
           pendingVertex: null,
           overlapSuggest: null,
           overlapScanUi: null,
@@ -1087,7 +1075,8 @@ useStrawMobileStore.subscribe((state, prev) => {
     state.shapes !== prev.shapes ||
     state.connections !== prev.connections ||
     state.strawSize !== prev.strawSize ||
-    state.projectName !== prev.projectName
+    state.projectName !== prev.projectName ||
+    state.slots !== prev.slots
   if (!designChanged) return
   if (state.lastSavedAt !== prev.lastSavedAt) return
   syncingLastSavedAt = true

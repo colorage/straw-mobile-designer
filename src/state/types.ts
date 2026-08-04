@@ -81,6 +81,26 @@ export interface StrawCounts {
   total: number
 }
 
+/** Index of a selection buffer slot (toolbar buttons 1 / 2 / 3). */
+export type SlotIndex = 0 | 1 | 2
+
+/** Deep-cloned shapes + internal threads held in a buffer slot. */
+export type SlotBuffer = {
+  shapes: Shape[]
+  connections: Connection[]
+}
+
+/** Fixed toolbar slot tuple used by the draft and gallery project snapshots. */
+export type SlotBuffers = [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null]
+
+export const EMPTY_SLOTS: SlotBuffers = [null, null, null]
+
+/** Normalize a persisted slots array into a fixed 3-tuple (legacy / corrupt safe). */
+export function normalizeSlots(value: unknown): SlotBuffers {
+  if (!Array.isArray(value)) return [...EMPTY_SLOTS]
+  return [value[0] ?? null, value[1] ?? null, value[2] ?? null]
+}
+
 export function endpointsEqual(a: EndpointRef, b: EndpointRef): boolean {
   if (a.kind === 'anchor' || b.kind === 'anchor') return a.kind === b.kind
   return a.shapeId === b.shapeId && a.vertexIndex === b.vertexIndex

@@ -8,7 +8,7 @@ import { downloadEntryJson } from './jsonIo'
 import type { GalleryEntry, GalleryFileEnvelope, ProjectSnapshot } from './types'
 
 const GALLERY_STORAGE_KEY = 'straw-mobile-designer/gallery'
-const GALLERY_STORAGE_VERSION = 1
+const GALLERY_STORAGE_VERSION = 2
 
 const PLACEHOLDER_THUMBNAIL =
   'data:image/svg+xml,' +
@@ -24,8 +24,8 @@ function cloneSnapshot(snapshot: ProjectSnapshot): ProjectSnapshot {
 }
 
 function readDraftSnapshot(): ProjectSnapshot {
-  const { shapes, connections, strawSize } = useStrawMobileStore.getState()
-  return cloneSnapshot({ shapes, connections, strawSize })
+  const { shapes, connections, strawSize, slots } = useStrawMobileStore.getState()
+  return cloneSnapshot({ shapes, connections, strawSize, slots })
 }
 
 function captureSnapshotForSave(): { project: ProjectSnapshot; thumbnailDataUrl: string } {
@@ -158,6 +158,8 @@ export const useGalleryStore = create<GalleryState>()(
         entries: state.entries,
         activeGalleryId: state.activeGalleryId,
       }),
+      // v2: project snapshots may include per-project slots; older entries omit them.
+      migrate: (persisted) => persisted as PersistedGalleryState,
     },
   ),
 )

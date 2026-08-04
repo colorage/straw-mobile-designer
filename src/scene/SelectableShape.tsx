@@ -1,6 +1,15 @@
-import { useRef, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { PivotControls } from '@react-three/drei'
-import type { ThreeEvent } from '@react-three/fiber'
+import { useThree, type ThreeEvent } from '@react-three/fiber'
+import {
+  Raycaster,
+  Sphere,
+  Vector2,
+  Vector3,
+  type Camera,
+  type Mesh,
+  type Object3D,
+} from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
 import { getBodyRef } from '../physics/bodyRefRegistry'
 import { getFreeComponentIds, getHangingShapeIds } from '../physics/restingLayout'
@@ -8,6 +17,178 @@ import { useStrawMobileStore } from '../state/store'
 import type { Shape } from '../state/types'
 import { beginGizmoDrag, DRAG_GIZMO_USER_DATA, endGizmoDrag } from './gizmoDrag'
 import { ShapeGroup } from './ShapeGroup'
+
+/**
+ * PivotControls axis hit volumes are invisible cylinders (no material — Three's
+ * Mesh.raycast skips them). Ignore PlaneGeometry so ground/other planes cannot
+ * keep the grab cursor stuck across the canvas.
+ */
+function isGizmoHitMesh(obj: Object3D): obj is Mesh {
+  if (!(obj as Mesh).isMesh) return false
+  return (obj as Mesh).geometry?.type === 'CylinderGeometry' && obj.visible === false
+}
+
+function collectGizmoHitMeshes(scene: Object3D): Mesh[] {
+  const meshes: Mesh[] = []
+  scene.traverse((obj) => {
+    if (isGizmoHitMesh(obj)) meshes.push(obj)
+  })
+  return meshes
+}
+
+const _sphere = new Sphere()
+const _hitPoint = new Vector3()
+const _centerNdc = new Vector3()
+const _edgeWorld = new Vector3()
+const _edgeNdc = new Vector3()
+const _axisDir = new Vector3()
+
+/**
+ * True when the pointer is over a gizmo handle.
+ * Prefer screen-space distance (PivotControls `fixed` keeps handles ~constant
+ * pixel size). Fall back to a world-space sphere test.
+ */
+function pointerHitsGizmoMesh(
+  raycaster: Raycaster,
+  mesh: Mesh,
+  pointerNdc: Vector2,
+  camera: Camera,
+): boolean {
+  const geometry = mesh.geometry
+  if (!geometry) return false
+  if (!geometry.boundingSphere) geometry.computeBoundingSphere()
+  if (!geometry.boundingSphere) return false
+
+  mesh.updateWorldMatrix(true, false)
+  _sphere.copy(geometry.boundingSphere).applyMatrix4(mesh.matrixWorld)
+  _sphere.radius *= 1.5
+
+  // Screen-space: project sphere center + a radius offset, compare to pointer.
+  _centerNdc.copy(_sphere.center).project(camera)
+  _axisDir.set(1, 0, 0).transformDirection(mesh.matrixWorld).normalize()
+  _edgeWorld.copy(_sphere.center).addScaledVector(_axisDir, _sphere.radius)
+  _edgeNdc.copy(_edgeWorld).project(camera)
+  const radiusNdc = Math.hypot(_edgeNdc.x - _centerNdc.x, _edgeNdc.y - _centerNdc.y)
+  // Minimum ~28px-equivalent in NDC so thin fixed handles stay easy to hit.
+  const hitRadius = Math.max(radiusNdc * 1.25, 0.045)
+  if (Math.hypot(pointerNdc.x - _centerNdc.x, pointerNdc.y - _centerNdc.y) <= hitRadius) {
+    return true
+  }
+
+  return raycaster.ray.intersectSphere(_sphere, _hitPoint) !== null
+}
+
+/**
+ * Shows grab over translation gizmo handles (grabbing while dragged).
+ * PivotControls has no cursor API; axis hit meshes also lack materials so
+ * Mesh.raycast misses them — we test projected handle spheres instead.
+ *
+ * Hit meshes are collected from the scene (invisible axis cylinders are unique
+ * to PivotControls) because drei's internal groups are not always reachable
+ * via a wrapper ref in the same layout pass.
+ */
+function useDragGizmoCursor() {
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
+  const get = useThree((s) => s.get)
+  const hitMeshesRef = useRef<Mesh[]>([])
+  const hoveringRef = useRef(false)
+  const draggingRef = useRef(false)
+  const pointerNdc = useRef(new Vector2())
+  const raycaster = useRef(new Raycaster()).current
+
+  useLayoutEffect(() => {
+    const collect = () => {
+      hitMeshesRef.current = collectGizmoHitMeshes(scene)
+      if (import.meta.env.DEV) {
+        const debug = (window as unknown as { __strawDebug?: Record<string, unknown> }).__strawDebug
+        if (debug) debug.gizmoHitCount = hitMeshesRef.current.length
+      }
+    }
+    collect()
+    const id = requestAnimationFrame(collect)
+    return () => cancelAnimationFrame(id)
+  })
+
+  useEffect(() => {
+    const canvas = gl.domElement
+
+    const setCursor = (cursor: string) => {
+      document.body.style.cursor = cursor
+      canvas.style.cursor = cursor
+    }
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (draggingRef.current) {
+        setCursor('grabbing')
+        return
+      }
+
+      // Refresh in case the gizmo mounted after this listener did.
+      hitMeshesRef.current = collectGizmoHitMeshes(scene)
+      if (hitMeshesRef.current.length === 0) return
+
+      const { camera } = get()
+      const rect = canvas.getBoundingClientRect()
+      if (rect.width === 0 || rect.height === 0) return
+      pointerNdc.current.set(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      )
+      raycaster.setFromCamera(pointerNdc.current, camera)
+
+      let overGizmo = false
+      for (const mesh of hitMeshesRef.current) {
+        if (pointerHitsGizmoMesh(raycaster, mesh, pointerNdc.current, camera)) {
+          overGizmo = true
+          break
+        }
+      }
+
+      if (overGizmo) {
+        hoveringRef.current = true
+        setCursor('grab')
+      } else if (hoveringRef.current) {
+        hoveringRef.current = false
+        setCursor('')
+      }
+    }
+
+    const onPointerLeave = () => {
+      if (draggingRef.current) return
+      if (hoveringRef.current) {
+        hoveringRef.current = false
+        setCursor('')
+      }
+    }
+
+    canvas.addEventListener('pointermove', onPointerMove)
+    canvas.addEventListener('pointerleave', onPointerLeave)
+    return () => {
+      canvas.removeEventListener('pointermove', onPointerMove)
+      canvas.removeEventListener('pointerleave', onPointerLeave)
+      if (hoveringRef.current || draggingRef.current) {
+        hoveringRef.current = false
+        draggingRef.current = false
+        setCursor('')
+      }
+    }
+  }, [gl, get, raycaster, scene])
+
+  return {
+    beginDrag() {
+      draggingRef.current = true
+      document.body.style.cursor = 'grabbing'
+      gl.domElement.style.cursor = 'grabbing'
+    },
+    endDrag() {
+      draggingRef.current = false
+      const next = hoveringRef.current ? 'grab' : ''
+      document.body.style.cursor = next
+      gl.domElement.style.cursor = next
+    },
+  }
+}
 
 interface SelectableShapeProps {
   shape: Shape
@@ -179,6 +360,7 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
   const baseQuaternion = useRef(quaternion).current
   const offset = useRef(selectionCentroid(position)).current
   const cohortBasesRef = useRef<Map<string, Vector3Tuple>>(new Map())
+  const cursor = useDragGizmoCursor()
 
   return (
     <PivotControls
@@ -192,6 +374,7 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
       // Tags handle hit-meshes so marquee selection ignores gizmo pointerdowns.
       userData={DRAG_GIZMO_USER_DATA}
       onDragStart={() => {
+        cursor.beginDrag()
         beginGizmoDrag()
         // One history entry per drag gesture — not per onDrag frame.
         pushHistory()
@@ -229,6 +412,7 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
         moveShapes(updates)
       }}
       onDragEnd={() => {
+        cursor.endDrag()
         endGizmoDrag()
       }}
     >
