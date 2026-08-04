@@ -6,9 +6,31 @@ import { exposeDebugGlobals } from '../debug/exposeForTesting'
 import { PhysicsScene } from '../physics/PhysicsScene'
 import { usePhysicsPersistence } from '../physics/usePhysicsPersistence'
 import { useStrawMobileStore } from '../state/store'
+import { useThemeStore } from '../state/themeStore'
 import { setCameraView } from './cameraView'
 import { setCanvasBridge } from './canvasBridge'
 import { detectSoftwareGL } from './renderCapability'
+
+const SCENE_THEME = {
+  dark: {
+    background: '#11131a',
+    ground: '#20222c',
+    cell: '#262a37',
+    section: '#3a4054',
+    ambient: 0.22,
+    hemisphere: 0.65,
+    directional: 1.2,
+  },
+  light: {
+    background: '#e8eaf1',
+    ground: '#c5cad8',
+    cell: '#c8cedc',
+    section: '#9aa3ba',
+    ambient: 0.45,
+    hemisphere: 0.85,
+    directional: 1.05,
+  },
+} as const
 
 const GRID_Y = -3.2
 
@@ -88,6 +110,8 @@ function OrbitEnabledGuard() {
 /** Top-level 3D canvas: lighting, camera, and the unified edit/gravity scene. */
 export function Experience() {
   const selectShape = useStrawMobileStore((s) => s.selectShape)
+  const theme = useThemeStore((s) => s.theme)
+  const sceneTheme = SCENE_THEME[theme]
   usePhysicsPersistence()
 
   return (
@@ -107,13 +131,13 @@ export function Experience() {
       }}
       onPointerMissed={() => selectShape(null)}
     >
-      <color attach="background" args={['#11131a']} />
-      <fog attach="fog" args={['#11131a', 45, 120]} />
-      <ambientLight intensity={0.22} />
-      <hemisphereLight intensity={0.65} groundColor="#20222c" />
+      <color attach="background" args={[sceneTheme.background]} />
+      <fog attach="fog" args={[sceneTheme.background, 45, 120]} />
+      <ambientLight intensity={sceneTheme.ambient} />
+      <hemisphereLight intensity={sceneTheme.hemisphere} groundColor={sceneTheme.ground} />
       <directionalLight
         position={[5, 9, 4]}
-        intensity={1.2}
+        intensity={sceneTheme.directional}
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.5}
@@ -127,8 +151,8 @@ export function Experience() {
       <Grid
         position={[0, GRID_Y, 0]}
         args={[40, 40]}
-        cellColor="#262a37"
-        sectionColor="#3a4054"
+        cellColor={sceneTheme.cell}
+        sectionColor={sceneTheme.section}
         fadeDistance={90}
         infiniteGrid
       />
