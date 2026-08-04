@@ -1,10 +1,15 @@
-import type { Connection, Shape, StrawSize } from '../state/types'
+import type { Connection, Shape, SlotBuffers, StrawSize } from '../state/types'
 
 /** Durable design payload shared by the editor draft and gallery saves. */
 export interface ProjectSnapshot {
   shapes: Shape[]
   connections: Connection[]
   strawSize: StrawSize
+  /**
+   * Per-project selection buffers (toolbar 1/2/3).
+   * Optional on older saves / imports; treat missing as empty.
+   */
+  slots?: SlotBuffers
 }
 
 /** A named, thumbnail-backed save in the local gallery library. */

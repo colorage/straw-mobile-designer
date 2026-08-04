@@ -5,7 +5,7 @@ import {
   type GalleryFileEnvelope,
   type ProjectSnapshot,
 } from './types'
-import type { Connection, EndpointRef, Shape, StrawSize } from '../state/types'
+import type { Connection, EndpointRef, Shape, SlotBuffer, SlotBuffers, StrawSize } from '../state/types'
 import type { ShapeKind, Vector3Tuple } from '../geometry/primitives'
 
 const SHAPE_KINDS = new Set<ShapeKind>([
@@ -80,6 +80,20 @@ function isConnection(value: unknown): value is Connection {
   )
 }
 
+function isSlotBuffer(value: unknown): value is SlotBuffer {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.shapes) &&
+    value.shapes.every(isShape) &&
+    Array.isArray(value.connections) &&
+    value.connections.every(isConnection)
+  )
+}
+
+function isSlots(value: unknown): value is SlotBuffers {
+  return Array.isArray(value) && value.length === 3 && value.every((slot) => slot === null || isSlotBuffer(slot))
+}
+
 function isProjectSnapshot(value: unknown): value is ProjectSnapshot {
   if (!isRecord(value)) return false
   if (typeof value.strawSize !== 'number' || !STRAW_SIZES.has(value.strawSize as StrawSize)) {
@@ -87,6 +101,8 @@ function isProjectSnapshot(value: unknown): value is ProjectSnapshot {
   }
   if (!Array.isArray(value.shapes) || !value.shapes.every(isShape)) return false
   if (!Array.isArray(value.connections) || !value.connections.every(isConnection)) return false
+  // Older exports omit slots; when present they must be a valid 3-tuple.
+  if (value.slots !== undefined && !isSlots(value.slots)) return false
   return true
 }
 
