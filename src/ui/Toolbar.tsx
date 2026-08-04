@@ -64,8 +64,13 @@ export function Toolbar() {
               draggable
               title={`Add ${SHAPE_LABELS[kind]}`}
               aria-label={`Add ${SHAPE_LABELS[kind]}`}
-              onClick={() => addShape(kind)}
+              onClick={() => {
+                // Shape tools leave cut mode so the new piece can be selected/edited.
+                if (scissorsActive) setActiveTool('select')
+                addShape(kind)
+              }}
               onDragStart={(event) => {
+                if (scissorsActive) setActiveTool('select')
                 event.dataTransfer.setData(SHAPE_DRAG_MIME, kind)
                 event.dataTransfer.setData(SHAPE_DRAG_TEXT_MIME, kind)
                 event.dataTransfer.effectAllowed = 'copy'
