@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { PivotControls } from '@react-three/drei'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
 import {
@@ -7,7 +7,6 @@ import {
   Vector2,
   Vector3,
   type Camera,
-  type Group,
   type Mesh,
   type Object3D,
 } from 'three'
@@ -31,10 +30,9 @@ function isGizmoHitMesh(obj: Object3D): obj is Mesh {
   return false
 }
 
-function collectGizmoHitMeshes(root: Object3D | null): Mesh[] {
-  if (!root) return []
+function collectGizmoHitMeshes(scene: Object3D): Mesh[] {
   const meshes: Mesh[] = []
-  root.traverse((obj) => {
+  scene.traverse((obj) => {
     if (isGizmoHitMesh(obj)) meshes.push(obj)
   })
   return meshes
@@ -85,10 +83,15 @@ function pointerHitsGizmoMesh(
 /**
  * Shows grab over translation gizmo handles (grabbing while dragged).
  * PivotControls has no cursor API; axis hit meshes also lack materials so
- * Mesh.raycast misses them — we test world bounding spheres instead.
+ * Mesh.raycast misses them — we test projected handle spheres instead.
+ *
+ * Hit meshes are collected from the scene (invisible axis cylinders are unique
+ * to PivotControls) because drei's internal groups are not always reachable
+ * via a wrapper ref in the same layout pass.
  */
-function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
+function useDragGizmoCursor() {
   const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
   const get = useThree((s) => s.get)
   const hitMeshesRef = useRef<Mesh[]>([])
   const hoveringRef = useRef(false)
@@ -98,15 +101,13 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
 
   useLayoutEffect(() => {
     const collect = () => {
-      hitMeshesRef.current = collectGizmoHitMeshes(rootRef.current)
+      hitMeshesRef.current = collectGizmoHitMeshes(scene)
       if (import.meta.env.DEV) {
         const debug = (window as unknown as { __strawDebug?: Record<string, unknown> }).__strawDebug
         if (debug) debug.gizmoHitCount = hitMeshesRef.current.length
       }
     }
     collect()
-    // PivotControls finishes attaching axis hit meshes in the same commit;
-    // one more frame covers fixed-scale first layout.
     const id = requestAnimationFrame(collect)
     return () => cancelAnimationFrame(id)
   })
@@ -125,9 +126,8 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
         return
       }
 
-      if (hitMeshesRef.current.length === 0) {
-        hitMeshesRef.current = collectGizmoHitMeshes(rootRef.current)
-      }
+      // Refresh in case the gizmo mounted after this listener did.
+      hitMeshesRef.current = collectGizmoHitMeshes(scene)
       if (hitMeshesRef.current.length === 0) return
 
       const { camera } = get()
@@ -175,7 +175,7 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
         setCursor('')
       }
     }
-  }, [gl, get, raycaster, rootRef])
+  }, [gl, get, raycaster, scene])
 
   return {
     beginDrag() {
@@ -362,64 +362,61 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
   const baseQuaternion = useRef(quaternion).current
   const offset = useRef(selectionCentroid(position)).current
   const cohortBasesRef = useRef<Map<string, Vector3Tuple>>(new Map())
-  const rootRef = useRef<Group>(null)
-  const cursor = useDragGizmoCursor(rootRef)
+  const cursor = useDragGizmoCursor()
 
   return (
-    <group ref={rootRef}>
-      <PivotControls
-        disableRotations
-        disableScaling
-        scale={3.6}
-        lineWidth={2.5}
-        fixed
-        depthTest={false}
-        offset={offset}
-        onDragStart={() => {
-          cursor.beginDrag()
-          // One history entry per drag gesture — not per onDrag frame.
-          pushHistory()
-          const bases = snapshotDragCohortBases()
-          // Ensure the gizmo owner is in the cohort even if selection drifted.
-          if (!bases.has(shapeId)) {
-            bases.set(shapeId, [...basePosition] as Vector3Tuple)
-          }
-          cohortBasesRef.current = bases
-        }}
-        onDrag={(l) => {
-          // `l` is translation since gizmo mount (same as primary basePosition).
-          // Cohort siblings were snapshotted at drag start from the store, so
-          // apply the primary's gesture delta rather than the raw mount offset.
-          const primaryNext: Vector3Tuple = [
-            basePosition[0] + l.elements[12],
-            basePosition[1] + l.elements[13],
-            basePosition[2] + l.elements[14],
-          ]
-          const bases = cohortBasesRef.current
-          const primaryBase = bases.get(shapeId) ?? basePosition
-          const gestureDx = primaryNext[0] - primaryBase[0]
-          const gestureDy = primaryNext[1] - primaryBase[1]
-          const gestureDz = primaryNext[2] - primaryBase[2]
+    <PivotControls
+      disableRotations
+      disableScaling
+      scale={3.6}
+      lineWidth={2.5}
+      fixed
+      depthTest={false}
+      offset={offset}
+      onDragStart={() => {
+        cursor.beginDrag()
+        // One history entry per drag gesture — not per onDrag frame.
+        pushHistory()
+        const bases = snapshotDragCohortBases()
+        // Ensure the gizmo owner is in the cohort even if selection drifted.
+        if (!bases.has(shapeId)) {
+          bases.set(shapeId, [...basePosition] as Vector3Tuple)
+        }
+        cohortBasesRef.current = bases
+      }}
+      onDrag={(l) => {
+        // `l` is translation since gizmo mount (same as primary basePosition).
+        // Cohort siblings were snapshotted at drag start from the store, so
+        // apply the primary's gesture delta rather than the raw mount offset.
+        const primaryNext: Vector3Tuple = [
+          basePosition[0] + l.elements[12],
+          basePosition[1] + l.elements[13],
+          basePosition[2] + l.elements[14],
+        ]
+        const bases = cohortBasesRef.current
+        const primaryBase = bases.get(shapeId) ?? basePosition
+        const gestureDx = primaryNext[0] - primaryBase[0]
+        const gestureDy = primaryNext[1] - primaryBase[1]
+        const gestureDz = primaryNext[2] - primaryBase[2]
 
-          const updates: { id: string; position: Vector3Tuple }[] = []
-          for (const [id, base] of bases) {
-            const next: Vector3Tuple =
-              id === shapeId
-                ? primaryNext
-                : [base[0] + gestureDx, base[1] + gestureDy, base[2] + gestureDz]
-            updates.push({ id, position: next })
-            syncKinematicBody(id, next)
-          }
-          moveShapes(updates)
-        }}
-        onDragEnd={() => {
-          cursor.endDrag()
-        }}
-      >
-        <group position={basePosition} quaternion={baseQuaternion}>
-          {children}
-        </group>
-      </PivotControls>
-    </group>
+        const updates: { id: string; position: Vector3Tuple }[] = []
+        for (const [id, base] of bases) {
+          const next: Vector3Tuple =
+            id === shapeId
+              ? primaryNext
+              : [base[0] + gestureDx, base[1] + gestureDy, base[2] + gestureDz]
+          updates.push({ id, position: next })
+          syncKinematicBody(id, next)
+        }
+        moveShapes(updates)
+      }}
+      onDragEnd={() => {
+        cursor.endDrag()
+      }}
+    >
+      <group position={basePosition} quaternion={baseQuaternion}>
+        {children}
+      </group>
+    </PivotControls>
   )
 }
