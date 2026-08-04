@@ -24,7 +24,7 @@ export function SaveStatus() {
   return (
     <p className="save-status">
       {showRestoredMessage && 'Restored your draft from last time. '}
-      Your draft autosaves in this browser. Use the Gallery below to keep named copies or export JSON.
+      Your draft autosaves in this browser. Use Gallery to keep named copies or export JSON.
     </p>
   )
 }
