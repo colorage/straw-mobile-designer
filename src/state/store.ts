@@ -11,9 +11,9 @@ import {
 } from '../physics/restingLayout'
 import { findAddPosition } from '../scene/placement'
 import {
+  DEFAULT_PROJECT_NAME,
   endpointBodyKey,
   endpointsEqual,
-  STRAW_SIZES,
   type Connection,
   type EndpointRef,
   type OverlapSuggest,
@@ -36,7 +36,7 @@ export { ANCHOR_POSITION, BASE_STRAW_LENGTH, getScaledVertex } from './shapeSpac
  * always starts fresh, see `partialize` below.
  */
 const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
-const PERSISTED_STORAGE_VERSION = 2
+const PERSISTED_STORAGE_VERSION = 3
 /** Max design snapshots kept for undo / redo. */
 const HISTORY_LIMIT = 50
 /** World offset applied to duplicated shapes so copies don't stack. */
@@ -66,6 +66,12 @@ export type PersistedMobileState = {
   strawSize: StrawSize
 }
 
+/** Full draft persisted to localStorage (includes metadata outside undo history). */
+export type PersistedDraftState = PersistedMobileState & {
+  projectName: string
+  lastSavedAt: number
+}
+
 /** Clone the durable design fields for a history entry. */
 function snapshotDesign(state: PersistedMobileState): PersistedMobileState {
   return structuredClone({
@@ -75,6 +81,7 @@ function snapshotDesign(state: PersistedMobileState): PersistedMobileState {
   })
 }
 
+/** Solid-equivalent total: two 1/2 straws count as one solid straw. */
 export function computeStrawCounts(shapes: Shape[]): StrawCounts {
   const bySize: Record<StrawSize, number> = { 1: 0, 0.5: 0, 0.25: 0 }
   for (const shape of shapes) {
@@ -82,8 +89,14 @@ export function computeStrawCounts(shapes: Shape[]): StrawCounts {
   }
   return {
     bySize,
-    total: STRAW_SIZES.reduce((sum, size) => sum + bySize[size], 0),
+    total: bySize[1] + bySize[0.5] * 0.5 + bySize[0.25] * 0.25,
   }
+}
+
+/** Format solid-equivalent totals without trailing zeros (e.g. 1.5, 2). */
+export function formatSolidEquivalent(total: number): string {
+  if (Number.isInteger(total)) return String(total)
+  return String(parseFloat(total.toFixed(2)))
 }
 
 /** Return shapes with any that leave the hanging chain frozen at their live pose. */
@@ -116,6 +129,10 @@ interface StrawMobileState {
   shapes: Shape[]
   connections: Connection[]
   strawSize: StrawSize
+  /** Display name for the current draft (persisted; not part of undo history). */
+  projectName: string
+  /** Epoch ms of the last autosave write (persisted). */
+  lastSavedAt: number
   pendingVertex: EndpointRef | null
   /** Free corners currently overlapping long enough to suggest auto-connect. */
   overlapSuggest: OverlapSuggest | null
@@ -154,6 +171,7 @@ interface StrawMobileState {
   removeShape: (id: string) => void
   removeShapes: (ids: string[]) => void
   setStrawSize: (size: StrawSize) => void
+  setProjectName: (name: string) => void
   selectVertex: (endpoint: EndpointRef) => void
   /** Tie two corners (manual second-click or overlap dwell). Returns true if created. */
   connectEndpoints: (a: EndpointRef, b: EndpointRef) => boolean
@@ -222,6 +240,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       shapes: [],
       connections: [],
       strawSize: 1,
+      projectName: DEFAULT_PROJECT_NAME,
+      lastSavedAt: Date.now(),
       pendingVertex: null,
       overlapSuggest: null,
       selectedShapeIds: [],
@@ -357,6 +377,12 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (get().strawSize === size) return
         get().pushHistory()
         set({ strawSize: size })
+      },
+
+      setProjectName: (name) => {
+        const trimmed = name.trim() || DEFAULT_PROJECT_NAME
+        if (get().projectName === trimmed) return
+        set({ projectName: trimmed, lastSavedAt: Date.now() })
       },
 
       selectVertex: (endpoint) => {
@@ -740,15 +766,24 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       version: PERSISTED_STORAGE_VERSION,
       storage: createJSONStorage(() => localStorage),
       // Click-in-progress / selection / reel-in / undo stacks are transient.
-      partialize: (state): PersistedMobileState => ({
+      partialize: (state): PersistedDraftState => ({
         shapes: state.shapes,
         connections: state.connections,
         strawSize: state.strawSize,
+        projectName: state.projectName,
+        lastSavedAt: state.lastSavedAt,
       }),
-      migrate: (persisted) => {
-        const state = persisted as PersistedMobileState & { placedCount?: number }
+      migrate: (persisted, version) => {
+        const state = persisted as PersistedDraftState & { placedCount?: number }
         // Drop legacy workbench slot counter; placement is camera-aware now.
         const { placedCount: _placedCount, ...rest } = state
+        if (version < 3) {
+          return {
+            ...rest,
+            projectName: rest.projectName ?? DEFAULT_PROJECT_NAME,
+            lastSavedAt: rest.lastSavedAt ?? Date.now(),
+          }
+        }
         return rest
       },
       merge: (persisted, current) => ({
@@ -770,3 +805,27 @@ export const useStrawMobileStore = create<StrawMobileState>()(
     },
   ),
 )
+
+/** Stamp lastSavedAt whenever the durable design (or name) changes after hydration. */
+let draftSaveHydrated = useStrawMobileStore.persist.hasHydrated()
+let syncingLastSavedAt = false
+
+function markDraftSaveHydrated() {
+  draftSaveHydrated = true
+}
+
+useStrawMobileStore.persist.onFinishHydration(markDraftSaveHydrated)
+
+useStrawMobileStore.subscribe((state, prev) => {
+  if (!draftSaveHydrated || syncingLastSavedAt) return
+  const designChanged =
+    state.shapes !== prev.shapes ||
+    state.connections !== prev.connections ||
+    state.strawSize !== prev.strawSize ||
+    state.projectName !== prev.projectName
+  if (!designChanged) return
+  if (state.lastSavedAt !== prev.lastSavedAt) return
+  syncingLastSavedAt = true
+  useStrawMobileStore.setState({ lastSavedAt: Date.now() })
+  syncingLastSavedAt = false
+})

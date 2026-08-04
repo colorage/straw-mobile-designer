@@ -117,6 +117,7 @@ export const useGalleryStore = create<GalleryState>()(
         const entry = get().entries.find((item) => item.id === id)
         if (!entry) return false
         useStrawMobileStore.getState().loadProject(cloneSnapshot(entry.project))
+        useStrawMobileStore.getState().setProjectName(entry.name)
         set({ activeGalleryId: id })
         return true
       },
