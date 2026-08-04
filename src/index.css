@@ -93,6 +93,11 @@ body,
   color: var(--text);
 }
 
+/* Prefer the dynamic viewport so mobile browser chrome does not crop bottom HUD. */
+html {
+  height: 100dvh;
+}
+
 body {
   overflow: hidden;
 }

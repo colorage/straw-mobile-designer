@@ -1,7 +1,9 @@
 .app-shell {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-ui);
@@ -37,8 +39,8 @@
 }
 
 .hud-top-left {
-  top: 20px;
-  left: 22px;
+  top: max(20px, env(safe-area-inset-top, 0px));
+  left: max(22px, env(safe-area-inset-left, 0px));
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
@@ -96,7 +98,7 @@
 
 .hud-middle-left {
   top: 50%;
-  left: 18px;
+  left: max(18px, env(safe-area-inset-left, 0px));
   transform: translateY(-50%);
   flex-direction: column;
   align-items: stretch;
@@ -116,20 +118,21 @@
 }
 
 .hud-bottom-left {
-  left: 18px;
-  bottom: 20px;
+  left: max(18px, env(safe-area-inset-left, 0px));
+  bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 12px));
   flex-direction: row;
   align-items: center;
+  z-index: 4;
 }
 
 .hud-top-right {
-  top: 18px;
-  right: 18px;
+  top: max(18px, env(safe-area-inset-top, 0px));
+  right: max(18px, env(safe-area-inset-right, 0px));
 }
 
 .hud-middle-right {
   top: 50%;
-  right: 20px;
+  right: max(20px, env(safe-area-inset-right, 0px));
   transform: translateY(-50%);
   flex-direction: column;
   align-items: flex-end;
@@ -137,8 +140,8 @@
 }
 
 .hud-bottom-right {
-  right: 22px;
-  bottom: 70px;
+  right: max(22px, env(safe-area-inset-right, 0px));
+  bottom: max(70px, calc(env(safe-area-inset-bottom, 0px) + 58px));
   flex-direction: column;
   align-items: flex-end;
   gap: 4px;
@@ -147,7 +150,7 @@
 
 .hud-bottom-center {
   left: 50%;
-  bottom: 22px;
+  bottom: max(22px, calc(env(safe-area-inset-bottom, 0px) + 12px));
   transform: translateX(-50%);
   flex-direction: column;
   align-items: center;
@@ -194,8 +197,8 @@
 
 .bmc-button {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  right: max(18px, env(safe-area-inset-right, 0px));
+  bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 10px));
   z-index: 20;
 }
 
@@ -620,7 +623,7 @@
   gap: 16px;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-height: 700px) {
   .hud-project-name,
   .hud-project-input {
     font-size: 18px;
@@ -636,36 +639,67 @@
     height: 20px;
   }
 
+  /*
+   * Keep the tall tool column between the header and undo/redo so short
+   * mobile viewports (and landscape phones) cannot cover or crop history.
+   */
   .hud-middle-left {
-    left: 12px;
+    top: max(72px, calc(env(safe-area-inset-top, 0px) + 56px));
+    bottom: max(66px, calc(env(safe-area-inset-bottom, 0px) + 54px));
+    left: max(12px, env(safe-area-inset-left, 0px));
+    transform: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    /* flex-start keeps the first tools reachable when the column scrolls */
+    justify-content: flex-start;
+  }
+
+  .hud-middle-left::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
 
   .hud-bottom-left {
-    left: 12px;
-    bottom: 14px;
+    left: max(12px, env(safe-area-inset-left, 0px));
+    bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px));
   }
 
   .hud-middle-right {
-    right: 12px;
+    top: max(72px, calc(env(safe-area-inset-top, 0px) + 56px));
+    bottom: max(66px, calc(env(safe-area-inset-bottom, 0px) + 54px));
+    right: max(12px, env(safe-area-inset-right, 0px));
+    transform: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    justify-content: flex-start;
+  }
+
+  .hud-middle-right::-webkit-scrollbar {
+    width: 0;
+    height: 0;
   }
 
   .hud-bottom-right {
-    right: 14px;
-    bottom: 60px;
+    right: max(14px, env(safe-area-inset-right, 0px));
+    bottom: max(60px, calc(env(safe-area-inset-bottom, 0px) + 52px));
   }
 
   .bmc-button {
-    right: 12px;
-    bottom: 12px;
+    right: max(12px, env(safe-area-inset-right, 0px));
+    bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
   }
 
   .hud-bottom-center {
-    bottom: 14px;
+    bottom: max(14px, calc(env(safe-area-inset-bottom, 0px) + 10px));
     max-width: calc(100vw - 160px);
   }
 
   .gallery-page {
-    padding: 20px 16px 32px;
+    padding: 20px 16px max(32px, calc(env(safe-area-inset-bottom, 0px) + 20px));
   }
 
   .gallery-page-title {
