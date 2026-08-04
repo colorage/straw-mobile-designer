@@ -16,7 +16,7 @@ export const OVERLAP_DWELL_MS = 1000
  * After this many ms of scans with no overlapping pair, the proximity scanner
  * sleeps until a scene-changing action bumps the wake token.
  */
-export const OVERLAP_SCAN_IDLE_MS = 3000
+export const OVERLAP_SCAN_IDLE_MS = 1000
 
 /**
  * Max lin/ang speed (m/s, rad/s) for a hanging body to count as settled enough
