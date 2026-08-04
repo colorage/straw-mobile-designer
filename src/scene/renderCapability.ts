@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
 import type { WebGLRenderer } from 'three'
+import { useStrawMobileStore } from '../state/store'
 
 let softwareGL = false
 const listeners = new Set<() => void>()
@@ -56,4 +57,11 @@ export function isSoftwareGL() {
 /** React hook that re-renders when software-GL detection updates. */
 export function useSoftwareGL() {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
+}
+
+/** True when shadow maps / cast-receive should run (real GPU and turbo off). */
+export function useShadowsEnabled() {
+  const softwareGL = useSoftwareGL()
+  const turboMode = useStrawMobileStore((s) => s.turboMode)
+  return !softwareGL && !turboMode
 }

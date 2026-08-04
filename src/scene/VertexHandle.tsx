@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { Vector3Tuple } from '../geometry/primitives'
-import { useSoftwareGL } from './renderCapability'
+import { useShadowsEnabled, useSoftwareGL } from './renderCapability'
 
 interface VertexHandleProps {
   position: Vector3Tuple
@@ -32,6 +32,7 @@ export function VertexHandle({
 }: VertexHandleProps) {
   const [hovered, setHovered] = useState(false)
   const softwareGL = useSoftwareGL()
+  const shadowsEnabled = useShadowsEnabled()
 
   const color = pending
     ? COLOR_PENDING
@@ -68,7 +69,7 @@ export function VertexHandle({
       >
         <sphereGeometry args={[HIT_AREA_RADIUS, 12, 12]} />
       </mesh>
-      <mesh castShadow={!softwareGL}>
+      <mesh castShadow={shadowsEnabled}>
         <sphereGeometry args={[radius, 16, 16]} />
         {softwareGL ? (
           <meshBasicMaterial color={color} toneMapped={false} />

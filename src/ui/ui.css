@@ -198,6 +198,13 @@
   color: #ffffff;
 }
 
+.hud-turbo.is-active,
+.hud-turbo.is-active:hover:not(:disabled) {
+  background: #c47a12;
+  border-color: #f0b429;
+  color: #ffffff;
+}
+
 .hud-exit-link {
   cursor: pointer;
 }
