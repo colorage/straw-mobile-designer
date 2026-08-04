@@ -296,6 +296,8 @@ interface StrawMobileState {
   selectShape: (id: string | null) => void
   toggleShapeSelection: (id: string) => void
   selectShapeRange: (id: string) => void
+  /** Replace the current selection with the given shape ids (last id is primary). */
+  selectShapes: (ids: string[]) => void
   duplicateSelection: () => void
   /**
    * Selection buffer slot: store current selection when something is selected,
@@ -768,6 +770,17 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           selectedShapeIds: shapes.slice(start, end + 1).map((shape) => shape.id),
           // Keep the original anchor fixed for subsequent Shift+range clicks.
           selectionAnchorId: anchorId,
+        })
+      },
+
+      selectShapes: (ids) => {
+        if (ids.length === 0) {
+          set(EMPTY_SELECTION)
+          return
+        }
+        set({
+          selectedShapeIds: ids,
+          selectionAnchorId: ids[ids.length - 1] ?? null,
         })
       },
 

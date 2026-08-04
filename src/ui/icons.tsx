@@ -82,6 +82,18 @@ export function OctahedronIcon({ className, title }: IconProps) {
   )
 }
 
+export function SelectIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="currentColor"
+        d="M6.2 3.4a1 1 0 0 1 1.1.15l11.2 10.2a1 1 0 0 1-.55 1.72l-4.15.4 2.05 4.55a1 1 0 0 1-1.82.82l-2.1-4.65-2.85 2.55A1 1 0 0 1 7 18.1V4.4a1 1 0 0 1-.8-1Z"
+      />
+    </svg>
+  )
+}
+
 export function ScissorsIcon({ className, title }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>

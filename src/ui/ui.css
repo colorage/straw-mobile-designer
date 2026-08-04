@@ -191,6 +191,13 @@
   display: block;
 }
 
+.hud-select.is-active,
+.hud-select.is-active:hover:not(:disabled) {
+  background: #1565c0;
+  border-color: #42a5f5;
+  color: #ffffff;
+}
+
 .hud-scissors.is-active,
 .hud-scissors.is-active:hover:not(:disabled) {
   background: #c62828;
@@ -214,6 +221,15 @@
 .hud-slot-button.is-occupied:hover:not(:disabled) {
   border-color: rgba(150, 190, 255, 0.65);
   color: #ffffff;
+}
+
+.hud-marquee {
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 1px solid rgba(66, 165, 245, 0.95);
+  background: rgba(21, 101, 192, 0.22);
 }
 
 .hud-exit-link {

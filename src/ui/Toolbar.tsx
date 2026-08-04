@@ -7,6 +7,7 @@ import {
   PlusIcon,
   PyramidIcon,
   ScissorsIcon,
+  SelectIcon,
   SquareIcon,
   TriangleIcon,
 } from './icons'
@@ -29,7 +30,7 @@ const SHAPE_ICONS: Record<ToolbarShapeKind, ReactNode> = {
 
 const SLOT_INDEXES: SlotIndex[] = [0, 1, 2]
 
-/** Middle-left floating toolbar: add shapes + scissors + selection buffers. */
+/** Middle-left floating toolbar: add shapes + select / scissors + selection buffers. */
 export function Toolbar() {
   const addShape = useStrawMobileStore((s) => s.addShape)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
@@ -37,6 +38,7 @@ export function Toolbar() {
   const useSlotBuffer = useStrawMobileStore((s) => s.useSlotBuffer)
   const slots = useStrawMobileStore((s) => s.slots)
   const hasSelection = useStrawMobileStore((s) => s.selectedShapeIds.length > 0)
+  const selectActive = activeTool === 'select'
   const scissorsActive = activeTool === 'scissors'
 
   useEffect(() => {
@@ -82,6 +84,16 @@ export function Toolbar() {
         </div>
       ))}
       <div className="hud-tool-group">
+        <button
+          type="button"
+          className={`hud-icon-button hud-select${selectActive ? ' is-active' : ''}`}
+          title="Selection mode — click or drag a rectangle to select"
+          aria-label="Enable selection mode"
+          aria-pressed={selectActive}
+          onClick={() => setActiveTool('select')}
+        >
+          <SelectIcon className="hud-icon" />
+        </button>
         <button
           type="button"
           className={`hud-icon-button hud-scissors${scissorsActive ? ' is-active' : ''}`}
