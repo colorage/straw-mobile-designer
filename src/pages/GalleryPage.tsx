@@ -27,6 +27,14 @@ function confirmOverwriteDraft(): boolean {
   )
 }
 
+function confirmStartNew(): boolean {
+  const { shapes } = useStrawMobileStore.getState()
+  if (shapes.length === 0) return true
+  return window.confirm(
+    'Clear the current draft and start a new mobile? Unsaved draft changes will be lost (the autosaved draft will update).',
+  )
+}
+
 /** Full-page gallery: browse, load, import, export, and delete named saves. */
 export function GalleryPage() {
   const navigate = useNavigate()
@@ -36,11 +44,21 @@ export function GalleryPage() {
   const deleteEntry = useGalleryStore((s) => s.deleteEntry)
   const exportEntry = useGalleryStore((s) => s.exportEntry)
   const importEnvelope = useGalleryStore((s) => s.importEnvelope)
+  const clearActive = useGalleryStore((s) => s.clearActive)
+  const reset = useStrawMobileStore((s) => s.reset)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
 
   const goToDesigner = () => {
     navigate('/')
+  }
+
+  const handleNew = () => {
+    setError(null)
+    if (!confirmStartNew()) return
+    reset()
+    clearActive()
+    goToDesigner()
   }
 
   const handleLoad = (entry: GalleryEntry) => {
@@ -93,10 +111,13 @@ export function GalleryPage() {
           </p>
         </div>
         <div className="gallery-page-header-actions">
+          <button type="button" className="primary-button gallery-page-action" onClick={handleNew}>
+            New
+          </button>
           <button type="button" className="ghost-button gallery-page-action" onClick={handleImportClick}>
             Import JSON
           </button>
-          <Link to="/" className="primary-button gallery-page-action gallery-page-back">
+          <Link to="/" className="ghost-button gallery-page-action gallery-page-back">
             Back to designer
           </Link>
           <input
