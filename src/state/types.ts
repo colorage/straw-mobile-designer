@@ -5,10 +5,12 @@ export type StrawSize = 1 | 0.5 | 0.25
 export const STRAW_SIZES: StrawSize[] = [1, 0.5, 0.25]
 
 export const STRAW_SIZE_LABELS: Record<StrawSize, string> = {
-  1: '1',
+  1: 'Solid',
   0.5: '1/2',
   0.25: '1/4',
 }
+
+export const DEFAULT_PROJECT_NAME = 'Project name'
 
 export type QuatTuple = [number, number, number, number]
 

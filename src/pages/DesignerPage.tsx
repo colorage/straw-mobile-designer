@@ -3,14 +3,12 @@ import { SHAPE_LABELS, type ShapeKind } from '../geometry/primitives'
 import { Experience } from '../scene/Experience'
 import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME, screenToWorkbenchPlane } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
-import { ConnectionHint } from '../ui/ConnectionHint'
-import { GallerySaveControls } from '../ui/GallerySaveControls'
+import { GalleryExit } from '../ui/GalleryExit'
 import { ModeBar } from '../ui/ModeBar'
-import { SaveStatus } from '../ui/SaveStatus'
+import { ProjectHeader } from '../ui/ProjectHeader'
 import { SizeSelector } from '../ui/SizeSelector'
 import { StrawInventory } from '../ui/StrawInventory'
 import { Toolbar } from '../ui/Toolbar'
-import { ToolPanel } from '../ui/ToolPanel'
 
 const SHAPE_KINDS = new Set<string>(Object.keys(SHAPE_LABELS))
 
@@ -49,26 +47,20 @@ export function DesignerPage() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <h1 className="app-title">Straw Mobile Designer</h1>
-        <p className="app-subtitle">
-          Build a himmeli-style straw mobile — pieces hang and balance as you tie them to the hook.
-        </p>
-        <SaveStatus />
-        <ToolPanel />
-        <Toolbar />
-        <SizeSelector />
-        <StrawInventory />
-        <GallerySaveControls />
-        <ModeBar />
-        <ConnectionHint />
-      </aside>
       <main
         className={`canvas-area${activeTool === 'scissors' ? ' is-scissors' : ''}`}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
         <Experience />
+        <div className="hud-layer">
+          <ProjectHeader />
+          <Toolbar />
+          <ModeBar />
+          <GalleryExit />
+          <SizeSelector />
+          <StrawInventory />
+        </div>
       </main>
     </div>
   )

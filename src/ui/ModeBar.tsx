@@ -1,15 +1,13 @@
 import { useEffect } from 'react'
-import { useGalleryStore } from '../gallery/galleryStore'
 import { useStrawMobileStore } from '../state/store'
+import { RedoIcon, UndoIcon } from './icons'
 
-/** Project-level actions (undo / redo / reset). */
+/** Bottom-left undo / redo controls and global designer keyboard shortcuts. */
 export function ModeBar() {
   const undo = useStrawMobileStore((s) => s.undo)
   const redo = useStrawMobileStore((s) => s.redo)
   const canUndo = useStrawMobileStore((s) => s.past.length > 0)
   const canRedo = useStrawMobileStore((s) => s.future.length > 0)
-  const reset = useStrawMobileStore((s) => s.reset)
-  const clearActive = useGalleryStore((s) => s.clearActive)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -49,40 +47,27 @@ export function ModeBar() {
   }, [])
 
   return (
-    <div className="panel">
-      <h2 className="panel-title">Project</h2>
-      <div className="project-actions">
-        <button
-          type="button"
-          className="ghost-button"
-          disabled={!canUndo}
-          onClick={() => undo()}
-          title="Undo (Ctrl/Cmd+Z)"
-        >
-          Undo
-        </button>
-        <button
-          type="button"
-          className="ghost-button"
-          disabled={!canRedo}
-          onClick={() => redo()}
-          title="Redo (Ctrl/Cmd+Shift+Z)"
-        >
-          Redo
-        </button>
-        <button
-          type="button"
-          className="ghost-button"
-          onClick={() => {
-            if (window.confirm('Clear the whole mobile (including the autosaved copy) and start over?')) {
-              reset()
-              clearActive()
-            }
-          }}
-        >
-          Reset
-        </button>
-      </div>
+    <div className="hud-cluster hud-bottom-left" role="group" aria-label="History">
+      <button
+        type="button"
+        className="hud-icon-button"
+        disabled={!canUndo}
+        onClick={() => undo()}
+        title="Undo (Ctrl/Cmd+Z)"
+        aria-label="Undo"
+      >
+        <UndoIcon className="hud-icon" />
+      </button>
+      <button
+        type="button"
+        className="hud-icon-button"
+        disabled={!canRedo}
+        onClick={() => redo()}
+        title="Redo (Ctrl/Cmd+Shift+Z)"
+        aria-label="Redo"
+      >
+        <RedoIcon className="hud-icon" />
+      </button>
     </div>
   )
 }
