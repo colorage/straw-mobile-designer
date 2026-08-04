@@ -9,10 +9,17 @@ export const SOLID_STRAW_LENGTH_CM = 20
 /** World units → centimeters: a solid straw is `BASE_STRAW_LENGTH` units long. */
 const CM_PER_WORLD_UNIT = SOLID_STRAW_LENGTH_CM / BASE_STRAW_LENGTH
 
+/** Treat near-zero vertical spans as flat (workbench triangles/squares). */
+const FLAT_Y_EPSILON = 1e-4
+
 export type ConstructionSizeCm = {
   /** Larger horizontal AABB span (X or Z), in cm. */
   widthCm: number
-  /** Vertical AABB span (Y), in cm. */
+  /**
+   * Vertical AABB span (Y) in cm. For flat workbench pieces (≈0 Y extent),
+   * the smaller horizontal span is used instead so a lying triangle still
+   * reports a sensible in-plane height.
+   */
   heightCm: number
 }
 
@@ -85,8 +92,12 @@ export function computeConstructionSizeCm(shapes: Shape[]): ConstructionSizeCm |
 
   if (!Number.isFinite(minX)) return null
 
-  const widthWorld = Math.max(maxX - minX, maxZ - minZ)
-  const heightWorld = maxY - minY
+  const dx = maxX - minX
+  const dy = maxY - minY
+  const dz = maxZ - minZ
+  const widthWorld = Math.max(dx, dz)
+  // Prefer true vertical height; fall back to in-plane height when flat.
+  const heightWorld = dy > FLAT_Y_EPSILON ? dy : Math.min(dx, dz)
 
   return {
     widthCm: widthWorld * CM_PER_WORLD_UNIT,
