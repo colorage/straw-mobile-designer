@@ -150,8 +150,6 @@ interface StrawMobileState {
   selectionAnchorId: string | null
   /** Current edit tool (not persisted). */
   activeTool: ActiveTool
-  /** Performance mode: disables shadows (not persisted). */
-  turboMode: boolean
   /** In-progress thread shorten animations (not persisted). */
   reelIns: ShapeReelIn[]
   /**
@@ -201,7 +199,6 @@ interface StrawMobileState {
   selectShapeRange: (id: string) => void
   duplicateSelection: () => void
   setActiveTool: (tool: ActiveTool) => void
-  setTurboMode: (on: boolean) => void
   setReelPoses: (
     positions: Record<string, Vector3Tuple>,
     quaternions: Record<string, QuatTuple>,
@@ -265,7 +262,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       selectedShapeIds: [],
       selectionAnchorId: null,
       activeTool: 'select',
-      turboMode: false,
       reelIns: [],
       deferredConnectionIds: [],
       reelPositions: {},
@@ -702,10 +698,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         set({ activeTool: tool })
       },
 
-      setTurboMode: (on) => {
-        set({ turboMode: on })
-      },
-
       setReelPoses: (positions, quaternions) =>
         set((state) => ({
           reelPositions: { ...state.reelPositions, ...positions },
@@ -762,7 +754,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           overlapSuggest: null,
           ...EMPTY_SELECTION,
           activeTool: 'select',
-          turboMode: false,
           reelIns: [],
           deferredConnectionIds: [],
           reelPositions: {},
@@ -783,7 +774,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           overlapSuggest: null,
           ...EMPTY_SELECTION,
           activeTool: 'select',
-          turboMode: false,
           reelIns: [],
           deferredConnectionIds: [],
           reelPositions: {},
@@ -832,7 +822,6 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         overlapSuggest: null,
         ...EMPTY_SELECTION,
         activeTool: 'select',
-        turboMode: false,
         past: [],
         future: [],
         physicsEpoch: 0,

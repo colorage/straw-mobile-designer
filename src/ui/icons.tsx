@@ -144,15 +144,3 @@ export function GridIcon({ className, title }: IconProps) {
   )
 }
 
-export function ThunderIcon({ className, title }: IconProps) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
-      {title ? <title>{title}</title> : null}
-      <path
-        fill="currentColor"
-        d="M13.2 2.4a.9.9 0 0 1 .86 1.18L12.4 9.5h4.35a.9.9 0 0 1 .72 1.44l-7.8 10.2a.9.9 0 0 1-1.63-.8L9.7 14H5.35a.9.9 0 0 1-.86-1.18l3.85-9.5A.9.9 0 0 1 9.2 2.4h4Z"
-      />
-    </svg>
-  )
-}
-
