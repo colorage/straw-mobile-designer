@@ -205,6 +205,24 @@
   color: #ffffff;
 }
 
+.hud-slot-label {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.hud-slot-button.is-occupied {
+  border-color: rgba(120, 170, 255, 0.45);
+  color: #d7e6ff;
+}
+
+.hud-slot-button.is-occupied:hover:not(:disabled) {
+  border-color: rgba(150, 190, 255, 0.65);
+  color: #ffffff;
+}
+
 .hud-marquee {
   position: absolute;
   z-index: 1;
