@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
-import { useSoftwareGL } from './renderCapability'
+import { useShadowsEnabled, useSoftwareGL } from './renderCapability'
 
 interface StrawMeshProps {
   start: Vector3Tuple
@@ -20,6 +20,7 @@ const UP = new THREE.Vector3(0, 1, 0)
  */
 export function StrawMesh({ start, end, radius = 0.032, color = '#dcc186' }: StrawMeshProps) {
   const softwareGL = useSoftwareGL()
+  const shadowsEnabled = useShadowsEnabled()
   const { position, quaternion, length } = useMemo(() => {
     const a = new THREE.Vector3(...start)
     const b = new THREE.Vector3(...end)
@@ -34,8 +35,8 @@ export function StrawMesh({ start, end, radius = 0.032, color = '#dcc186' }: Str
     <mesh
       position={position}
       quaternion={quaternion}
-      castShadow={!softwareGL}
-      receiveShadow={!softwareGL}
+      castShadow={shadowsEnabled}
+      receiveShadow={shadowsEnabled}
       frustumCulled={false}
     >
       <cylinderGeometry args={[radius, radius, length, 10]} />

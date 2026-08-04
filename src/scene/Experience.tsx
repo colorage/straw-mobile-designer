@@ -8,7 +8,7 @@ import { usePhysicsPersistence } from '../physics/usePhysicsPersistence'
 import { useStrawMobileStore } from '../state/store'
 import { setCameraView } from './cameraView'
 import { setCanvasBridge } from './canvasBridge'
-import { detectSoftwareGL } from './renderCapability'
+import { detectSoftwareGL, useShadowsEnabled } from './renderCapability'
 
 const GRID_Y = -3.2
 
@@ -88,11 +88,12 @@ function OrbitEnabledGuard() {
 /** Top-level 3D canvas: lighting, camera, and the unified edit/gravity scene. */
 export function Experience() {
   const selectShape = useStrawMobileStore((s) => s.selectShape)
+  const shadowsEnabled = useShadowsEnabled()
   usePhysicsPersistence()
 
   return (
     <Canvas
-      shadows
+      shadows={shadowsEnabled}
       gl={{ preserveDrawingBuffer: true }}
       camera={{ position: [6.5, 4.5, 8], fov: 42 }}
       onCreated={(state) => {
@@ -114,7 +115,7 @@ export function Experience() {
       <directionalLight
         position={[5, 9, 4]}
         intensity={1.2}
-        castShadow
+        castShadow={shadowsEnabled}
         shadow-mapSize={[2048, 2048]}
         shadow-camera-near={0.5}
         shadow-camera-far={28}
