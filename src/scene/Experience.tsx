@@ -112,6 +112,7 @@ function OrbitEnabledGuard() {
 /** Top-level 3D canvas: lighting, camera, and the unified edit/gravity scene. */
 export function Experience() {
   const selectShape = useStrawMobileStore((s) => s.selectShape)
+  const setActiveTool = useStrawMobileStore((s) => s.setActiveTool)
   const theme = useThemeStore((s) => s.theme)
   const sceneTheme = SCENE_THEME[theme]
   usePhysicsPersistence()
@@ -133,6 +134,11 @@ export function Experience() {
       }}
       onPointerMissed={() => {
         if (consumeMarqueeClick()) return
+        // Empty single-click leaves selection mode so orbit is uncontested.
+        if (useStrawMobileStore.getState().activeTool === 'select') {
+          setActiveTool('none')
+          return
+        }
         selectShape(null)
       }}
     >

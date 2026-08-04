@@ -210,7 +210,9 @@ export function PhysicsShape({
   const ref = getBodyRef(shape.id)
   const isSelected = useStrawMobileStore((s) => s.selectedShapeIds.includes(shape.id))
   const showGizmo = useStrawMobileStore(
-    (s) => s.selectedShapeIds[s.selectedShapeIds.length - 1] === shape.id,
+    (s) =>
+      s.activeTool === 'select' &&
+      s.selectedShapeIds[s.selectedShapeIds.length - 1] === shape.id,
   )
   const reelPosition = useStrawMobileStore((s) => s.reelPositions[shape.id])
   const reelQuaternion = useStrawMobileStore((s) => s.reelQuaternions[shape.id])

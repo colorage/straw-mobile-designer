@@ -130,8 +130,8 @@ function withSyncedLeavingHanging(
   return changed ? updated : shapes
 }
 
-/** Transient edit tool: select/drag/connect vs click-to-cut. */
-export type ActiveTool = 'select' | 'scissors'
+/** Transient edit tool: orbit/navigate, select/marquee, or click-to-cut. */
+export type ActiveTool = 'none' | 'select' | 'scissors'
 
 /** Index of a selection buffer slot (toolbar buttons 1 / 2 / 3). */
 export type SlotIndex = 0 | 1 | 2
@@ -344,7 +344,7 @@ function applyDesignSnapshot(
     overlapSuggest: null,
     overlapScanWakeToken: get().overlapScanWakeToken + 1,
     ...EMPTY_SELECTION,
-    activeTool: 'select',
+    activeTool: 'none',
     reelIns: [],
     deferredConnectionIds: [],
     reelPositions: {},
@@ -369,7 +369,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       overlapScanWakeToken: 0,
       selectedShapeIds: [],
       selectionAnchorId: null,
-      activeTool: 'select',
+      activeTool: 'none',
       slots: [...EMPTY_SLOTS],
       reelIns: [],
       deferredConnectionIds: [],
@@ -445,7 +445,11 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           // Drop-placed shapes get selected so the gizmo appears immediately;
           // click-to-add (no position) keeps clearing selection as before.
           ...(position !== undefined
-            ? { selectedShapeIds: [id], selectionAnchorId: id }
+            ? {
+                selectedShapeIds: [id],
+                selectionAnchorId: id,
+                activeTool: 'select' as const,
+              }
             : EMPTY_SELECTION),
         }))
         return id
@@ -825,12 +829,22 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: [...state.connections, ...clonedConnections],
           selectedShapeIds: newIds,
           selectionAnchorId: newIds[newIds.length - 1] ?? null,
+          activeTool: 'select',
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
         }))
       },
 
       setActiveTool: (tool) => {
         if (tool === 'scissors') {
+          set({
+            activeTool: tool,
+            ...EMPTY_SELECTION,
+            pendingVertex: null,
+            overlapSuggest: null,
+          })
+          return
+        }
+        if (tool === 'none') {
           set({
             activeTool: tool,
             ...EMPTY_SELECTION,
@@ -898,7 +912,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           overlapSuggest: null,
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
-          activeTool: 'select',
+          activeTool: 'none',
           reelIns: [],
           deferredConnectionIds: [],
           reelPositions: {},
@@ -919,7 +933,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           overlapSuggest: null,
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
-          activeTool: 'select',
+          activeTool: 'none',
           reelIns: [],
           deferredConnectionIds: [],
           reelPositions: {},
@@ -969,7 +983,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         // Wake the scanner after hydrating a saved draft.
         overlapScanWakeToken: current.overlapScanWakeToken + 1,
         ...EMPTY_SELECTION,
-        activeTool: 'select',
+        activeTool: 'none',
         slots: [...EMPTY_SLOTS],
         past: [],
         future: [],

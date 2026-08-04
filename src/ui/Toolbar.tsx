@@ -35,7 +35,7 @@ export function Toolbar() {
   const addShape = useStrawMobileStore((s) => s.addShape)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
   const setActiveTool = useStrawMobileStore((s) => s.setActiveTool)
-  const useSlotBuffer = useStrawMobileStore((s) => s.useSlotBuffer)
+  const applySlotBuffer = useStrawMobileStore((s) => s.useSlotBuffer)
   const slots = useStrawMobileStore((s) => s.slots)
   const hasSelection = useStrawMobileStore((s) => s.selectedShapeIds.length > 0)
   const selectActive = activeTool === 'select'
@@ -46,9 +46,9 @@ export function Toolbar() {
       if (event.key !== 'Escape') return
       const target = event.target as HTMLElement | null
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
-      if (useStrawMobileStore.getState().activeTool === 'select') return
+      if (useStrawMobileStore.getState().activeTool === 'none') return
       event.preventDefault()
-      setActiveTool('select')
+      setActiveTool('none')
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
@@ -87,10 +87,14 @@ export function Toolbar() {
         <button
           type="button"
           className={`hud-icon-button hud-select${selectActive ? ' is-active' : ''}`}
-          title="Selection mode — click or drag a rectangle to select"
-          aria-label="Enable selection mode"
+          title={
+            selectActive
+              ? 'Exit selection mode — click empty space or press Escape'
+              : 'Selection mode — click or drag a rectangle to select'
+          }
+          aria-label={selectActive ? 'Disable selection mode' : 'Enable selection mode'}
           aria-pressed={selectActive}
-          onClick={() => setActiveTool('select')}
+          onClick={() => setActiveTool(selectActive ? 'none' : 'select')}
         >
           <SelectIcon className="hud-icon" />
         </button>
@@ -104,7 +108,7 @@ export function Toolbar() {
           }
           aria-label={scissorsActive ? 'Disable scissors mode' : 'Enable scissors mode'}
           aria-pressed={scissorsActive}
-          onClick={() => setActiveTool(scissorsActive ? 'select' : 'scissors')}
+          onClick={() => setActiveTool(scissorsActive ? 'none' : 'scissors')}
         >
           <ScissorsIcon className="hud-icon" />
         </button>
@@ -126,7 +130,7 @@ export function Toolbar() {
               title={title}
               aria-label={title}
               disabled={!hasSelection && !occupied}
-              onClick={() => useSlotBuffer(slot)}
+              onClick={() => applySlotBuffer(slot)}
             >
               <span className="hud-slot-label">{label}</span>
             </button>
