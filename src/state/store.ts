@@ -133,6 +133,93 @@ function withSyncedLeavingHanging(
 /** Transient edit tool: select/drag/connect vs click-to-cut. */
 export type ActiveTool = 'select' | 'scissors'
 
+/** Index of a selection buffer slot (toolbar buttons 1 / 2 / 3). */
+export type SlotIndex = 0 | 1 | 2
+
+/** Deep-cloned shapes + internal threads held in a buffer slot. */
+export type SlotBuffer = {
+  shapes: Shape[]
+  connections: Connection[]
+}
+
+const EMPTY_SLOTS: [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null] = [
+  null,
+  null,
+  null,
+]
+
+/** Snapshot selected shapes and threads that connect only within the set. */
+function snapshotSelectedBuffer(
+  shapes: Shape[],
+  connections: Connection[],
+  selectedShapeIds: string[],
+): SlotBuffer | null {
+  if (selectedShapeIds.length === 0) return null
+  const selectedSet = new Set(selectedShapeIds)
+  const selectedShapes = shapes.filter((shape) => selectedSet.has(shape.id))
+  if (selectedShapes.length === 0) return null
+
+  const clonedShapes: Shape[] = selectedShapes.map((shape) => ({
+    ...shape,
+    vertices: shape.vertices.map((vertex) => [...vertex] as Vector3Tuple),
+    edges: shape.edges.map((edge) => [...edge] as [number, number]),
+    position: [...shape.position] as Vector3Tuple,
+    quaternion: [...shape.quaternion] as QuatTuple,
+  }))
+
+  const clonedConnections: Connection[] = []
+  for (const connection of connections) {
+    const aIn = connection.a.kind === 'shape' && selectedSet.has(connection.a.shapeId)
+    const bIn = connection.b.kind === 'shape' && selectedSet.has(connection.b.shapeId)
+    if (!aIn || !bIn) continue
+    clonedConnections.push({
+      id: connection.id,
+      a: { ...connection.a },
+      b: { ...connection.b },
+    })
+  }
+
+  return { shapes: clonedShapes, connections: clonedConnections }
+}
+
+/**
+ * Materialize a buffer into new scene objects: fresh ids, remapped threads,
+ * and a world offset so copies don't stack on the originals.
+ */
+function materializeBuffer(buffer: SlotBuffer): {
+  shapes: Shape[]
+  connections: Connection[]
+  newIds: string[]
+} {
+  const idMap = new Map<string, string>()
+  const shapes: Shape[] = buffer.shapes.map((shape) => {
+    const newId = createId()
+    idMap.set(shape.id, newId)
+    return {
+      ...shape,
+      id: newId,
+      vertices: shape.vertices.map((vertex) => [...vertex] as Vector3Tuple),
+      edges: shape.edges.map((edge) => [...edge] as [number, number]),
+      position: [
+        shape.position[0] + DUPLICATE_OFFSET[0],
+        shape.position[1] + DUPLICATE_OFFSET[1],
+        shape.position[2] + DUPLICATE_OFFSET[2],
+      ] as Vector3Tuple,
+      quaternion: [...shape.quaternion] as QuatTuple,
+    }
+  })
+
+  const connections: Connection[] = []
+  for (const connection of buffer.connections) {
+    const a = remapEndpoint(connection.a, idMap)
+    const b = remapEndpoint(connection.b, idMap)
+    if (!a || !b) continue
+    connections.push({ id: createId(), a, b })
+  }
+
+  return { shapes, connections, newIds: shapes.map((shape) => shape.id) }
+}
+
 interface StrawMobileState {
   shapes: Shape[]
   connections: Connection[]
@@ -155,6 +242,11 @@ interface StrawMobileState {
   selectionAnchorId: string | null
   /** Current edit tool (not persisted). */
   activeTool: ActiveTool
+  /**
+   * Session-only selection buffers (toolbar 1/2/3). Not persisted.
+   * Occupied slots store a deep clone of shapes + internal connections.
+   */
+  slots: [SlotBuffer | null, SlotBuffer | null, SlotBuffer | null]
   /** In-progress thread shorten animations (not persisted). */
   reelIns: ShapeReelIn[]
   /**
@@ -205,6 +297,11 @@ interface StrawMobileState {
   toggleShapeSelection: (id: string) => void
   selectShapeRange: (id: string) => void
   duplicateSelection: () => void
+  /**
+   * Selection buffer slot: store current selection when something is selected,
+   * otherwise paste the slot into the scene (no-op if empty).
+   */
+  useSlotBuffer: (slot: SlotIndex) => void
   setActiveTool: (tool: ActiveTool) => void
   setReelPoses: (
     positions: Record<string, Vector3Tuple>,
@@ -271,6 +368,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       selectedShapeIds: [],
       selectionAnchorId: null,
       activeTool: 'select',
+      slots: [...EMPTY_SLOTS],
       reelIns: [],
       deferredConnectionIds: [],
       reelPositions: {},
@@ -675,42 +773,40 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       duplicateSelection: () => {
         const { shapes, connections, selectedShapeIds } = get()
-        if (selectedShapeIds.length === 0) return
-
-        const selectedSet = new Set(selectedShapeIds)
-        const selectedShapes = shapes.filter((shape) => selectedSet.has(shape.id))
-        if (selectedShapes.length === 0) return
+        const buffer = snapshotSelectedBuffer(shapes, connections, selectedShapeIds)
+        if (!buffer) return
 
         get().pushHistory()
+        const { shapes: clones, connections: clonedConnections, newIds } =
+          materializeBuffer(buffer)
 
-        const idMap = new Map<string, string>()
-        const clones: Shape[] = selectedShapes.map((shape) => {
-          const newId = createId()
-          idMap.set(shape.id, newId)
-          return {
-            ...shape,
-            id: newId,
-            vertices: shape.vertices.map((vertex) => [...vertex] as Vector3Tuple),
-            edges: shape.edges.map((edge) => [...edge] as [number, number]),
-            position: [
-              shape.position[0] + DUPLICATE_OFFSET[0],
-              shape.position[1] + DUPLICATE_OFFSET[1],
-              shape.position[2] + DUPLICATE_OFFSET[2],
-            ] as Vector3Tuple,
-            quaternion: [...shape.quaternion] as [number, number, number, number],
-          }
-        })
+        set((state) => ({
+          shapes: [...state.shapes, ...clones],
+          connections: [...state.connections, ...clonedConnections],
+          selectedShapeIds: newIds,
+          selectionAnchorId: newIds[newIds.length - 1] ?? null,
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
+        }))
+      },
 
-        const clonedConnections: Connection[] = []
-        for (const connection of connections) {
-          const a = remapEndpoint(connection.a, idMap)
-          const b = remapEndpoint(connection.b, idMap)
-          // Only copy threads whose both ends land inside the duplicated set.
-          if (!a || !b) continue
-          clonedConnections.push({ id: createId(), a, b })
+      useSlotBuffer: (slot) => {
+        const { shapes, connections, selectedShapeIds, slots } = get()
+        if (selectedShapeIds.length > 0) {
+          const buffer = snapshotSelectedBuffer(shapes, connections, selectedShapeIds)
+          if (!buffer) return
+          const nextSlots = [...slots] as StrawMobileState['slots']
+          nextSlots[slot] = buffer
+          set({ slots: nextSlots })
+          return
         }
 
-        const newIds = clones.map((shape) => shape.id)
+        const buffer = slots[slot]
+        if (!buffer) return
+
+        get().pushHistory()
+        const { shapes: clones, connections: clonedConnections, newIds } =
+          materializeBuffer(buffer)
+
         set((state) => ({
           shapes: [...state.shapes, ...clones],
           connections: [...state.connections, ...clonedConnections],
@@ -861,6 +957,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         overlapScanWakeToken: current.overlapScanWakeToken + 1,
         ...EMPTY_SELECTION,
         activeTool: 'select',
+        slots: [...EMPTY_SLOTS],
         past: [],
         future: [],
         physicsEpoch: 0,
