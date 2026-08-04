@@ -9,7 +9,7 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 - **Straw size selector**: `1`, `1/2`, `1/4` scale, applied to newly added shapes.
 - **Corner connections**: click a corner, then click another corner (or the ceiling hook) to tie a thread between them. Hold two corners overlapping for ~2.5 seconds to auto-connect — including free ends of hanging pieces once they settle (hub spokes already tied to the same corner are ignored).
 - **Undo / Redo**: reverse or re-apply design edits (add/remove shapes, connections, moves, straw size, reset, gallery load) via the Project panel or Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z.
-- **Gallery** (`/gallery`): named local saves with thumbnails; save/update from the designer, browse/load/import/export/delete on the gallery page, plus **New** to clear the draft and start fresh in the designer.
+- **Gallery** (`/gallery`): named local saves with thumbnails; the current project is saved automatically on every edit and when opening the gallery. Browse/load/import/export/delete on the gallery page, plus **New** to clear the draft and start fresh in the designer.
 - **Straws Used panel**: a live count of straws in the design, broken down by size.
 - **Live gravity**: physics runs while you build. Free pieces stay put on the workbench until they have a connection path to the ceiling hook; once tied into that chain they become real rigid bodies ([@react-three/rapier](https://github.com/pmndrs/react-three-rapier)) linked by ball-and-socket joints, get a gentle wake nudge, and hang/sway under gravity.
 - **Lights & shadows**: directional lighting with cast/receive shadows on straws and a workbench floor (unlit fallback on software WebGL).
