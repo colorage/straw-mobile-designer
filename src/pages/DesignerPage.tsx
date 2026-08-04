@@ -5,6 +5,7 @@ import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME, screenToWorkbenchPlane } from '.
 import { useStrawMobileStore } from '../state/store'
 import { GalleryExit } from '../ui/GalleryExit'
 import { ModeBar } from '../ui/ModeBar'
+import { OverlapScanSnackbar } from '../ui/OverlapScanSnackbar'
 import { ProjectHeader } from '../ui/ProjectHeader'
 import { SizeSelector } from '../ui/SizeSelector'
 import { StrawInventory } from '../ui/StrawInventory'
@@ -60,6 +61,7 @@ export function DesignerPage() {
           <GalleryExit />
           <SizeSelector />
           <StrawInventory />
+          <OverlapScanSnackbar />
         </div>
       </main>
     </div>

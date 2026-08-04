@@ -85,6 +85,7 @@ export function OverlapConnectController() {
   const asleepRef = useRef(false)
   const idleMsRef = useRef(0)
   const lastWakeTokenRef = useRef(-1)
+  const connectionsFoundRef = useRef(0)
 
   useFrame((_, delta) => {
     const {
@@ -95,6 +96,7 @@ export function OverlapConnectController() {
       overlapSuggest,
       overlapScanWakeToken,
       setOverlapSuggest,
+      setOverlapScanUi,
       connectEndpoints,
     } = useStrawMobileStore.getState()
 
@@ -105,27 +107,54 @@ export function OverlapConnectController() {
       }
     }
 
+    const hideScanUi = () => {
+      setOverlapScanUi(null)
+    }
+
+    const showAwakeUi = (sleepProgress: number) => {
+      setOverlapScanUi({
+        active: true,
+        connectionsFound: connectionsFoundRef.current,
+        sleepProgress,
+      })
+    }
+
+    /** Enter the awake cycle from sleep (or first run); reset the session count. */
+    const wakeFromSleep = () => {
+      asleepRef.current = false
+      idleMsRef.current = 0
+      connectionsFoundRef.current = 0
+      showAwakeUi(1)
+    }
+
     // Cheap mode gates run every frame so scissors/empty clear suggest immediately.
     if (activeTool === 'scissors' || shapes.length === 0) {
       scanAccumulatorRef.current = 0
       idleMsRef.current = 0
       asleepRef.current = false
+      connectionsFoundRef.current = 0
       clearDwell()
+      hideScanUi()
       return
     }
 
     // Scene-changing actions bump the wake token; resume scanning immediately.
+    // connectEndpoints also bumps the token — only reset the count when coming
+    // out of sleep so mid-cycle ties still accumulate on the snackbar.
     if (overlapScanWakeToken !== lastWakeTokenRef.current) {
       lastWakeTokenRef.current = overlapScanWakeToken
-      asleepRef.current = false
-      idleMsRef.current = 0
+      if (asleepRef.current) {
+        wakeFromSleep()
+      } else {
+        idleMsRef.current = 0
+        showAwakeUi(1)
+      }
       scanAccumulatorRef.current = SCAN_INTERVAL_S
     }
 
     // Stay awake while a reel-in is animating — corners may meet as it finishes.
     if (reelIns.length > 0 && asleepRef.current) {
-      asleepRef.current = false
-      idleMsRef.current = 0
+      wakeFromSleep()
     }
 
     if (asleepRef.current) return
@@ -148,15 +177,24 @@ export function OverlapConnectController() {
           asleepRef.current = true
           idleMsRef.current = 0
           scanAccumulatorRef.current = 0
+          hideScanUi()
+        } else {
+          const sleepProgress = Math.max(
+            0,
+            1 - idleMsRef.current / OVERLAP_SCAN_IDLE_MS,
+          )
+          showAwakeUi(sleepProgress)
         }
       } else {
         idleMsRef.current = 0
+        showAwakeUi(1)
       }
       return
     }
 
     // A finding resets the idle timer so dwell/connect can finish.
     idleMsRef.current = 0
+    showAwakeUi(1)
 
     // Skip while either end is mid reel-in (poses are animating).
     const bodyA = endpointBodyKey(pair.a)
@@ -193,7 +231,11 @@ export function OverlapConnectController() {
 
     if (now - dwellStartedAtRef.current >= OVERLAP_DWELL_MS) {
       dwellKeyRef.current = null
-      connectEndpoints(pair.a, pair.b)
+      const created = connectEndpoints(pair.a, pair.b)
+      if (created) {
+        connectionsFoundRef.current += 1
+        showAwakeUi(1)
+      }
     }
   })
 

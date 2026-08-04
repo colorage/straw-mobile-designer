@@ -43,6 +43,16 @@ export interface OverlapSuggest {
   startedAt: number
 }
 
+/** Session-only HUD status while the overlap proximity scanner is awake. */
+export interface OverlapScanUi {
+  /** True while scanning (not idle-asleep / gated off). */
+  active: boolean
+  /** Auto-ties completed during the current wake cycle. */
+  connectionsFound: number
+  /** Remaining idle fraction until sleep: 1 = just woke / pair found, 0 = about to sleep. */
+  sleepProgress: number
+}
+
 /** Solved world pose for a shape (reel-in target or resting layout). */
 export interface ShapePose {
   position: Vector3Tuple
