@@ -46,6 +46,7 @@ export function SelectableShape({
       removeShape(shape.id)
       return
     }
+    if (activeTool !== 'select') return
     if (event.nativeEvent.shiftKey) {
       toggleShapeSelection(shape.id)
       return
@@ -56,7 +57,7 @@ export function SelectableShape({
   const shapeGroup = (
     <ShapeGroup
       shape={shape}
-      interactive={!isScissors}
+      interactive={activeTool !== 'scissors'}
       onVertexClick={onVertexClick}
       isVertexPending={isVertexPending}
       isVertexSuggested={isVertexSuggested}
@@ -67,7 +68,7 @@ export function SelectableShape({
     />
   )
 
-  if (!showGizmo || isScissors) {
+  if (!showGizmo || activeTool !== 'select') {
     return (
       <group position={shape.position} quaternion={shape.quaternion}>
         {shapeGroup}

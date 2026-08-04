@@ -82,6 +82,18 @@ export function OctahedronIcon({ className, title }: IconProps) {
   )
 }
 
+export function SelectIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="currentColor"
+        d="M6.2 3.4a1 1 0 0 1 1.1.15l11.2 10.2a1 1 0 0 1-.55 1.72l-4.15.4 2.05 4.55a1 1 0 0 1-1.82.82l-2.1-4.65-2.85 2.55A1 1 0 0 1 7 18.1V4.4a1 1 0 0 1-.8-1Z"
+      />
+    </svg>
+  )
+}
+
 export function ScissorsIcon({ className, title }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
@@ -139,6 +151,38 @@ export function GridIcon({ className, title }: IconProps) {
       <path
         fill="currentColor"
         d="M4.5 11h5c.83 0 1.5-.67 1.5-1.5v-5c0-.83-.67-1.5-1.5-1.5h-5C3.67 3 3 3.67 3 4.5v5c0 .83.67 1.5 1.5 1.5M5 5h4v4H5zm14.5-2h-5c-.83 0-1.5.67-1.5 1.5v5c0 .83.67 1.5 1.5 1.5h5c.83 0 1.5-.67 1.5-1.5v-5c0-.83-.67-1.5-1.5-1.5M19 9h-4V5h4zM4.5 21h5c.83 0 1.5-.67 1.5-1.5v-5c0-.83-.67-1.5-1.5-1.5h-5c-.83 0-1.5.67-1.5 1.5v5c0 .83.67 1.5 1.5 1.5m.5-6h4v4H5zm14.5-2h-5c-.83 0-1.5.67-1.5 1.5v5c0 .83.67 1.5 1.5 1.5h5c.83 0 1.5-.67 1.5-1.5v-5c0-.83-.67-1.5-1.5-1.5m-.5 6h-4v-4h4z"
+      />
+    </svg>
+  )
+}
+
+export function SunIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M12 3.5v2.25M12 18.25V20.5M3.5 12h2.25M18.25 12H20.5M6.05 6.05l1.6 1.6M16.35 16.35l1.6 1.6M6.05 17.95l1.6-1.6M16.35 7.65l1.6-1.6"
+      />
+    </svg>
+  )
+}
+
+export function MoonIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.5 14.2A6.75 6.75 0 0 1 9.8 7.5 6.5 6.5 0 1 0 16.5 14.2Z"
       />
     </svg>
   )
