@@ -8,6 +8,8 @@ import { usePhysicsPersistence } from '../physics/usePhysicsPersistence'
 import { useStrawMobileStore } from '../state/store'
 import { setCameraView } from './cameraView'
 import { setCanvasBridge } from './canvasBridge'
+import { MarqueeSelectController } from './MarqueeSelectController'
+import { consumeMarqueeClick } from './marqueeSelect'
 import { detectSoftwareGL } from './renderCapability'
 
 const GRID_Y = -3.2
@@ -105,7 +107,10 @@ export function Experience() {
           controls: state.controls,
         })
       }}
-      onPointerMissed={() => selectShape(null)}
+      onPointerMissed={() => {
+        if (consumeMarqueeClick()) return
+        selectShape(null)
+      }}
     >
       <color attach="background" args={['#11131a']} />
       <fog attach="fog" args={['#11131a', 45, 120]} />
@@ -134,6 +139,7 @@ export function Experience() {
       />
       {/* Physics no longer suspends — see vite.config.ts rapierSyncPhysicsPlugin. */}
       <PhysicsScene />
+      <MarqueeSelectController />
       <CameraViewSync />
       <OrbitEnabledGuard />
     </Canvas>
