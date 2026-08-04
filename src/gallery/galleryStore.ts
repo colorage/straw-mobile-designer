@@ -71,6 +71,7 @@ export const useGalleryStore = create<GalleryState>()(
           thumbnailDataUrl,
           project,
         }
+        useStrawMobileStore.getState().setProjectName(trimmed)
         set((state) => ({
           entries: [entry, ...state.entries],
           activeGalleryId: id,
@@ -86,10 +87,11 @@ export const useGalleryStore = create<GalleryState>()(
 
         const { project, thumbnailDataUrl } = captureSnapshotForSave()
         const now = new Date().toISOString()
+        const draftName = useStrawMobileStore.getState().projectName.trim() || existing.name
         set((state) => ({
           entries: state.entries.map((entry) =>
             entry.id === activeGalleryId
-              ? { ...entry, project, thumbnailDataUrl, updatedAt: now }
+              ? { ...entry, name: draftName, project, thumbnailDataUrl, updatedAt: now }
               : entry,
           ),
         }))
