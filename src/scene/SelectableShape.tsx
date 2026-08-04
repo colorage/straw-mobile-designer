@@ -6,6 +6,7 @@ import {
   Sphere,
   Vector2,
   Vector3,
+  type Camera,
   type Group,
   type Mesh,
   type Object3D,
@@ -41,9 +42,22 @@ function collectGizmoHitMeshes(root: Object3D | null): Mesh[] {
 
 const _sphere = new Sphere()
 const _hitPoint = new Vector3()
+const _centerNdc = new Vector3()
+const _edgeWorld = new Vector3()
+const _edgeNdc = new Vector3()
+const _axisDir = new Vector3()
 
-/** True when the ray hits a gizmo handle's world bounding sphere. */
-function rayHitsGizmoMesh(raycaster: Raycaster, mesh: Mesh): boolean {
+/**
+ * True when the pointer is over a gizmo handle.
+ * Prefer screen-space distance (PivotControls `fixed` keeps handles ~constant
+ * pixel size). Fall back to a world-space sphere test.
+ */
+function pointerHitsGizmoMesh(
+  raycaster: Raycaster,
+  mesh: Mesh,
+  pointerNdc: Vector2,
+  camera: Camera,
+): boolean {
   const geometry = mesh.geometry
   if (!geometry) return false
   if (!geometry.boundingSphere) geometry.computeBoundingSphere()
@@ -51,8 +65,20 @@ function rayHitsGizmoMesh(raycaster: Raycaster, mesh: Mesh): boolean {
 
   mesh.updateWorldMatrix(true, false)
   _sphere.copy(geometry.boundingSphere).applyMatrix4(mesh.matrixWorld)
-  // Slightly inflate — axis hit cylinders are thin in world space when fixed.
-  _sphere.radius *= 1.35
+  _sphere.radius *= 1.5
+
+  // Screen-space: project sphere center + a radius offset, compare to pointer.
+  _centerNdc.copy(_sphere.center).project(camera)
+  _axisDir.set(1, 0, 0).transformDirection(mesh.matrixWorld).normalize()
+  _edgeWorld.copy(_sphere.center).addScaledVector(_axisDir, _sphere.radius)
+  _edgeNdc.copy(_edgeWorld).project(camera)
+  const radiusNdc = Math.hypot(_edgeNdc.x - _centerNdc.x, _edgeNdc.y - _centerNdc.y)
+  // Minimum ~28px-equivalent in NDC so thin fixed handles stay easy to hit.
+  const hitRadius = Math.max(radiusNdc * 1.25, 0.045)
+  if (Math.hypot(pointerNdc.x - _centerNdc.x, pointerNdc.y - _centerNdc.y) <= hitRadius) {
+    return true
+  }
+
   return raycaster.ray.intersectSphere(_sphere, _hitPoint) !== null
 }
 
@@ -73,6 +99,10 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
   useLayoutEffect(() => {
     const collect = () => {
       hitMeshesRef.current = collectGizmoHitMeshes(rootRef.current)
+      if (import.meta.env.DEV) {
+        const debug = (window as unknown as { __strawDebug?: Record<string, unknown> }).__strawDebug
+        if (debug) debug.gizmoHitCount = hitMeshesRef.current.length
+      }
     }
     collect()
     // PivotControls finishes attaching axis hit meshes in the same commit;
@@ -111,7 +141,7 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
 
       let overGizmo = false
       for (const mesh of hitMeshesRef.current) {
-        if (rayHitsGizmoMesh(raycaster, mesh)) {
+        if (pointerHitsGizmoMesh(raycaster, mesh, pointerNdc.current, camera)) {
           overGizmo = true
           break
         }
