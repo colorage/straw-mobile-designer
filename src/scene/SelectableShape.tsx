@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { PivotControls } from '@react-three/drei'
 import { useThree, type ThreeEvent } from '@react-three/fiber'
-import { Vector2, type Group, type Object3D } from 'three'
+import { Raycaster, Vector2, type Group, type Mesh, type Object3D } from 'three'
 import type { Vector3Tuple } from '../geometry/primitives'
 import { getBodyRef } from '../physics/bodyRefRegistry'
 import { getFreeComponentIds, getHangingShapeIds } from '../physics/restingLayout'
@@ -9,13 +9,31 @@ import { useStrawMobileStore } from '../state/store'
 import type { Shape } from '../state/types'
 import { ShapeGroup } from './ShapeGroup'
 
-/** Marks PivotControls hit meshes so hover raycasts can find them. */
-const GIZMO_HIT_USER_DATA = { dragGizmo: true } as const
+/**
+ * PivotControls hit volumes: invisible cylinders on axes, translucent planes
+ * on sliders. Skip vertex-handle spheres and visible straw cylinders.
+ */
+function isGizmoHitMesh(obj: Object3D): obj is Mesh {
+  if (!(obj as Mesh).isMesh) return false
+  const geoType = (obj as Mesh).geometry?.type
+  if (geoType === 'CylinderGeometry' && obj.visible === false) return true
+  if (geoType === 'PlaneGeometry') return true
+  return false
+}
+
+function collectGizmoHitMeshes(root: Object3D | null): Object3D[] {
+  if (!root) return []
+  const meshes: Object3D[] = []
+  root.traverse((obj) => {
+    if (isGizmoHitMesh(obj)) meshes.push(obj)
+  })
+  return meshes
+}
 
 /**
  * Shows a grab cursor over translation gizmo handles (grabbing while dragged).
  * PivotControls has no cursor prop and stops pointer bubbling, so we raycast
- * only the meshes tagged via `userData` instead of relying on parent events.
+ * its invisible hit meshes instead of relying on parent pointer events.
  */
 function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
   const gl = useThree((s) => s.gl)
@@ -24,18 +42,10 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
   const hoveringRef = useRef(false)
   const draggingRef = useRef(false)
   const pointerNdc = useRef(new Vector2())
+  const raycaster = useRef(new Raycaster()).current
 
   useLayoutEffect(() => {
-    const root = rootRef.current
-    if (!root) {
-      hitMeshesRef.current = []
-      return
-    }
-    const meshes: Object3D[] = []
-    root.traverse((obj) => {
-      if (obj.userData?.dragGizmo) meshes.push(obj)
-    })
-    hitMeshesRef.current = meshes
+    hitMeshesRef.current = collectGizmoHitMeshes(rootRef.current)
   })
 
   useEffect(() => {
@@ -43,13 +53,14 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
 
     const setCursor = (cursor: string) => {
       document.body.style.cursor = cursor
+      canvas.style.cursor = cursor
     }
 
     const clearIfOurs = () => {
       if (hoveringRef.current || draggingRef.current) {
         hoveringRef.current = false
         draggingRef.current = false
-        setCursor('auto')
+        setCursor('')
       }
     }
 
@@ -59,7 +70,13 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
         return
       }
 
-      const { camera, raycaster } = get()
+      // Remount / late gizmo children: refresh if we haven't found hits yet.
+      if (hitMeshesRef.current.length === 0) {
+        hitMeshesRef.current = collectGizmoHitMeshes(rootRef.current)
+      }
+      if (hitMeshesRef.current.length === 0) return
+
+      const { camera } = get()
       const rect = canvas.getBoundingClientRect()
       if (rect.width === 0 || rect.height === 0) return
       pointerNdc.current.set(
@@ -67,6 +84,10 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
         -((event.clientY - rect.top) / rect.height) * 2 + 1,
       )
       raycaster.setFromCamera(pointerNdc.current, camera)
+      // fixed PivotControls mutates gizmo scale every frame — refresh matrices.
+      for (const mesh of hitMeshesRef.current) {
+        mesh.updateWorldMatrix(true, false)
+      }
       const overGizmo = raycaster.intersectObjects(hitMeshesRef.current, false).length > 0
 
       if (overGizmo) {
@@ -76,7 +97,7 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
         // Only reset when we previously claimed the cursor — leave vertex
         // handles and other hover cursors alone.
         hoveringRef.current = false
-        setCursor('auto')
+        setCursor('')
       }
     }
 
@@ -84,7 +105,7 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
       if (draggingRef.current) return
       if (hoveringRef.current) {
         hoveringRef.current = false
-        setCursor('auto')
+        setCursor('')
       }
     }
 
@@ -95,16 +116,19 @@ function useDragGizmoCursor(rootRef: RefObject<Group | null>) {
       canvas.removeEventListener('pointerleave', onPointerLeave)
       clearIfOurs()
     }
-  }, [gl, get])
+  }, [gl, get, raycaster, rootRef])
 
   return {
     beginDrag() {
       draggingRef.current = true
       document.body.style.cursor = 'grabbing'
+      gl.domElement.style.cursor = 'grabbing'
     },
     endDrag() {
       draggingRef.current = false
-      document.body.style.cursor = hoveringRef.current ? 'grab' : 'auto'
+      const next = hoveringRef.current ? 'grab' : ''
+      document.body.style.cursor = next
+      gl.domElement.style.cursor = next
     },
   }
 }
@@ -292,7 +316,6 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
         fixed
         depthTest={false}
         offset={offset}
-        userData={GIZMO_HIT_USER_DATA}
         onDragStart={() => {
           cursor.beginDrag()
           // One history entry per drag gesture — not per onDrag frame.
