@@ -8,10 +8,9 @@ import { usePhysicsPersistence } from '../physics/usePhysicsPersistence'
 import { useStrawMobileStore } from '../state/store'
 import { setCameraView } from './cameraView'
 import { setCanvasBridge } from './canvasBridge'
-import { detectSoftwareGL, useSoftwareGL } from './renderCapability'
+import { detectSoftwareGL } from './renderCapability'
 
 const GRID_Y = -3.2
-const SHADOW_FLOOR_Y = -3.19
 
 const ORBIT_TARGET: [number, number, number] = [0, 2, 0]
 
@@ -86,19 +85,6 @@ function OrbitEnabledGuard() {
   return null
 }
 
-/** Dark workbench plane that catches directional shadows under the hanging mobile. */
-function ShadowFloor() {
-  const softwareGL = useSoftwareGL()
-  if (softwareGL) return null
-
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, SHADOW_FLOOR_Y, 0]} receiveShadow>
-      <planeGeometry args={[40, 40]} />
-      <meshStandardMaterial color="#141622" roughness={1} metalness={0} />
-    </mesh>
-  )
-}
-
 /** Top-level 3D canvas: lighting, camera, and the unified edit/gravity scene. */
 export function Experience() {
   const selectShape = useStrawMobileStore((s) => s.selectShape)
@@ -138,7 +124,6 @@ export function Experience() {
         shadow-camera-bottom={-12}
         shadow-bias={-0.0002}
       />
-      <ShadowFloor />
       <Grid
         position={[0, GRID_Y, 0]}
         args={[40, 40]}
