@@ -4,6 +4,7 @@ import {
   type ShapeKind,
   type Vector3Tuple,
 } from '../geometry/primitives'
+import { getBodyRef } from '../physics/bodyRefRegistry'
 import type { Shape, StrawSize } from '../state/types'
 import { getCameraView } from './cameraView'
 
@@ -12,7 +13,7 @@ const BASE_STRAW_LENGTH = 1.4
 const OVERLAP_PADDING = 0.4
 const NDC_MARGIN = 0.75
 const SPIRAL_STEP = 0.55
-const MAX_SPIRAL_STEPS = 48
+const MAX_SPIRAL_STEPS = 64
 const EMPTY_SCENE_Y_OFFSET = -0.8
 
 interface Aabb {
@@ -36,10 +37,48 @@ function scaledLocalVertex(shape: Pick<Shape, 'vertices' | 'size'>, vertexIndex:
   return _local.set(x * scale, y * scale, z * scale)
 }
 
-/** World-space axis-aligned bounds of a shape's vertices. */
-export function shapeWorldAabb(shape: Shape): Aabb {
+/**
+ * Resolve the pose used for occupancy / bounds.
+ * Live Rapier pose when available so hanging AND free (unconnected) bodies
+ * occupy their on-screen space; otherwise the store pose.
+ */
+function readPoseForAabb(shape: Shape, useLivePose: boolean): void {
+  if (useLivePose) {
+    const body = getBodyRef(shape.id).current
+    if (body) {
+      try {
+        const t = body.translation()
+        const r = body.rotation()
+        if (
+          Number.isFinite(t.x) &&
+          Number.isFinite(t.y) &&
+          Number.isFinite(t.z) &&
+          Number.isFinite(r.x) &&
+          Number.isFinite(r.y) &&
+          Number.isFinite(r.z) &&
+          Number.isFinite(r.w)
+        ) {
+          _pos.set(t.x, t.y, t.z)
+          _quat.set(r.x, r.y, r.z, r.w)
+          return
+        }
+      } catch {
+        // Body may have been freed; fall through to store pose.
+      }
+    }
+  }
   _quat.set(...shape.quaternion)
   _pos.set(...shape.position)
+}
+
+/**
+ * World-space axis-aligned bounds of a shape's vertices.
+ * @param useLivePose Prefer the live physics body pose (default true) so free
+ *   workbench pieces and swaying hanging pieces both count as occupied.
+ *   Pass false for buffer snapshots whose ids may still refer to other bodies.
+ */
+export function shapeWorldAabb(shape: Shape, useLivePose = true): Aabb {
+  readPoseForAabb(shape, useLivePose)
 
   const min = new THREE.Vector3(Infinity, Infinity, Infinity)
   const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity)
@@ -181,7 +220,11 @@ function findFreeSpacePosition(occupied: Aabb[], localAabb: Aabb): Vector3Tuple 
  * lands fully in-frustum.
  */
 export function findAddPosition(shapes: Shape[], kind: ShapeKind, size: StrawSize): Vector3Tuple {
-  return findFreeSpacePosition(shapes.map(shapeWorldAabb), newShapeLocalAabb(kind, size))
+  // Live poses so free workbench shapes occupy space the same as hanging ones.
+  return findFreeSpacePosition(
+    shapes.map((shape) => shapeWorldAabb(shape, true)),
+    newShapeLocalAabb(kind, size),
+  )
 }
 
 function unionAabb(aabbs: Aabb[]): Aabb | null {
@@ -198,11 +241,16 @@ function unionAabb(aabbs: Aabb[]): Aabb | null {
 /**
  * Translation that moves `groupShapes` into free space near the camera look-at
  * (same spiral / frustum logic as adding a straw), preserving relative layout.
+ *
+ * Occupancy uses live poses of every scene shape — hanging (connected) and free
+ * (unconnected) — so a second paste does not land on the first. Group bounds
+ * always use the buffer's stored poses (ids may still point at other bodies).
  */
 export function findGroupAddDelta(occupiedShapes: Shape[], groupShapes: Shape[]): Vector3Tuple {
   if (groupShapes.length === 0) return [0, 0, 0]
 
-  const groupAabbs = groupShapes.map(shapeWorldAabb)
+  // Buffer snapshots keep source ids; never read those bodies for group bounds.
+  const groupAabbs = groupShapes.map((shape) => shapeWorldAabb(shape, false))
   const union = unionAabb(groupAabbs)
   if (!union) return [0, 0, 0]
 
@@ -216,6 +264,7 @@ export function findGroupAddDelta(occupiedShapes: Shape[], groupShapes: Shape[])
     max: union.max.clone().sub(center),
   }
 
-  const [x, y, z] = findFreeSpacePosition(occupiedShapes.map(shapeWorldAabb), localAabb)
+  const occupied = occupiedShapes.map((shape) => shapeWorldAabb(shape, true))
+  const [x, y, z] = findFreeSpacePosition(occupied, localAabb)
   return [x - center.x, y - center.y, z - center.z]
 }

@@ -9,6 +9,7 @@ import {
   computeRestingPoses,
   getHangingShapeIds,
 } from '../physics/restingLayout'
+import { syncShapeTransformsFromPhysics } from '../physics/syncTransforms'
 import { findAddPosition, findGroupAddDelta } from '../scene/placement'
 import {
   DEFAULT_PROJECT_NAME,
@@ -874,17 +875,21 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         if (!buffer) return
 
         get().pushHistory()
-        // Same free-space search as adding a straw: land near the camera
-        // look-at (hanging mobile) instead of the absolute stored pose.
-        const translation = findGroupAddDelta(shapes, buffer.shapes)
-        const { shapes: clones, connections: clonedConnections, newIds } =
-          materializeBuffer(buffer, translation)
+        // Pull live Rapier poses into the store so free (unconnected) pieces
+        // and hanging ones both count as occupied near the look-at.
+        syncShapeTransformsFromPhysics()
+        const occupiedShapes = get().shapes
+        const translation = findGroupAddDelta(occupiedShapes, buffer.shapes)
+        const { shapes: clones, connections: clonedConnections } = materializeBuffer(
+          buffer,
+          translation,
+        )
 
         set((state) => ({
           shapes: [...state.shapes, ...clones],
           connections: [...state.connections, ...clonedConnections],
-          selectedShapeIds: newIds,
-          selectionAnchorId: newIds[newIds.length - 1] ?? null,
+          // Leave selection empty so another slot click pastes again into new free space.
+          ...EMPTY_SELECTION,
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
         }))
       },
