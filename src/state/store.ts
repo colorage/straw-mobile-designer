@@ -300,6 +300,8 @@ interface StrawMobileState {
   removeConnection: (id: string) => void
   setShapeTransform: (id: string, position: Vector3Tuple, quaternion: QuatTuple) => void
   moveShape: (id: string, position: Vector3Tuple) => void
+  /** Batch-move shapes (e.g. multi-select gizmo drag) in one store update. */
+  moveShapes: (positions: Record<string, Vector3Tuple>) => void
   selectShape: (id: string | null) => void
   toggleShapeSelection: (id: string) => void
   selectShapeRange: (id: string) => void
@@ -755,6 +757,15 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       moveShape: (id, position) =>
         set((state) => ({
           shapes: state.shapes.map((shape) => (shape.id === id ? { ...shape, position } : shape)),
+          overlapScanWakeToken: state.overlapScanWakeToken + 1,
+        })),
+
+      moveShapes: (positions) =>
+        set((state) => ({
+          shapes: state.shapes.map((shape) => {
+            const position = positions[shape.id]
+            return position ? { ...shape, position } : shape
+          }),
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
         })),
 

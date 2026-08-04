@@ -3,6 +3,7 @@ import { PivotControls } from '@react-three/drei'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { Vector3Tuple } from '../geometry/primitives'
 import { getBodyRef } from '../physics/bodyRefRegistry'
+import { getHangingShapeIds } from '../physics/restingLayout'
 import { useStrawMobileStore } from '../state/store'
 import type { Shape } from '../state/types'
 import { ShapeGroup } from './ShapeGroup'
@@ -38,6 +39,8 @@ export function SelectableShape({
   const toggleShapeSelection = useStrawMobileStore((s) => s.toggleShapeSelection)
   const removeShape = useStrawMobileStore((s) => s.removeShape)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
+  // Remount the gizmo when the selection set changes so frozen bases/offset refresh.
+  const selectionKey = useStrawMobileStore((s) => s.selectedShapeIds.join('|'))
   const isScissors = activeTool === 'scissors'
 
   const handleBodyClick = (event: ThreeEvent<MouseEvent>) => {
@@ -77,7 +80,12 @@ export function SelectableShape({
   }
 
   return (
-    <DragGizmo shapeId={shape.id} position={shape.position} quaternion={shape.quaternion}>
+    <DragGizmo
+      key={selectionKey}
+      shapeId={shape.id}
+      position={shape.position}
+      quaternion={shape.quaternion}
+    >
       {shapeGroup}
     </DragGizmo>
   )
@@ -102,19 +110,49 @@ function syncKinematicBody(shapeId: string, position: Vector3Tuple) {
   }
 }
 
+/** Snapshot free selected shapes' poses and their centroid at gizmo mount. */
+function freezeSelectionDrag(primaryId: string, primaryPosition: Vector3Tuple) {
+  const { shapes, selectedShapeIds, connections } = useStrawMobileStore.getState()
+  const hanging = getHangingShapeIds(connections)
+  const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
+  const bases = new Map<string, Vector3Tuple>()
+
+  for (const id of selectedShapeIds) {
+    if (hanging.has(id)) continue
+    const shape = shapesById.get(id)
+    if (shape) bases.set(id, shape.position)
+  }
+  if (!bases.has(primaryId)) bases.set(primaryId, primaryPosition)
+
+  let sx = 0
+  let sy = 0
+  let sz = 0
+  for (const [x, y, z] of bases.values()) {
+    sx += x
+    sy += y
+    sz += z
+  }
+  const n = bases.size
+  const offset: Vector3Tuple = n > 0 ? [sx / n, sy / n, sz / n] : primaryPosition
+
+  return { bases, offset }
+}
+
 /**
  * Translate-only PivotControls gizmo.
  *
  * Freezes position/quaternion at mount (selection time) for the inner group.
- * PivotControls sits untransformed under the scene root, so its onDrag matrix
- * `l` is the accumulated world-space translation since mount — adding that to
- * basePosition gives the live store position without double-counting the drag
- * delta that PivotControls already applies imperatively to its subtree.
+ * PivotControls sits untransformed under the scene root; `offset` places the
+ * handles at the selection centroid. onDrag matrix `l` is the accumulated
+ * world-space translation since mount — adding that to each frozen base
+ * position gives live store positions without double-counting the drag delta
+ * that PivotControls already applies imperatively to its subtree.
  */
 function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) {
-  const moveShape = useStrawMobileStore((s) => s.moveShape)
+  const moveShapes = useStrawMobileStore((s) => s.moveShapes)
   const pushHistory = useStrawMobileStore((s) => s.pushHistory)
-  const basePosition = useRef(position).current
+  const { bases, offset } = useRef(freezeSelectionDrag(shapeId, position)).current
+  const basePosition = bases.get(shapeId) ?? position
   const baseQuaternion = useRef(quaternion).current
 
   return (
@@ -125,18 +163,22 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
       lineWidth={2.5}
       fixed
       depthTest={false}
+      offset={offset}
       onDragStart={() => {
         // One history entry per drag gesture — not per onDrag frame.
         pushHistory()
       }}
       onDrag={(l) => {
-        const next: Vector3Tuple = [
-          basePosition[0] + l.elements[12],
-          basePosition[1] + l.elements[13],
-          basePosition[2] + l.elements[14],
-        ]
-        moveShape(shapeId, next)
-        syncKinematicBody(shapeId, next)
+        const dx = l.elements[12]
+        const dy = l.elements[13]
+        const dz = l.elements[14]
+        const next: Record<string, Vector3Tuple> = {}
+        for (const [id, base] of bases) {
+          const pos: Vector3Tuple = [base[0] + dx, base[1] + dy, base[2] + dz]
+          next[id] = pos
+          syncKinematicBody(id, pos)
+        }
+        moveShapes(next)
       }}
     >
       <group position={basePosition} quaternion={baseQuaternion}>
