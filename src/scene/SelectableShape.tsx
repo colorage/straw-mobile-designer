@@ -18,16 +18,13 @@ import type { Shape } from '../state/types'
 import { ShapeGroup } from './ShapeGroup'
 
 /**
- * PivotControls hit volumes: invisible cylinders on axes (no material — Three's
- * Mesh.raycast skips them), translucent planes on sliders. Skip vertex spheres
- * and visible straw cylinders.
+ * PivotControls axis hit volumes are invisible cylinders (no material — Three's
+ * Mesh.raycast skips them). Ignore PlaneGeometry so ground/other planes cannot
+ * keep the grab cursor stuck across the canvas.
  */
 function isGizmoHitMesh(obj: Object3D): obj is Mesh {
   if (!(obj as Mesh).isMesh) return false
-  const geoType = (obj as Mesh).geometry?.type
-  if (geoType === 'CylinderGeometry' && obj.visible === false) return true
-  if (geoType === 'PlaneGeometry') return true
-  return false
+  return (obj as Mesh).geometry?.type === 'CylinderGeometry' && obj.visible === false
 }
 
 function collectGizmoHitMeshes(scene: Object3D): Mesh[] {
