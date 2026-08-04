@@ -51,6 +51,22 @@ export function tetrahedron(): PrimitiveGeometry {
   return { vertices: normalizeToUnitEdges(vertices, edges), edges }
 }
 
+/** A flat equilateral triangle loop: 3 corners, 3 equal straw edges. */
+export function triangle(): PrimitiveGeometry {
+  const h = Math.sqrt(3) / 2
+  const vertices: Vector3Tuple[] = [
+    [1, 0, 0],
+    [-0.5, 0, h],
+    [-0.5, 0, -h],
+  ]
+  const edges: Edge[] = [
+    [0, 1],
+    [1, 2],
+    [2, 0],
+  ]
+  return { vertices: normalizeToUnitEdges(vertices, edges), edges }
+}
+
 /** A flat square loop: 4 corners, 4 equal straw edges. */
 export function square(): PrimitiveGeometry {
   const vertices: Vector3Tuple[] = [
@@ -122,10 +138,17 @@ export function octahedron(): PrimitiveGeometry {
   return { vertices: normalizeToUnitEdges(vertices, edges), edges }
 }
 
-export type ShapeKind = 'straw' | 'tetrahedron' | 'square' | 'squarePyramid' | 'octahedron'
+export type ShapeKind =
+  | 'straw'
+  | 'triangle'
+  | 'tetrahedron'
+  | 'square'
+  | 'squarePyramid'
+  | 'octahedron'
 
 export const PRIMITIVE_GENERATORS: Record<ShapeKind, () => PrimitiveGeometry> = {
   straw,
+  triangle,
   tetrahedron,
   square,
   squarePyramid,
@@ -134,6 +157,7 @@ export const PRIMITIVE_GENERATORS: Record<ShapeKind, () => PrimitiveGeometry> = 
 
 export const SHAPE_LABELS: Record<ShapeKind, string> = {
   straw: 'Straw Line',
+  triangle: 'Triangle',
   tetrahedron: '3-Corner Pyramid',
   square: 'Square',
   squarePyramid: '4-Corner Pyramid',

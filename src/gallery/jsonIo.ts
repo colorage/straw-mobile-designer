@@ -10,6 +10,7 @@ import type { ShapeKind, Vector3Tuple } from '../geometry/primitives'
 
 const SHAPE_KINDS = new Set<ShapeKind>([
   'straw',
+  'triangle',
   'tetrahedron',
   'square',
   'squarePyramid',
