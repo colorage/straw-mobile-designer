@@ -109,17 +109,21 @@ export function PhysicsScene() {
     return set
   }, [connections])
 
+  // Pay multi-chain solver cost only when needed. One/two hangers settle fine
+  // at 60 Hz / 6 iters; long chains still get the heavier 120 Hz / 12 iters.
+  const heavySolver = hangingIds.size >= 3
+  const numSolverIterations = heavySolver ? 12 : 6
+  const numInternalPgsIterations = heavySolver ? 2 : 1
+  const timeStep = heavySolver ? 1 / 120 : 1 / 60
+
   return (
     <Physics
       key={physicsEpoch}
       gravity={[0, -9.81, 0]}
       updatePriority={-1}
-      // Long spherical-joint chains need more solver effort than Rapier's
-      // defaults (4 / 1) or residual joint error resonates as N grows.
-      numSolverIterations={12}
-      numInternalPgsIterations={2}
-      // Half-size steps (~2 per 60fps frame) cut joint integration error further.
-      timeStep={1 / 120}
+      numSolverIterations={numSolverIterations}
+      numInternalPgsIterations={numInternalPgsIterations}
+      timeStep={timeStep}
     >
       <FixedAnchorBody />
       <CeilingHookVisual />

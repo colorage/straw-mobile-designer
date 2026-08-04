@@ -153,6 +153,8 @@ function DrivenShapeVisual({
     const body = getBodyRef(shape.id).current
     if (!body) return
     try {
+      // Sleeping bodies are still — skip WASM pose reads until they wake.
+      if (body.isSleeping()) return
       const t = body.translation()
       const r = body.rotation()
       group.position.set(t.x, t.y, t.z)
@@ -273,7 +275,9 @@ export function PhysicsShape({
         // numerically stable under joints (~1–2 for a full-size octahedron).
         density={400}
         collisionGroups={SHAPE_COLLISION_GROUPS}
-        canSleep={false}
+        // Allow sleep once sway settles — otherwise one hanging straw keeps
+        // the Rapier island (and FPS) hot forever after the first connect.
+        canSleep
         restitution={0.1}
         // Base hanging damping; HangingEnergyLimiter raises it adaptively
         // when many pieces hang or a body approaches the soft speed caps.

@@ -2,12 +2,25 @@ import { Line } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useLayoutEffect, useRef } from 'react'
 import type { Line2 } from 'three-stdlib'
-import type { Connection, Shape } from '../state/types'
+import { getBodyRef } from '../physics/bodyRefRegistry'
+import { endpointBodyKey, type Connection, type Shape } from '../state/types'
 import { getEndpointWorldPosition } from './endpointPosition'
 
 interface ConnectionThreadProps {
   connection: Connection
   shapesById: Map<string, Shape>
+}
+
+/** True when an endpoint's rigid body is still (anchor is always still). */
+function endpointIsSleeping(bodyKey: string): boolean {
+  if (bodyKey === 'anchor') return true
+  const body = getBodyRef(bodyKey).current
+  if (!body) return false
+  try {
+    return body.isSleeping()
+  } catch {
+    return false
+  }
 }
 
 /** Thin thread line between two corners; tracks live body poses each frame. */
@@ -31,6 +44,13 @@ export function ConnectionThread({ connection, shapesById }: ConnectionThreadPro
   })
 
   useFrame(() => {
+    // Both ends asleep → line endpoints cannot have moved; skip setPositions.
+    if (
+      endpointIsSleeping(endpointBodyKey(connection.a)) &&
+      endpointIsSleeping(endpointBodyKey(connection.b))
+    ) {
+      return
+    }
     writePoints()
   })
 
