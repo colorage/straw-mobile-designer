@@ -39,6 +39,8 @@ export function SelectableShape({
   const toggleShapeSelection = useStrawMobileStore((s) => s.toggleShapeSelection)
   const removeShape = useStrawMobileStore((s) => s.removeShape)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
+  // Remount the gizmo when the selection set changes so frozen offset refreshes.
+  const selectionKey = useStrawMobileStore((s) => s.selectedShapeIds.join('|'))
   const isScissors = activeTool === 'scissors'
 
   const handleBodyClick = (event: ThreeEvent<MouseEvent>) => {
@@ -78,7 +80,12 @@ export function SelectableShape({
   }
 
   return (
-    <DragGizmo shapeId={shape.id} position={shape.position} quaternion={shape.quaternion}>
+    <DragGizmo
+      key={selectionKey}
+      shapeId={shape.id}
+      position={shape.position}
+      quaternion={shape.quaternion}
+    >
       {shapeGroup}
     </DragGizmo>
   )
@@ -101,6 +108,29 @@ function syncKinematicBody(shapeId: string, position: Vector3Tuple) {
   } catch {
     // Body may have been removed mid-drag.
   }
+}
+
+/** World-space centroid of currently selected free shapes (fallback: primary). */
+function selectionCentroid(primaryPosition: Vector3Tuple): Vector3Tuple {
+  const { shapes, selectedShapeIds, connections } = useStrawMobileStore.getState()
+  const hanging = getHangingShapeIds(connections)
+  const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
+
+  let sx = 0
+  let sy = 0
+  let sz = 0
+  let n = 0
+  for (const id of selectedShapeIds) {
+    if (hanging.has(id)) continue
+    const shape = shapesById.get(id)
+    if (!shape) continue
+    sx += shape.position[0]
+    sy += shape.position[1]
+    sz += shape.position[2]
+    n += 1
+  }
+  if (n === 0) return primaryPosition
+  return [sx / n, sy / n, sz / n]
 }
 
 /**
@@ -135,16 +165,18 @@ function snapshotDragCohortBases(): Map<string, Vector3Tuple> {
  * Translate-only PivotControls gizmo.
  *
  * Freezes position/quaternion at mount (selection time) for the inner group.
- * PivotControls sits untransformed under the scene root, so its onDrag matrix
- * `l` is the accumulated world-space translation since mount — adding that to
- * each snapshotted cohort base gives live store positions without double-counting
- * the drag delta that PivotControls already applies imperatively to its subtree.
+ * PivotControls sits untransformed under the scene root; `offset` places the
+ * handles at the selection centroid. onDrag matrix `l` is the accumulated
+ * world-space translation since mount — adding that to each snapshotted cohort
+ * base gives live store positions without double-counting the drag delta that
+ * PivotControls already applies imperatively to its subtree.
  */
 function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) {
   const moveShapes = useStrawMobileStore((s) => s.moveShapes)
   const pushHistory = useStrawMobileStore((s) => s.pushHistory)
   const basePosition = useRef(position).current
   const baseQuaternion = useRef(quaternion).current
+  const offset = useRef(selectionCentroid(position)).current
   const cohortBasesRef = useRef<Map<string, Vector3Tuple>>(new Map())
 
   return (
@@ -155,6 +187,7 @@ function DragGizmo({ shapeId, position, quaternion, children }: DragGizmoProps) 
       lineWidth={2.5}
       fixed
       depthTest={false}
+      offset={offset}
       onDragStart={() => {
         // One history entry per drag gesture — not per onDrag frame.
         pushHistory()
