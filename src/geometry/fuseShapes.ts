@@ -10,6 +10,15 @@ export interface FusedShape {
   vertexMap: Map<string, number>
 }
 
+/**
+ * How far a corner may be dragged onto its weld partner, as a fraction of a
+ * straw. Welding averages tied corners, so a loop still holding a long thread
+ * would snap shut and visibly stretch its straws — better to leave it floppy.
+ */
+const MAX_WELD_OFFSET_FRACTION = 0.15
+/** Floor for the weld tolerance so 1/4-size loops can still close. */
+const MIN_WELD_OFFSET = 0.1
+
 /** Disjoint-set over vertex keys so every threaded corner collapses to one vertex. */
 function createUnionFind() {
   const parent = new Map<string, string>()
@@ -93,6 +102,12 @@ export function fuseShapes(
   for (const [root, { sum, count }] of groupSums) {
     indexByRoot.set(root, worldVertices.length)
     worldVertices.push(sum.multiplyScalar(1 / count))
+  }
+
+  const maxOffset = Math.max(MIN_WELD_OFFSET, MAX_WELD_OFFSET_FRACTION * scale)
+  for (const [key, world] of worldByKey) {
+    const merged = worldVertices[indexByRoot.get(unionFind.find(key))!]
+    if (world.distanceTo(merged) > maxOffset) return null
   }
 
   const vertexMap = new Map<string, number>()
