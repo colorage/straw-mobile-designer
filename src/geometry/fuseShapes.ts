@@ -60,7 +60,16 @@ export function fuseShapes(
 ): FusedShape | null {
   if (members.length < 2) return null
 
-  const size = members[0].size
+  // Mixed sizes are welcome: geometry is baked in the largest member's scale
+  // and each straw keeps its own size via `edgeSizes` for inventory/scissors.
+  const size = members.reduce(
+    (largest, shape) => (shape.size > largest ? shape.size : largest),
+    members[0].size,
+  )
+  const minSize = members.reduce(
+    (smallest, shape) => (shape.size < smallest ? shape.size : smallest),
+    members[0].size,
+  )
   const scale = size * BASE_STRAW_LENGTH
   if (scale <= 0) return null
 
@@ -105,7 +114,11 @@ export function fuseShapes(
     worldVertices.push(sum.multiplyScalar(1 / count))
   }
 
-  const maxOffset = Math.max(MIN_WELD_OFFSET, MAX_WELD_OFFSET_FRACTION * scale)
+  // Tolerance follows the smallest member so short straws still weld tightly.
+  const maxOffset = Math.max(
+    MIN_WELD_OFFSET,
+    MAX_WELD_OFFSET_FRACTION * minSize * BASE_STRAW_LENGTH,
+  )
   for (const [key, world] of worldByKey) {
     const merged = worldVertices[indexByRoot.get(unionFind.find(key))!]
     if (world.distanceTo(merged) > maxOffset) return null
@@ -118,10 +131,12 @@ export function fuseShapes(
 
   const edges: [number, number][] = []
   const edgeRestLengths: number[] = []
+  const edgeSizes: Shape['size'][] = []
   const seenEdges = new Set<string>()
   for (const shape of members) {
     const memberScale = shape.size * BASE_STRAW_LENGTH
-    for (const [localA, localB] of shape.edges) {
+    for (let edgeIndex = 0; edgeIndex < shape.edges.length; edgeIndex++) {
+      const [localA, localB] = shape.edges[edgeIndex]
       const a = vertexMap.get(`${shape.id}:${localA}`)
       const b = vertexMap.get(`${shape.id}:${localB}`)
       if (a === undefined || b === undefined || a === b) continue
@@ -132,6 +147,7 @@ export function fuseShapes(
       const [ax, ay, az] = shape.vertices[localA]
       const [bx, by, bz] = shape.vertices[localB]
       edgeRestLengths.push(Math.hypot(ax - bx, ay - by, az - bz) * memberScale)
+      edgeSizes.push(shape.edgeSizes?.[edgeIndex] ?? shape.size)
     }
   }
   if (edges.length === 0) return null
@@ -160,6 +176,7 @@ export function fuseShapes(
       size,
       vertices,
       edges,
+      edgeSizes,
       // World geometry is baked into the vertices, so the fused piece starts
       // unrotated at its own centroid.
       position: [center.x, center.y, center.z],

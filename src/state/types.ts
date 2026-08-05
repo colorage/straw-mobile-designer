@@ -21,6 +21,12 @@ export interface Shape {
   /** Local-space rest vertices (unit-edge space, before size/world scaling). */
   vertices: Vector3Tuple[]
   edges: Edge[]
+  /**
+   * Straw size per edge, parallel to `edges` — set on fused assemblies built
+   * from mixed straws so the inventory and scissors keep exact sizes. Edges
+   * without an entry (all primitives) count as `size`.
+   */
+  edgeSizes?: StrawSize[]
   /** World transform (workbench pose while free; last synced pose while hanging). */
   position: Vector3Tuple
   quaternion: QuatTuple

@@ -210,10 +210,10 @@ export interface FusableClusterOptions {
  * The closed loop `newConnection` just completed, or null when the tie only
  * added a floppy branch.
  *
- * Rejects clusters that cannot be fused cleanly: mixed straw sizes (the fused
- * shape carries a single `size`, which the straw counter attributes every edge
- * to), members that are toolbar primitives (kept separately cuttable), pieces
- * still animating, and hub-only cycles that are not actually rigid.
+ * Rejects clusters that cannot be fused cleanly: members that are toolbar
+ * primitives (kept separately cuttable), pieces still animating, and hub-only
+ * cycles that weld fewer than three distinct corners (not actually rigid).
+ * Mixed straw sizes are fine — the fused shape tracks a size per straw.
  */
 export function findFusableCluster(
   shapes: Shape[],
@@ -231,17 +231,12 @@ export function findFusableCluster(
   if (cluster.shapeIds.size < 2) return null
 
   const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
-  const members: Shape[] = []
   for (const id of cluster.shapeIds) {
     const shape = shapesById.get(id)
     if (!shape) return null
     if (!FUSABLE_KINDS.has(shape.kind)) return null
     if (options.reelingIds?.has(id)) return null
-    members.push(shape)
   }
-
-  const size = members[0].size
-  if (members.some((shape) => shape.size !== size)) return null
 
   if (countWeldGroups(cluster, connections) < MIN_DISTINCT_PINS) return null
 
