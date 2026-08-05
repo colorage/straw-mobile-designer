@@ -113,7 +113,10 @@ function snapshotDesign(state: PersistedMobileState): PersistedMobileState {
 export function computeStrawCounts(shapes: Shape[]): StrawCounts {
   const bySize: Record<StrawSize, number> = { 1: 0, 0.5: 0, 0.25: 0 }
   for (const shape of shapes) {
-    bySize[shape.size] += shape.edges.length
+    // Mixed-size assemblies track a size per straw; primitives use one size.
+    for (let i = 0; i < shape.edges.length; i++) {
+      bySize[shape.edgeSizes?.[i] ?? shape.size] += 1
+    }
   }
   return {
     bySize,
@@ -168,6 +171,7 @@ function snapshotSelectedBuffer(
     ...shape,
     vertices: shape.vertices.map((vertex) => [...vertex] as Vector3Tuple),
     edges: shape.edges.map((edge) => [...edge] as [number, number]),
+    edgeSizes: shape.edgeSizes ? [...shape.edgeSizes] : undefined,
     position: [...shape.position] as Vector3Tuple,
     quaternion: [...shape.quaternion] as QuatTuple,
   }))
@@ -210,6 +214,7 @@ function materializeBuffer(
       id: newId,
       vertices: shape.vertices.map((vertex) => [...vertex] as Vector3Tuple),
       edges: shape.edges.map((edge) => [...edge] as [number, number]),
+      edgeSizes: shape.edgeSizes ? [...shape.edgeSizes] : undefined,
       position: [
         shape.position[0] + translation[0],
         shape.position[1] + translation[1],

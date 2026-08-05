@@ -69,6 +69,18 @@ function isShape(value: unknown): value is Shape {
   ) {
     return false
   }
+  // Optional per-edge sizes (mixed-size assemblies); must parallel `edges`.
+  if (value.edgeSizes !== undefined) {
+    if (
+      !Array.isArray(value.edgeSizes) ||
+      value.edgeSizes.length !== value.edges.length ||
+      !value.edgeSizes.every(
+        (size) => typeof size === 'number' && STRAW_SIZES.has(size as StrawSize),
+      )
+    ) {
+      return false
+    }
+  }
   return isNumberTuple3(value.position) && isQuaternion(value.quaternion)
 }
 

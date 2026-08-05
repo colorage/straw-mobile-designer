@@ -66,7 +66,9 @@ export function explodeAssembly(
   assembly.edges.forEach(([a, b], edgeIndex) => {
     if (edgeIndex === cutEdgeIndex) return
     const strawId = createId()
-    shapes.push(strawFromCorners(strawId, assembly.size, worldVertices[a], worldVertices[b]))
+    // Mixed-size assemblies carry a size per straw; restore each one exactly.
+    const strawSize = assembly.edgeSizes?.[edgeIndex] ?? assembly.size
+    shapes.push(strawFromCorners(strawId, strawSize, worldVertices[a], worldVertices[b]))
     for (const [assemblyVertex, strawVertex] of [
       [a, 0],
       [b, 1],
