@@ -5,6 +5,7 @@ import {
   type PrimitiveKind,
   type Vector3Tuple,
 } from '../geometry/primitives'
+import { explodeAssembly } from '../geometry/explodeAssembly'
 import { fuseShapes } from '../geometry/fuseShapes'
 import { clearBodyRef, getBodyRef } from '../physics/bodyRefRegistry'
 import { buildReelIns, connectionInvolvesReelIn, reelInBodyKeys } from '../physics/reelIn'
@@ -315,6 +316,11 @@ interface StrawMobileState {
   redo: () => void
   addShape: (kind: PrimitiveKind, position?: Vector3Tuple) => string
   removeShape: (id: string) => void
+  /**
+   * Scissors on one straw of a fused piece: break the piece back into straws,
+   * drop that straw, and re-fuse whatever is still a closed loop.
+   */
+  cutAssemblyEdge: (id: string, edgeIndex: number) => void
   removeShapes: (ids: string[]) => void
   setStrawSize: (size: StrawSize) => void
   setProjectName: (name: string) => void
@@ -477,29 +483,35 @@ function fuseCycleCluster(
 /**
  * Fuse every closed loop reachable from the shapes that just moved or got tied.
  * A fused piece can itself close the next loop (a square grown into a pyramid),
- * so the freshly fused id is fed back in.
+ * so freshly fused ids are fed back in. Returns true when anything fused.
  */
 function fuseClosedLoopsAround(
   set: SetStrawMobileState,
   get: () => StrawMobileState,
   seedIds: Iterable<string>,
-): void {
+): boolean {
   const seeds = new Set(seedIds)
-  if (seeds.size === 0) return
+  if (seeds.size === 0) return false
 
+  let fusedAny = false
   for (let pass = 0; pass < MAX_FUSE_PASSES; pass++) {
-    if (!get().rigidLoopsEnabled) return
+    if (!get().rigidLoopsEnabled) break
     const candidates = get().connections.filter((connection) =>
       connectionTouches(connection, seeds),
     )
-    let fusedId: string | null = null
+    let fusedThisPass = 0
+    // Candidates consumed by an earlier fuse are simply no longer cycle edges,
+    // so a stale entry resolves to null rather than fusing twice.
     for (const candidate of candidates) {
-      fusedId = fuseCycleCluster(set, get, candidate)
-      if (fusedId) break
+      const fusedId = fuseCycleCluster(set, get, candidate)
+      if (!fusedId) continue
+      seeds.add(fusedId)
+      fusedThisPass += 1
+      fusedAny = true
     }
-    if (!fusedId) return
-    seeds.add(fusedId)
+    if (fusedThisPass === 0) break
   }
+  return fusedAny
 }
 
 /** Drop registry entries and bump the epoch so Rapier bodies remount cleanly. */
@@ -601,6 +613,19 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       setRigidLoopsEnabled: (enabled) => {
         if (get().rigidLoopsEnabled === enabled) return
         set({ rigidLoopsEnabled: enabled })
+        if (!enabled) return
+
+        // Switching it on also stiffens loops that were tied while it was off
+        // (or built before the feature existed) — otherwise the toggle would
+        // only ever affect the next thread.
+        const { past, future } = get()
+        get().pushHistory()
+        const fused = fuseClosedLoopsAround(
+          set,
+          get,
+          get().shapes.map((shape) => shape.id),
+        )
+        if (!fused) set({ past, future })
       },
 
       toggleRigidLoops: () => {
@@ -674,6 +699,88 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       removeShape: (id) => {
         get().removeShapes([id])
+      },
+
+      cutAssemblyEdge: (id, edgeIndex) => {
+        const assembly = get().shapes.find((shape) => shape.id === id)
+        if (!assembly || assembly.kind !== 'assembly' || assembly.edges.length <= 1) {
+          get().removeShape(id)
+          return
+        }
+
+        get().pushHistory()
+        const exploded = explodeAssembly(assembly, createId, edgeIndex)
+        if (!exploded) {
+          get().removeShape(id)
+          return
+        }
+
+        const state = get()
+        const remapEndpoint = (endpoint: EndpointRef): EndpointRef | null => {
+          if (endpoint.kind === 'anchor' || endpoint.shapeId !== id) return endpoint
+          // A corner left with no straws takes its threads down with it.
+          return exploded.endpointByVertex.get(endpoint.vertexIndex) ?? null
+        }
+
+        const nextConnections: Connection[] = []
+        for (const connection of state.connections) {
+          const a = remapEndpoint(connection.a)
+          const b = remapEndpoint(connection.b)
+          if (!a || !b) continue
+          if (a.kind === 'shape' && b.kind === 'shape' && a.shapeId === b.shapeId) continue
+          nextConnections.push(
+            a === connection.a && b === connection.b ? connection : { ...connection, a, b },
+          )
+        }
+        nextConnections.push(...exploded.connections)
+
+        clearBodyRef(id)
+        const nextReelPositions = { ...state.reelPositions }
+        const nextReelQuaternions = { ...state.reelQuaternions }
+        delete nextReelPositions[id]
+        delete nextReelQuaternions[id]
+
+        const assemblyIndex = state.shapes.findIndex((shape) => shape.id === id)
+        const nextShapes = state.shapes.filter((shape) => shape.id !== id)
+        nextShapes.splice(
+          assemblyIndex < 0 ? nextShapes.length : assemblyIndex,
+          0,
+          ...exploded.shapes,
+        )
+
+        const touchesAssembly = (endpoint: EndpointRef | undefined) =>
+          endpoint?.kind === 'shape' && endpoint.shapeId === id
+        set((current) => ({
+          shapes: nextShapes,
+          connections: nextConnections,
+          reelIns: current.reelIns.filter((reel) => reel.shapeId !== id),
+          reelPositions: nextReelPositions,
+          reelQuaternions: nextReelQuaternions,
+          deferredConnectionIds: current.deferredConnectionIds.filter((deferredId) =>
+            nextConnections.some((connection) => connection.id === deferredId),
+          ),
+          pendingVertex: touchesAssembly(current.pendingVertex ?? undefined)
+            ? null
+            : current.pendingVertex,
+          overlapSuggest:
+            touchesAssembly(current.overlapSuggest?.a) ||
+            touchesAssembly(current.overlapSuggest?.b)
+              ? null
+              : current.overlapSuggest,
+          overlapScanWakeToken: current.overlapScanWakeToken + 1,
+          selectedShapeIds: current.selectedShapeIds.filter(
+            (selectedId) => selectedId !== id,
+          ),
+          selectionAnchorId:
+            current.selectionAnchorId === id ? null : current.selectionAnchorId,
+        }))
+
+        // Whatever is still a closed loop goes straight back to being rigid.
+        fuseClosedLoopsAround(
+          set,
+          get,
+          exploded.shapes.map((shape) => shape.id),
+        )
       },
 
       removeShapes: (ids) => {

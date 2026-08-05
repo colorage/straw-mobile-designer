@@ -122,8 +122,11 @@ function DrivenShapeVisual({
 }: Omit<PhysicsShapeProps, 'hanging' | 'reeling'>) {
   const groupRef = useRef<Group>(null)
   const removeShape = useStrawMobileStore((s) => s.removeShape)
+  const cutAssemblyEdge = useStrawMobileStore((s) => s.cutAssemblyEdge)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
   const isScissors = activeTool === 'scissors'
+  // A fused piece is cut one straw at a time; primitives are cut whole.
+  const cutsPerStraw = isScissors && shape.kind === 'assembly'
 
   useLayoutEffect(() => {
     return registerMeshDriver(shape.id, (position, quaternion) => {
@@ -164,12 +167,13 @@ function DrivenShapeVisual({
     }
   })
 
-  const handleBodyClick = isScissors
-    ? (event: ThreeEvent<MouseEvent>) => {
-        event.stopPropagation()
-        removeShape(shape.id)
-      }
-    : undefined
+  const handleBodyClick =
+    isScissors && !cutsPerStraw
+      ? (event: ThreeEvent<MouseEvent>) => {
+          event.stopPropagation()
+          removeShape(shape.id)
+        }
+      : undefined
 
   return (
     <group ref={groupRef} position={shape.position} quaternion={shape.quaternion}>
@@ -182,6 +186,9 @@ function DrivenShapeVisual({
         isVertexConnected={isVertexConnected}
         scissorsHover={isScissors}
         onBodyClick={handleBodyClick}
+        onEdgeClick={
+          cutsPerStraw ? (edgeIndex) => cutAssemblyEdge(shape.id, edgeIndex) : undefined
+        }
       />
     </group>
   )

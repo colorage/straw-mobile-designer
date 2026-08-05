@@ -220,15 +220,18 @@ export function SelectableShape({
   const selectShape = useStrawMobileStore((s) => s.selectShape)
   const toggleShapeSelection = useStrawMobileStore((s) => s.toggleShapeSelection)
   const removeShape = useStrawMobileStore((s) => s.removeShape)
+  const cutAssemblyEdge = useStrawMobileStore((s) => s.cutAssemblyEdge)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
   // Remount the gizmo when the selection set changes so frozen offset refreshes.
   const selectionKey = useStrawMobileStore((s) => s.selectedShapeIds.join('|'))
   const isScissors = activeTool === 'scissors'
+  // A fused piece is cut one straw at a time; primitives are cut whole.
+  const cutsPerStraw = isScissors && shape.kind === 'assembly'
 
   const handleBodyClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
     if (isScissors) {
-      removeShape(shape.id)
+      if (!cutsPerStraw) removeShape(shape.id)
       return
     }
     if (activeTool !== 'select') return
@@ -250,6 +253,9 @@ export function SelectableShape({
       selected={isSelected}
       scissorsHover={isScissors}
       onBodyClick={handleBodyClick}
+      onEdgeClick={
+        cutsPerStraw ? (edgeIndex) => cutAssemblyEdge(shape.id, edgeIndex) : undefined
+      }
     />
   )
 
