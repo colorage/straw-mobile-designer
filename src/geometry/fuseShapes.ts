@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { getEndpointWorldPosition } from '../scene/endpointPosition'
 import { BASE_STRAW_LENGTH } from '../state/shapeSpace'
 import { endpointVertexKey, type Connection, type Shape } from '../state/types'
+import { idealizeSimpleCycle } from './idealizePolygon'
 import type { Vector3Tuple } from './primitives'
 
 export interface FusedShape {
@@ -115,19 +116,11 @@ export function fuseShapes(
     vertexMap.set(key, indexByRoot.get(unionFind.find(key))!)
   }
 
-  const center = new THREE.Vector3()
-  for (const vertex of worldVertices) center.add(vertex)
-  center.multiplyScalar(1 / worldVertices.length)
-
-  const vertices: Vector3Tuple[] = worldVertices.map((vertex) => [
-    (vertex.x - center.x) / scale,
-    (vertex.y - center.y) / scale,
-    (vertex.z - center.z) / scale,
-  ])
-
   const edges: [number, number][] = []
+  const edgeRestLengths: number[] = []
   const seenEdges = new Set<string>()
   for (const shape of members) {
+    const memberScale = shape.size * BASE_STRAW_LENGTH
     for (const [localA, localB] of shape.edges) {
       const a = vertexMap.get(`${shape.id}:${localA}`)
       const b = vertexMap.get(`${shape.id}:${localB}`)
@@ -136,9 +129,29 @@ export function fuseShapes(
       if (seenEdges.has(edgeKey)) continue
       seenEdges.add(edgeKey)
       edges.push([a, b])
+      const [ax, ay, az] = shape.vertices[localA]
+      const [bx, by, bz] = shape.vertices[localB]
+      edgeRestLengths.push(Math.hypot(ax - bx, ay - by, az - bz) * memberScale)
     }
   }
   if (edges.length === 0) return null
+
+  // A simple loop's angles are not determined by its side lengths — the
+  // tighten solver may have closed it as a parallelogram. Snap those corners
+  // to the canonical cyclic polygon (square, rectangle, regular N-gon) built
+  // from the straws' authored lengths; braced / 3D clusters keep their pose.
+  const idealized = idealizeSimpleCycle(worldVertices, edges, edgeRestLengths)
+  const finalVertices = idealized ?? worldVertices
+
+  const center = new THREE.Vector3()
+  for (const vertex of finalVertices) center.add(vertex)
+  center.multiplyScalar(1 / finalVertices.length)
+
+  const vertices: Vector3Tuple[] = finalVertices.map((vertex) => [
+    (vertex.x - center.x) / scale,
+    (vertex.y - center.y) / scale,
+    (vertex.z - center.z) / scale,
+  ])
 
   return {
     shape: {
