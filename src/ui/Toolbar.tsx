@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
-import { SHAPE_LABELS, type ShapeKind } from '../geometry/primitives'
+import { SHAPE_LABELS, type PrimitiveKind } from '../geometry/primitives'
 import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME } from '../scene/canvasBridge'
 import { useStrawMobileStore, type SlotIndex } from '../state/store'
 import {
@@ -12,7 +12,7 @@ import {
   TriangleIcon,
 } from './icons'
 
-type ToolbarShapeKind = Exclude<ShapeKind, 'tetrahedron'>
+type ToolbarShapeKind = Exclude<PrimitiveKind, 'tetrahedron'>
 
 const SHAPE_GROUPS: ToolbarShapeKind[][] = [
   ['straw'],

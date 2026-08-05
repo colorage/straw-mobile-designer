@@ -23,6 +23,12 @@ interface ShapeGroupProps {
   scissorsHover?: boolean
   /** Click handler on the straw bodies (not the corner handles), used to pick a shape up for dragging. */
   onBodyClick?: (event: ThreeEvent<MouseEvent>) => void
+  /**
+   * Click handler for one straw. Fused pieces use this so scissors cuts the
+   * straw under the cursor instead of the whole piece; the hover tint follows
+   * that single straw too.
+   */
+  onEdgeClick?: (edgeIndex: number) => void
 }
 
 /** Renders a shape's straws plus (optionally) clickable corner handles. */
@@ -36,8 +42,10 @@ export function ShapeGroup({
   selected,
   scissorsHover,
   onBodyClick,
+  onEdgeClick,
 }: ShapeGroupProps) {
   const [hovered, setHovered] = useState(false)
+  const [hoveredEdge, setHoveredEdge] = useState<number | null>(null)
   const scaledVertices = useMemo(
     () => shape.vertices.map((_, i) => getScaledVertex(shape, i)),
     [shape],
@@ -45,9 +53,14 @@ export function ShapeGroup({
 
   const color = selected
     ? STRAW_COLOR_SELECTED
-    : scissorsHover && hovered
+    : scissorsHover && hovered && !onEdgeClick
       ? STRAW_COLOR_SCISSORS_HOVER
       : STRAW_COLOR
+
+  const edgeColor = (edgeIndex: number) =>
+    !selected && scissorsHover && onEdgeClick && hoveredEdge === edgeIndex
+      ? STRAW_COLOR_SCISSORS_HOVER
+      : color
 
   return (
     <group
@@ -69,14 +82,30 @@ export function ShapeGroup({
           : undefined
       }
     >
-      {shape.edges.map(([a, b], i) => (
-        <StrawMesh
-          key={i}
-          start={scaledVertices[a]}
-          end={scaledVertices[b]}
-          color={color}
-        />
-      ))}
+      {shape.edges.map(([a, b], i) => {
+        const straw = (
+          <StrawMesh start={scaledVertices[a]} end={scaledVertices[b]} color={edgeColor(i)} />
+        )
+        if (!onEdgeClick) return <group key={i}>{straw}</group>
+        return (
+          <group
+            key={i}
+            onClick={(event) => {
+              event.stopPropagation()
+              onEdgeClick(i)
+            }}
+            onPointerOver={(event) => {
+              event.stopPropagation()
+              setHoveredEdge(i)
+            }}
+            onPointerOut={() => {
+              setHoveredEdge((current) => (current === i ? null : current))
+            }}
+          >
+            {straw}
+          </group>
+        )
+      })}
       {interactive &&
         scaledVertices.map((vertex, i) => (
           <VertexHandle

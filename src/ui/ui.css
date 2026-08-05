@@ -281,6 +281,13 @@
   color: #ffffff;
 }
 
+.hud-rigid.is-active,
+.hud-rigid.is-active:hover:not(:disabled) {
+  background: #00695c;
+  border-color: #4db6ac;
+  color: #ffffff;
+}
+
 .hud-slot-label {
   font-size: 16px;
   font-weight: 600;

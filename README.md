@@ -5,9 +5,10 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 ## Features
 
 - **Primitives**: single straw lines, triangles (3 straws), 3-corner pyramids (tetrahedra), squares (4 straws), 4-corner (square) pyramids, and octahedra — the classic himmeli "diamond".
-- **Scissors tool**: click a straw to remove it; prebuilt shapes are deleted entirely.
+- **Scissors tool**: click a straw to remove it; prebuilt shapes are deleted entirely, while a fused loop is cut one straw at a time (the rest re-stiffens if it is still closed).
 - **Straw size selector**: `1`, `1/2`, `1/4` scale, applied to newly added shapes.
 - **Corner connections**: click a corner, then click another corner (or the ceiling hook) to tie a thread between them. Hold two corners overlapping for ~1 second to auto-connect — including free ends of hanging pieces once they settle (hub spokes already tied to the same corner are ignored). Toggle auto-connect with the magnet button (top-right, left of the theme switcher).
+- **Rigid loops**: when hand-tied straws close a loop (a triangle, a square, a pyramid face), the loop is fused into one rigid piece so it hangs as steadily as the equivalent prebuilt shape instead of wobbling on its thread joints. Toggle with the braced-frame button (top-right); switching it back on also stiffens loops you already built, and undo un-fuses.
 - **Undo / Redo**: reverse or re-apply design edits (add/remove shapes, connections, moves, straw size, reset, gallery load) via the Project panel or Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z.
 - **Gallery** (`/gallery`): named local saves with thumbnails; the current project is saved automatically on every edit and when opening the gallery. Browse/load/import/export/delete on the gallery page, plus **New** to clear the draft and start fresh in the designer.
 - **Straws Used panel**: a live count of straws in the design, broken down by size.

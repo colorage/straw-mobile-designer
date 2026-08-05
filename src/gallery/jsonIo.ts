@@ -15,6 +15,7 @@ const SHAPE_KINDS = new Set<ShapeKind>([
   'square',
   'squarePyramid',
   'octahedron',
+  'assembly',
 ])
 const STRAW_SIZES = new Set<StrawSize>([1, 0.5, 0.25])
 
