@@ -1,15 +1,17 @@
 /*
- * Buy Me a Coffee sits fixed in the bottom-right. Straw inventory stats stack
- * above it; keep these in sync so the button (and its shadow) never covers the
+ * Buy Me a Coffee sits fixed in the bottom-right. Straw inventory stats sit to
+ * its left; keep these in sync so the button (and its shadow) never covers the
  * summary — including when safe-area insets raise the control.
  */
 :root {
   --bmc-size: 44px;
-  --bmc-gap: 20px;
+  --bmc-gap: 12px;
   --bmc-right: max(18px, env(safe-area-inset-right, 0px));
   --bmc-bottom: max(18px, calc(env(safe-area-inset-bottom, 0px) + 10px));
-  --hud-stats-right: max(22px, env(safe-area-inset-right, 0px));
-  --hud-stats-bottom: calc(var(--bmc-bottom) + var(--bmc-size) + var(--bmc-gap));
+  --hud-stats-right: calc(var(--bmc-right) + var(--bmc-size) + var(--bmc-gap));
+  --hud-stats-bottom: var(--bmc-bottom);
+  /* Clearance above the bottom-right cluster (button + multi-line stats). */
+  --hud-bottom-right-clearance: calc(var(--bmc-bottom) + max(var(--bmc-size), 4.5em) + 12px);
 }
 
 .app-shell {
@@ -358,7 +360,8 @@
 
 .hud-stats-line {
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.3;
   font-weight: 600;
   color: var(--text-strong);
   text-shadow: var(--hud-text-shadow);
@@ -657,10 +660,9 @@
 @media (max-width: 900px), (max-height: 700px) {
   :root {
     --bmc-size: 40px;
-    --bmc-gap: 18px;
+    --bmc-gap: 10px;
     --bmc-right: max(12px, env(safe-area-inset-right, 0px));
     --bmc-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
-    --hud-stats-right: max(14px, env(safe-area-inset-right, 0px));
   }
 
   .hud-project-name,
@@ -707,8 +709,8 @@
 
   .hud-middle-right {
     top: max(72px, calc(env(safe-area-inset-top, 0px) + 56px));
-    /* Clear straw inventory + coffee button stacked in the bottom-right. */
-    bottom: max(var(--hud-stats-bottom), calc(env(safe-area-inset-bottom, 0px) + 54px));
+    /* Clear straw inventory + coffee button side-by-side in the bottom-right. */
+    bottom: max(var(--hud-bottom-right-clearance), calc(env(safe-area-inset-bottom, 0px) + 54px));
     right: max(12px, env(safe-area-inset-right, 0px));
     transform: none;
     overflow-x: hidden;
