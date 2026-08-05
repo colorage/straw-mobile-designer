@@ -5,6 +5,7 @@ import { captureCanvasThumbnail } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
 import { createGalleryId } from './ids'
 import { downloadEntryJson } from './jsonIo'
+import { nextProjectName } from './projectName'
 import type { GalleryEntry, GalleryFileEnvelope, ProjectSnapshot } from './types'
 
 const GALLERY_STORAGE_KEY = 'straw-mobile-designer/gallery'
@@ -59,7 +60,8 @@ export const useGalleryStore = create<GalleryState>()(
       activeGalleryId: null,
 
       saveCurrent: (name) => {
-        const trimmed = name.trim() || 'Untitled mobile'
+        const trimmed =
+          name.trim() || nextProjectName(get().entries.map((entry) => entry.name))
         const { project, thumbnailDataUrl } = captureSnapshotForSave()
         const now = new Date().toISOString()
         const id = createGalleryId()
@@ -183,6 +185,8 @@ export function persistDraftToGallery(): boolean {
     return true
   }
 
-  saveCurrent(projectName.trim() || 'Untitled mobile')
+  saveCurrent(
+    projectName.trim() || nextProjectName(entries.map((entry) => entry.name)),
+  )
   return true
 }

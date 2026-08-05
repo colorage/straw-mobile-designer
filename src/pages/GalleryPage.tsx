@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { suppressNextGalleryPersist } from '../gallery/autoPersist'
 import { useGalleryStore } from '../gallery/galleryStore'
 import { readGalleryFile } from '../gallery/jsonIo'
+import { nextProjectName } from '../gallery/projectName'
 import type { GalleryEntry } from '../gallery/types'
 import { useStrawMobileStore } from '../state/store'
 
@@ -47,6 +48,7 @@ export function GalleryPage() {
   const importEnvelope = useGalleryStore((s) => s.importEnvelope)
   const clearActive = useGalleryStore((s) => s.clearActive)
   const reset = useStrawMobileStore((s) => s.reset)
+  const setProjectName = useStrawMobileStore((s) => s.setProjectName)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -60,6 +62,7 @@ export function GalleryPage() {
     suppressNextGalleryPersist()
     reset()
     clearActive()
+    setProjectName(nextProjectName(entries.map((entry) => entry.name)))
     goToDesigner()
   }
 

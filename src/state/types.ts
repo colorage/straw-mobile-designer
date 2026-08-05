@@ -10,7 +10,7 @@ export const STRAW_SIZE_LABELS: Record<StrawSize, string> = {
   0.25: '1/4',
 }
 
-export const DEFAULT_PROJECT_NAME = 'Project name'
+export const DEFAULT_PROJECT_NAME = 'project 1'
 
 export type QuatTuple = [number, number, number, number]
 
