@@ -1,6 +1,9 @@
-import { getEndpointWorldPosition } from '../scene/endpointPosition'
-import { BASE_STRAW_LENGTH } from '../state/shapeSpace'
-import { endpointBodyKey, type Connection, type Shape } from '../state/types'
+import {
+  endpointBodyKey,
+  endpointVertexKey,
+  type Connection,
+  type Shape,
+} from '../state/types'
 
 /**
  * A closed loop of hand-tied straws that should behave as one rigid piece.
@@ -20,14 +23,7 @@ export interface FusableCluster {
 /** Kinds that may be swallowed into a fused piece; primitives stay cuttable. */
 const FUSABLE_KINDS = new Set(['straw', 'assembly'])
 
-/**
- * Two pins count as the same corner within this fraction of a straw length.
- * Loose enough to absorb reel-in slack, tight enough that distinct corners of
- * the smallest straw stay distinct.
- */
-const PIN_MERGE_FRACTION = 0.35
-
-/** A rigid loop has to span at least this many distinct corners (see below). */
+/** A rigid loop has to weld at least this many distinct corners (see below). */
 const MIN_DISTINCT_PINS = 3
 
 type GraphEdge = {
@@ -168,36 +164,41 @@ function collectCycleComponent(
 }
 
 /**
- * Count distinct corner locations the cluster's threads pin together.
+ * Count the distinct corners the cluster's threads weld together — connected
+ * components over tied endpoints, NOT spatial positions.
  *
  * Three straws tied pairwise at one shared corner form a graph cycle but a
- * floppy tripod — every thread lands on the same point, so there is nothing
- * rigid to freeze. Real loops (triangle, square, pyramid face) pin at three or
- * more separate corners.
+ * floppy tripod: all its ties collapse into a single weld group, so there is
+ * nothing rigid to freeze. Real loops (triangle, square, pyramid face) weld
+ * three or more separate corners. Counting topologically matters because a
+ * legitimate loop can fold flat while it is tied — a 4-straw cycle collapsed
+ * into a needle still has 4 weld groups even though its corner PAIRS overlap
+ * in space, and it deserves to fuse (and snap square) rather than stay floppy.
  */
-function countDistinctPins(
-  cluster: FusableCluster,
-  connections: Connection[],
-  shapesById: Map<string, Shape>,
-  tolerance: number,
-): number {
-  const pins: { x: number; y: number; z: number }[] = []
-  const toleranceSq = tolerance * tolerance
+function countWeldGroups(cluster: FusableCluster, connections: Connection[]): number {
+  const parent = new Map<string, string>()
+  const find = (key: string): string => {
+    const root = parent.get(key) ?? key
+    if (root === key) {
+      parent.set(key, key)
+      return key
+    }
+    const resolved = find(root)
+    parent.set(key, resolved)
+    return resolved
+  }
 
   for (const connection of connections) {
     if (!cluster.connectionIds.has(connection.id)) continue
-    const position = getEndpointWorldPosition(connection.a, shapesById)
-    if (!position) continue
-    const existing = pins.find((pin) => {
-      const dx = pin.x - position.x
-      const dy = pin.y - position.y
-      const dz = pin.z - position.z
-      return dx * dx + dy * dy + dz * dz <= toleranceSq
-    })
-    if (!existing) pins.push({ x: position.x, y: position.y, z: position.z })
+    if (connection.a.kind !== 'shape' || connection.b.kind !== 'shape') continue
+    const rootA = find(endpointVertexKey(connection.a))
+    const rootB = find(endpointVertexKey(connection.b))
+    if (rootA !== rootB) parent.set(rootB, rootA)
   }
 
-  return pins.length
+  const roots = new Set<string>()
+  for (const key of parent.keys()) roots.add(find(key))
+  return roots.size
 }
 
 export interface FusableClusterOptions {
@@ -242,10 +243,7 @@ export function findFusableCluster(
   const size = members[0].size
   if (members.some((shape) => shape.size !== size)) return null
 
-  const tolerance = PIN_MERGE_FRACTION * size * BASE_STRAW_LENGTH
-  if (countDistinctPins(cluster, connections, shapesById, tolerance) < MIN_DISTINCT_PINS) {
-    return null
-  }
+  if (countWeldGroups(cluster, connections) < MIN_DISTINCT_PINS) return null
 
   return cluster
 }
