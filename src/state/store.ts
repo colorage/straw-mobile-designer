@@ -1,8 +1,14 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
-import { PRIMITIVE_GENERATORS, type ShapeKind, type Vector3Tuple } from '../geometry/primitives'
+import {
+  PRIMITIVE_GENERATORS,
+  type PrimitiveKind,
+  type Vector3Tuple,
+} from '../geometry/primitives'
+import { fuseShapes } from '../geometry/fuseShapes'
 import { clearBodyRef, getBodyRef } from '../physics/bodyRefRegistry'
 import { buildReelIns, connectionInvolvesReelIn, reelInBodyKeys } from '../physics/reelIn'
+import { findFusableCluster } from '../physics/rigidClusters'
 import {
   computeFreeTightenPoses,
   computeHangingClosePoses,
@@ -15,6 +21,7 @@ import {
   DEFAULT_PROJECT_NAME,
   endpointBodyKey,
   endpointsEqual,
+  endpointVertexKey,
   EMPTY_SLOTS,
   normalizeSlots,
   type Connection,
@@ -248,6 +255,11 @@ interface StrawMobileState {
    * undo/redo/load/reset.
    */
   overlapScannerEnabled: boolean
+  /**
+   * User toggle for fusing closed straw loops into one rigid piece. Session-only;
+   * turn it off to keep every tie floppy. Not reset by undo/redo/load/reset.
+   */
+  rigidLoopsEnabled: boolean
   /** Shapes currently selected (last id is the primary / gizmo target). */
   selectedShapeIds: string[]
   /** Anchor for Shift+range selection in the sidebar list. */
@@ -294,10 +306,14 @@ interface StrawMobileState {
   setOverlapScannerEnabled: (enabled: boolean) => void
   /** Toggle the overlap proximity scanner on/off. */
   toggleOverlapScanner: () => void
+  /** Turn rigid-loop fusing on or off (existing fused pieces are left alone). */
+  setRigidLoopsEnabled: (enabled: boolean) => void
+  /** Toggle rigid-loop fusing on/off. */
+  toggleRigidLoops: () => void
   setAnchorY: (y: number) => void
   undo: () => void
   redo: () => void
-  addShape: (kind: ShapeKind, position?: Vector3Tuple) => string
+  addShape: (kind: PrimitiveKind, position?: Vector3Tuple) => string
   removeShape: (id: string) => void
   removeShapes: (ids: string[]) => void
   setStrawSize: (size: StrawSize) => void
@@ -337,6 +353,153 @@ interface StrawMobileState {
   /** Replace the working design with a saved snapshot (gallery load / import). */
   loadProject: (snapshot: PersistedMobileState & { slots?: SlotBuffers }) => void
   getStrawCounts: () => StrawCounts
+}
+
+type SetStrawMobileState = (
+  partial: Partial<StrawMobileState> | ((state: StrawMobileState) => Partial<StrawMobileState>),
+) => void
+
+/** Safety valve: a fuse can open the next loop, but never loop forever. */
+const MAX_FUSE_PASSES = 4
+
+function connectionTouches(connection: Connection, shapeIds: ReadonlySet<string>): boolean {
+  return (
+    (connection.a.kind === 'shape' && shapeIds.has(connection.a.shapeId)) ||
+    (connection.b.kind === 'shape' && shapeIds.has(connection.b.shapeId))
+  )
+}
+
+/**
+ * Replace a closed loop of hand-tied straws with one fused shape.
+ *
+ * Threads are ball joints, so an N-straw ring is N soft-linked bodies where the
+ * toolbar equivalent is a single rigid body — which is exactly why hand-built
+ * pyramids wobble. Merging the ring into one shape hands it to the same code
+ * path a primitive uses. Returns the fused shape id, or null when the tie only
+ * added a floppy branch.
+ */
+function fuseCycleCluster(
+  set: SetStrawMobileState,
+  get: () => StrawMobileState,
+  newConnection: Connection,
+): string | null {
+  const state = get()
+  const cluster = findFusableCluster(state.shapes, state.connections, newConnection, {
+    reelingIds: reelInBodyKeys(state.reelIns),
+  })
+  if (!cluster) return null
+
+  const members = state.shapes.filter((shape) => cluster.shapeIds.has(shape.id))
+  if (members.length !== cluster.shapeIds.size) return null
+  const internalConnections = state.connections.filter((connection) =>
+    cluster.connectionIds.has(connection.id),
+  )
+
+  const fusedId = createId()
+  const fused = fuseShapes(members, internalConnections, fusedId)
+  if (!fused) return null
+
+  const remapEndpointToFused = (endpoint: EndpointRef): EndpointRef | null => {
+    if (endpoint.kind === 'anchor' || !cluster.shapeIds.has(endpoint.shapeId)) return endpoint
+    const vertexIndex = fused.vertexMap.get(endpointVertexKey(endpoint))
+    if (vertexIndex === undefined) return null
+    return { kind: 'shape', shapeId: fusedId, vertexIndex }
+  }
+
+  const nextConnections: Connection[] = []
+  const seenPairs = new Set<string>()
+  for (const connection of state.connections) {
+    if (cluster.connectionIds.has(connection.id)) continue
+    const a = remapEndpointToFused(connection.a)
+    const b = remapEndpointToFused(connection.b)
+    if (!a || !b) continue
+    // Both ends landing on the fused body would be a joint with itself.
+    if (a.kind === 'shape' && b.kind === 'shape' && a.shapeId === b.shapeId) continue
+    // Two threads can collapse onto the same corner pair once corners weld.
+    const keys = [endpointVertexKey(a), endpointVertexKey(b)].sort()
+    const pairKey = `${keys[0]}|${keys[1]}`
+    if (seenPairs.has(pairKey)) continue
+    seenPairs.add(pairKey)
+    nextConnections.push(a === connection.a && b === connection.b ? connection : { ...connection, a, b })
+  }
+
+  const survivingIds = new Set(nextConnections.map((connection) => connection.id))
+  const firstMemberIndex = state.shapes.findIndex((shape) => cluster.shapeIds.has(shape.id))
+  const nextShapes = state.shapes.filter((shape) => !cluster.shapeIds.has(shape.id))
+  nextShapes.splice(
+    firstMemberIndex < 0 ? nextShapes.length : firstMemberIndex,
+    0,
+    fused.shape,
+  )
+
+  for (const id of cluster.shapeIds) clearBodyRef(id)
+
+  const nextReelPositions = { ...state.reelPositions }
+  const nextReelQuaternions = { ...state.reelQuaternions }
+  for (const id of cluster.shapeIds) {
+    delete nextReelPositions[id]
+    delete nextReelQuaternions[id]
+  }
+
+  const touchesCluster = (endpoint: EndpointRef | undefined) =>
+    endpoint?.kind === 'shape' && cluster.shapeIds.has(endpoint.shapeId)
+  const selectedShapeIds = [
+    ...new Set(
+      state.selectedShapeIds.map((id) => (cluster.shapeIds.has(id) ? fusedId : id)),
+    ),
+  ]
+
+  set((current) => ({
+    shapes: nextShapes,
+    connections: nextConnections,
+    reelIns: current.reelIns.filter((reel) => !cluster.shapeIds.has(reel.shapeId)),
+    reelPositions: nextReelPositions,
+    reelQuaternions: nextReelQuaternions,
+    deferredConnectionIds: current.deferredConnectionIds.filter((id) => survivingIds.has(id)),
+    pendingVertex: touchesCluster(current.pendingVertex ?? undefined)
+      ? null
+      : current.pendingVertex,
+    overlapSuggest:
+      touchesCluster(current.overlapSuggest?.a) || touchesCluster(current.overlapSuggest?.b)
+        ? null
+        : current.overlapSuggest,
+    overlapScanWakeToken: current.overlapScanWakeToken + 1,
+    selectedShapeIds,
+    selectionAnchorId:
+      current.selectionAnchorId && cluster.shapeIds.has(current.selectionAnchorId)
+        ? fusedId
+        : current.selectionAnchorId,
+  }))
+
+  return fusedId
+}
+
+/**
+ * Fuse every closed loop reachable from the shapes that just moved or got tied.
+ * A fused piece can itself close the next loop (a square grown into a pyramid),
+ * so the freshly fused id is fed back in.
+ */
+function fuseClosedLoopsAround(
+  set: SetStrawMobileState,
+  get: () => StrawMobileState,
+  seedIds: Iterable<string>,
+): void {
+  const seeds = new Set(seedIds)
+  if (seeds.size === 0) return
+
+  for (let pass = 0; pass < MAX_FUSE_PASSES; pass++) {
+    if (!get().rigidLoopsEnabled) return
+    const candidates = get().connections.filter((connection) =>
+      connectionTouches(connection, seeds),
+    )
+    let fusedId: string | null = null
+    for (const candidate of candidates) {
+      fusedId = fuseCycleCluster(set, get, candidate)
+      if (fusedId) break
+    }
+    if (!fusedId) return
+    seeds.add(fusedId)
+  }
 }
 
 /** Drop registry entries and bump the epoch so Rapier bodies remount cleanly. */
@@ -391,6 +554,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       overlapScanWakeToken: 0,
       overlapScanUi: null,
       overlapScannerEnabled: true,
+      rigidLoopsEnabled: true,
       selectedShapeIds: [],
       selectionAnchorId: null,
       activeTool: 'none',
@@ -432,6 +596,15 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       toggleOverlapScanner: () => {
         get().setOverlapScannerEnabled(!get().overlapScannerEnabled)
+      },
+
+      setRigidLoopsEnabled: (enabled) => {
+        if (get().rigidLoopsEnabled === enabled) return
+        set({ rigidLoopsEnabled: enabled })
+      },
+
+      toggleRigidLoops: () => {
+        get().setRigidLoopsEnabled(!get().rigidLoopsEnabled)
       },
 
       pushHistory: () => {
@@ -700,6 +873,13 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             reelQuaternions: nextReelQuaternions,
           }
         })
+
+        // A tie that closed a loop becomes one rigid piece. Pieces still reeling
+        // are skipped here and retried from finishReelIns once poses land.
+        const seedIds: string[] = []
+        if (a.kind === 'shape') seedIds.push(a.shapeId)
+        if (b.kind === 'shape') seedIds.push(b.shapeId)
+        fuseClosedLoopsAround(set, get, seedIds)
         return true
       },
 
@@ -976,6 +1156,9 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             }),
           }
         })
+
+        // Corners have met now, so a loop closed by this reel can finally fuse.
+        fuseClosedLoopsAround(set, get, completedIds)
       },
 
       reset: () => {

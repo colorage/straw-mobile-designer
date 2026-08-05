@@ -145,8 +145,16 @@ export type ShapeKind =
   | 'square'
   | 'squarePyramid'
   | 'octahedron'
+  /**
+   * A closed loop of hand-tied straws fused into one rigid piece. Has no
+   * generator — its geometry is merged from the shapes it replaced.
+   */
+  | 'assembly'
 
-export const PRIMITIVE_GENERATORS: Record<ShapeKind, () => PrimitiveGeometry> = {
+/** Kinds that can be spawned from a generator (everything but a fused assembly). */
+export type PrimitiveKind = Exclude<ShapeKind, 'assembly'>
+
+export const PRIMITIVE_GENERATORS: Record<PrimitiveKind, () => PrimitiveGeometry> = {
   straw,
   triangle,
   tetrahedron,
@@ -162,4 +170,5 @@ export const SHAPE_LABELS: Record<ShapeKind, string> = {
   square: 'Square',
   squarePyramid: '4-Corner Pyramid',
   octahedron: 'Octahedron',
+  assembly: 'Assembly',
 }

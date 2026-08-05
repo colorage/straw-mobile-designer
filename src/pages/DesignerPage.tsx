@@ -1,5 +1,5 @@
 import type { DragEvent } from 'react'
-import { SHAPE_LABELS, type ShapeKind } from '../geometry/primitives'
+import { PRIMITIVE_GENERATORS, type PrimitiveKind } from '../geometry/primitives'
 import { Experience } from '../scene/Experience'
 import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME, screenToWorkbenchPlane } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
@@ -11,13 +11,13 @@ import { SizeSelector } from '../ui/SizeSelector'
 import { StrawInventory } from '../ui/StrawInventory'
 import { Toolbar } from '../ui/Toolbar'
 
-const SHAPE_KINDS = new Set<string>(Object.keys(SHAPE_LABELS))
+const SHAPE_KINDS = new Set<string>(Object.keys(PRIMITIVE_GENERATORS))
 
-function isShapeKind(value: string): value is ShapeKind {
+function isShapeKind(value: string): value is PrimitiveKind {
   return SHAPE_KINDS.has(value)
 }
 
-function readDraggedShapeKind(dataTransfer: DataTransfer): ShapeKind | null {
+function readDraggedShapeKind(dataTransfer: DataTransfer): PrimitiveKind | null {
   const custom = dataTransfer.getData(SHAPE_DRAG_MIME)
   if (isShapeKind(custom)) return custom
   const plain = dataTransfer.getData(SHAPE_DRAG_TEXT_MIME)

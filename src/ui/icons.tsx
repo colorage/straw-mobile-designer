@@ -243,3 +243,27 @@ export function MagnetIcon({ className, title }: IconProps) {
   )
 }
 
+/** A braced frame with welded corners — closed loops simulated as one rigid piece. */
+export function RigidLoopIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <rect
+        x="5.5"
+        y="5.5"
+        width="13"
+        height="13"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        rx="0.5"
+      />
+      <path fill="none" stroke="currentColor" strokeWidth="1.5" d="M5.5 5.5 18.5 18.5" />
+      <circle cx="5.5" cy="5.5" r="2" fill="currentColor" />
+      <circle cx="18.5" cy="5.5" r="2" fill="currentColor" />
+      <circle cx="5.5" cy="18.5" r="2" fill="currentColor" />
+      <circle cx="18.5" cy="18.5" r="2" fill="currentColor" />
+    </svg>
+  )
+}
+

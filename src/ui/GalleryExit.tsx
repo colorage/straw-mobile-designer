@@ -2,9 +2,9 @@ import { Link } from 'react-router-dom'
 import { flushGalleryPersist } from '../gallery/autoPersist'
 import { useStrawMobileStore } from '../state/store'
 import { useThemeStore } from '../state/themeStore'
-import { GridIcon, MagnetIcon, MoonIcon, SunIcon } from './icons'
+import { GridIcon, MagnetIcon, MoonIcon, RigidLoopIcon, SunIcon } from './icons'
 
-/** Top-right controls: scanner toggle, theme toggle, and gallery exit. */
+/** Top-right controls: rigid-loop toggle, scanner toggle, theme toggle, gallery exit. */
 export function GalleryExit() {
   const theme = useThemeStore((s) => s.theme)
   const toggleTheme = useThemeStore((s) => s.toggleTheme)
@@ -17,8 +17,24 @@ export function GalleryExit() {
     ? 'Disable connection scanner'
     : 'Enable connection scanner'
 
+  const rigidLoopsEnabled = useStrawMobileStore((s) => s.rigidLoopsEnabled)
+  const toggleRigidLoops = useStrawMobileStore((s) => s.toggleRigidLoops)
+  const rigidLoopsLabel = rigidLoopsEnabled
+    ? 'Keep closed loops floppy'
+    : 'Fuse closed loops into rigid pieces'
+
   return (
     <div className="hud-cluster hud-top-right">
+      <button
+        type="button"
+        className={`hud-icon-button hud-rigid${rigidLoopsEnabled ? ' is-active' : ''}`}
+        title={rigidLoopsLabel}
+        aria-label={rigidLoopsLabel}
+        aria-pressed={rigidLoopsEnabled}
+        onClick={toggleRigidLoops}
+      >
+        <RigidLoopIcon className="hud-icon" />
+      </button>
       <button
         type="button"
         className={`hud-icon-button hud-magnet${scannerEnabled ? ' is-active' : ''}`}

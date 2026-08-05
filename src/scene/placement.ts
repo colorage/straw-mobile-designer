@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import {
   PRIMITIVE_GENERATORS,
-  type ShapeKind,
+  type PrimitiveKind,
   type Vector3Tuple,
 } from '../geometry/primitives'
 import { getBodyRef } from '../physics/bodyRefRegistry'
@@ -93,7 +93,7 @@ export function shapeWorldAabb(shape: Shape, useLivePose = true): Aabb {
 }
 
 /** Local AABB of a brand-new primitive at the given straw size (identity rotation). */
-function newShapeLocalAabb(kind: ShapeKind, size: StrawSize): Aabb {
+function newShapeLocalAabb(kind: PrimitiveKind, size: StrawSize): Aabb {
   const { vertices } = PRIMITIVE_GENERATORS[kind]()
   const scale = size * BASE_STRAW_LENGTH
   const min = new THREE.Vector3(Infinity, Infinity, Infinity)
@@ -219,7 +219,11 @@ function findFreeSpacePosition(occupied: Aabb[], localAabb: Aabb): Vector3Tuple 
  * overlap existing shapes. Falls back to the nearest clear candidate if nothing
  * lands fully in-frustum.
  */
-export function findAddPosition(shapes: Shape[], kind: ShapeKind, size: StrawSize): Vector3Tuple {
+export function findAddPosition(
+  shapes: Shape[],
+  kind: PrimitiveKind,
+  size: StrawSize,
+): Vector3Tuple {
   // Live poses so free workbench shapes occupy space the same as hanging ones.
   return findFreeSpacePosition(
     shapes.map((shape) => shapeWorldAabb(shape, true)),
