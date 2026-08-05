@@ -331,14 +331,15 @@ export function MagnetIcon({ className, title }: IconProps) {
         strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
-        d="M7 4.5v7.25a5 5 0 0 0 10 0V4.5"
+        d="M6 3.5h3.5v4.25H6zM14.5 3.5H18v4.25h-3.5z"
       />
       <path
         fill="none"
         stroke="currentColor"
         strokeWidth="1.75"
         strokeLinecap="round"
-        d="M7 4.5H4.75M17 4.5h2.25M7 8.5H4.75M17 8.5h2.25"
+        strokeLinejoin="round"
+        d="M6 7.75v3.75a6 6 0 0 0 12 0V7.75"
       />
     </svg>
   )
