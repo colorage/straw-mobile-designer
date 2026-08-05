@@ -58,15 +58,25 @@ export {
  * so reloading the page — or closing and reopening the tab later — picks up
  * right where things were left off. Selection buffer slots are persisted with
  * the draft (and each gallery project) so they stay per-project.
- * Transient UI state (what's mid-click / selected / reeling) intentionally
- * always starts fresh, see `partialize` below.
+ * Edit-tool and mode toggles (select/scissors, overlap scanner, rigid loops)
+ * are persisted across reloads; mid-click / selection / reel-in still start
+ * fresh — see `partialize` below.
  */
 const PERSISTED_STORAGE_KEY = 'straw-mobile-designer/project'
-const PERSISTED_STORAGE_VERSION = 4
+const PERSISTED_STORAGE_VERSION = 5
 /** Max design snapshots kept for undo / redo. */
 const HISTORY_LIMIT = 50
 /** World offset applied to duplicated shapes so copies don't stack. */
 const DUPLICATE_OFFSET: Vector3Tuple = [0.45, 0.45, 0]
+
+/** Transient edit tool: orbit/navigate, select/marquee, or click-to-cut. */
+export type ActiveTool = 'none' | 'select' | 'scissors'
+
+const ACTIVE_TOOLS: readonly ActiveTool[] = ['none', 'select', 'scissors']
+
+function normalizeActiveTool(value: unknown): ActiveTool {
+  return ACTIVE_TOOLS.includes(value as ActiveTool) ? (value as ActiveTool) : 'none'
+}
 
 const createId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -98,6 +108,12 @@ export type PersistedDraftState = PersistedMobileState & {
   lastSavedAt: number
   /** Per-project selection buffers (toolbar 1/2/3). */
   slots: SlotBuffers
+  /** Last active edit tool (select / scissors / none). */
+  activeTool: ActiveTool
+  /** Whether the overlap proximity scanner is on. */
+  overlapScannerEnabled: boolean
+  /** Whether closed straw loops fuse into rigid pieces. */
+  rigidLoopsEnabled: boolean
 }
 
 /** Clone the durable design fields for a history entry. */
@@ -152,9 +168,6 @@ function withSyncedLeavingHanging(
   })
   return changed ? updated : shapes
 }
-
-/** Transient edit tool: orbit/navigate, select/marquee, or click-to-cut. */
-export type ActiveTool = 'none' | 'select' | 'scissors'
 
 /** Snapshot selected shapes and threads that connect only within the set. */
 function snapshotSelectedBuffer(
@@ -257,20 +270,21 @@ interface StrawMobileState {
    */
   overlapScanUi: OverlapScanUi | null
   /**
-   * User toggle for the overlap proximity scanner. Session-only; not reset by
-   * undo/redo/load/reset.
+   * User toggle for the overlap proximity scanner. Persisted across reloads;
+   * not reset by undo/redo/load/reset.
    */
   overlapScannerEnabled: boolean
   /**
-   * User toggle for fusing closed straw loops into one rigid piece. Session-only;
-   * turn it off to keep every tie floppy. Not reset by undo/redo/load/reset.
+   * User toggle for fusing closed straw loops into one rigid piece. Persisted
+   * across reloads; turn it off to keep every tie floppy. Not reset by
+   * undo/redo/load/reset.
    */
   rigidLoopsEnabled: boolean
   /** Shapes currently selected (last id is the primary / gizmo target). */
   selectedShapeIds: string[]
   /** Anchor for Shift+range selection in the sidebar list. */
   selectionAnchorId: string | null
-  /** Current edit tool (not persisted). */
+  /** Current edit tool (persisted across reloads; cleared on undo/load/reset). */
   activeTool: ActiveTool
   /**
    * Per-project selection buffers (toolbar 1/2/3). Persisted with the draft and
@@ -1324,7 +1338,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       name: PERSISTED_STORAGE_KEY,
       version: PERSISTED_STORAGE_VERSION,
       storage: createJSONStorage(() => localStorage),
-      // Click-in-progress / selection / reel-in / undo stacks are transient.
+      // Click-in-progress / selection / reel-in / undo stacks are transient;
+      // tool mode prefs (activeTool, scanner, rigid loops) survive reloads.
       partialize: (state): PersistedDraftState => ({
         shapes: state.shapes,
         connections: state.connections,
@@ -1332,28 +1347,23 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         projectName: state.projectName,
         lastSavedAt: state.lastSavedAt,
         slots: state.slots,
+        activeTool: state.activeTool,
+        overlapScannerEnabled: state.overlapScannerEnabled,
+        rigidLoopsEnabled: state.rigidLoopsEnabled,
       }),
-      migrate: (persisted, version) => {
-        const state = persisted as PersistedDraftState & { placedCount?: number }
+      migrate: (persisted, _version) => {
+        const state = persisted as Partial<PersistedDraftState> & { placedCount?: number }
         // Drop legacy workbench slot counter; placement is camera-aware now.
         const { placedCount: _placedCount, ...rest } = state
-        if (version < 3) {
-          return {
-            ...rest,
-            projectName: rest.projectName ?? DEFAULT_PROJECT_NAME,
-            lastSavedAt: rest.lastSavedAt ?? Date.now(),
-            slots: normalizeSlots(rest.slots),
-          }
-        }
-        if (version < 4) {
-          return {
-            ...rest,
-            slots: normalizeSlots(rest.slots),
-          }
-        }
         return {
           ...rest,
+          projectName: rest.projectName ?? DEFAULT_PROJECT_NAME,
+          lastSavedAt: rest.lastSavedAt ?? Date.now(),
           slots: normalizeSlots(rest.slots),
+          // v5+: restore tool modes; older drafts get defaults.
+          activeTool: normalizeActiveTool(rest.activeTool),
+          overlapScannerEnabled: rest.overlapScannerEnabled ?? true,
+          rigidLoopsEnabled: rest.rigidLoopsEnabled ?? true,
         }
       },
       merge: (persisted, current) => {
@@ -1372,7 +1382,9 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           // Wake the scanner after hydrating a saved draft.
           overlapScanWakeToken: current.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
-          activeTool: 'none',
+          activeTool: normalizeActiveTool(saved.activeTool ?? current.activeTool),
+          overlapScannerEnabled: saved.overlapScannerEnabled ?? current.overlapScannerEnabled,
+          rigidLoopsEnabled: saved.rigidLoopsEnabled ?? current.rigidLoopsEnabled,
           slots: normalizeSlots(saved.slots),
           past: [],
           future: [],
