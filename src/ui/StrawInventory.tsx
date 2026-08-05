@@ -10,7 +10,7 @@ import { useStrawMobileStore } from '../state/store'
 /** How often to re-measure while pieces may be hanging / settling. */
 const SIZE_REFRESH_MS = 250
 
-/** Bottom-right live tally: solid-equivalent total, per-size counts, and size in cm. */
+/** Bottom-right live tally (left of Buy Me a Coffee): solid-equivalent total, per-size counts, and size in cm. */
 export function StrawInventory() {
   const shapes = useStrawMobileStore((s) => s.shapes)
   const counts = useMemo(() => computeStrawCounts(shapes), [shapes])
