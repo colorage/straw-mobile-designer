@@ -219,6 +219,107 @@ export function CoffeeIcon({ className, title }: IconProps) {
   )
 }
 
+/** Full (size-1) straw length — bold numeral matching the fraction icons. */
+export function SizeOneIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <text
+        x="12"
+        y="12.5"
+        fill="currentColor"
+        fontSize="15"
+        fontWeight="700"
+        fontFamily="system-ui, 'Segoe UI', sans-serif"
+        textAnchor="middle"
+        dominantBaseline="central"
+      >
+        1
+      </text>
+    </svg>
+  )
+}
+
+/** Diagonal 1/2 fraction glyph for half-straw length. */
+export function SizeHalfIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <text
+        x="6.5"
+        y="10"
+        fill="currentColor"
+        fontSize="11"
+        fontWeight="700"
+        fontFamily="system-ui, 'Segoe UI', sans-serif"
+        textAnchor="middle"
+        dominantBaseline="central"
+      >
+        1
+      </text>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        d="M16.5 5.5 7.5 18.5"
+      />
+      <text
+        x="17.5"
+        y="17.5"
+        fill="currentColor"
+        fontSize="11"
+        fontWeight="700"
+        fontFamily="system-ui, 'Segoe UI', sans-serif"
+        textAnchor="middle"
+        dominantBaseline="central"
+      >
+        2
+      </text>
+    </svg>
+  )
+}
+
+/** Diagonal 1/4 fraction glyph for quarter-straw length. */
+export function SizeQuarterIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <text
+        x="6.5"
+        y="10"
+        fill="currentColor"
+        fontSize="11"
+        fontWeight="700"
+        fontFamily="system-ui, 'Segoe UI', sans-serif"
+        textAnchor="middle"
+        dominantBaseline="central"
+      >
+        1
+      </text>
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        d="M16.5 5.5 7.5 18.5"
+      />
+      <text
+        x="17.5"
+        y="17.5"
+        fill="currentColor"
+        fontSize="11"
+        fontWeight="700"
+        fontFamily="system-ui, 'Segoe UI', sans-serif"
+        textAnchor="middle"
+        dominantBaseline="central"
+      >
+        4
+      </text>
+    </svg>
+  )
+}
+
 /** Horseshoe magnet for the connection-scanner toggle. */
 export function MagnetIcon({ className, title }: IconProps) {
   return (
