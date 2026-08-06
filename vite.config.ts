@@ -1,24 +1,5 @@
-import { copyFileSync, existsSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
-
-/**
- * GitHub Pages serves 404.html for unknown paths. Copying index.html there
- * lets client routes like /gallery work on refresh/deep link.
- */
-function spaFallback404Plugin(): Plugin {
-  return {
-    name: 'spa-fallback-404',
-    closeBundle() {
-      const outDir = resolve(process.cwd(), 'dist')
-      const indexHtml = resolve(outDir, 'index.html')
-      const notFoundHtml = resolve(outDir, '404.html')
-      if (!existsSync(indexHtml)) return
-      copyFileSync(indexHtml, notFoundHtml)
-    },
-  }
-}
 
 /**
  * Production builds left <Physics> stuck on its Suspense fallback (grid only).
@@ -78,9 +59,8 @@ function rapierSyncPhysicsPlugin(): Plugin {
   }
 }
 
-// Site is served from the custom domain root (spider.siaroza.com), not the
-// /straw-mobile-designer/ project-pages path — base must be '/' or JS/CSS 404.
+// Served from the domain root on Vercel — base must be '/' or JS/CSS 404.
 export default defineConfig({
   base: '/',
-  plugins: [rapierSyncPhysicsPlugin(), react(), spaFallback404Plugin()],
+  plugins: [rapierSyncPhysicsPlugin(), react()],
 })

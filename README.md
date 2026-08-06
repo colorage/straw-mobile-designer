@@ -38,25 +38,57 @@ npm run build
 
 ## Deployment
 
-This repo deploys to GitHub Pages automatically via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to `main`.
+This app deploys on **Vercel** via Git integration.
 
-The workflow builds the Vite app and publishes the `dist/` output to the **`gh-pages`** branch. Pages must serve that branch — **not** `main` (serving `main` publishes raw `/src/main.tsx` and breaks the app).
+| Branch | Environment | URL |
+|--------|-------------|-----|
+| `main` | Production | your production domain |
+| `preview` | Preview (staging) | https://preview.pavuk.club |
+| other feature branches / PRs | Preview | unique `*.vercel.app` URL per deploy |
 
-In **Settings → Pages**:
-- **Source**: Deploy from a branch
-- **Branch**: `gh-pages` / `/` (root)
-- **Custom domain**: `spider.siaroza.com`
+[`vercel.json`](vercel.json) rewrites all routes to `index.html` so client routes like `/gallery` work on refresh.
 
-Leave it on `gh-pages`; do not point Pages at `main`.
+### Staging domain (`preview.pavuk.club`)
 
-Actions cannot change these settings (the Pages update API returns 403 for workflow tokens), so if they drift the workflow fails with an error pointing here — fix them manually in the UI.
+In the Vercel project:
 
-### If the site is stuck on old/broken HTML
+1. **Settings → Git** — Production Branch = `main`
+2. **Settings → Domains** — add `preview.pavuk.club` and assign it to Git branch **`preview`** (not Production)
+3. At the `pavuk.club` DNS host, add the record Vercel shows (typically **CNAME** `preview` → `cname.vercel-dns.com`)
+4. Wait until the domain status is **Valid** (SSL ready)
 
-1. Open [Settings → Pages](https://github.com/colorage/straw-mobile-designer/settings/pages) and verify: Source = **Deploy from a branch → `gh-pages` / (root)**, custom domain = `spider.siaroza.com` (DNS already points `spider.siaroza.com` → `colorage.github.io`).
-2. Open [Actions](https://github.com/colorage/straw-mobile-designer/actions) and cancel any **pages build and deployment** run stuck on `deployment_in_progress`.
-3. Re-run **Deploy to GitHub Pages** (Actions → workflow_dispatch) or push to `main`.
+### Merge workflow (feature → preview → main)
 
-Do not give custom workflows the concurrency group `pages` — GitHub's built-in **pages build and deployment** workflow uses that group, so a workflow that holds it while waiting for the site to update blocks the Pages build itself (this caused the past `deployment_in_progress` hangs).
+Do not merge feature work straight into `main`. Promote through staging first.
 
-When healthy, https://spider.siaroza.com/ must reference `/assets/*.js` — never `/src/main.tsx`.
+**1. Branch from `preview`**
+
+```bash
+git checkout preview
+git pull origin preview
+git checkout -b feature/my-change
+# ... commit ...
+git push -u origin feature/my-change
+```
+
+**2. Merge into staging**
+
+1. Open a PR: **`feature/my-change` → `preview`** (not `main`)
+2. Use the Vercel Preview URL on the PR for PR-specific checks
+3. Merge into `preview`
+4. Test the staging site at **https://preview.pavuk.club**
+
+**3. Promote to production**
+
+1. Open a PR: **`preview` → `main`**
+2. Review the staging-tested changes
+3. Merge into `main` — Vercel deploys Production
+
+**4. Keep `preview` in sync after hotfixes on `main`**
+
+```bash
+git checkout preview
+git pull origin preview
+git merge main
+git push origin preview
+```
