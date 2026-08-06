@@ -71,6 +71,20 @@ export async function upsertCloudEntries(
 
 export async function deleteCloudEntry(id: string): Promise<void> {
   if (!supabase) throw new Error('Accounts are unavailable.')
-  const { error } = await supabase.from('projects').delete().eq('id', id)
+  // Confirm the row is visible first so a silent 0-row delete (typical when
+  // RLS blocks) is not mistaken for success, while a retry after a real
+  // delete stays idempotent.
+  const { data: existing, error: readError } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle()
+  if (readError) throw new Error(readError.message)
+  if (!existing) return
+
+  const { data, error } = await supabase.from('projects').delete().eq('id', id).select('id')
   if (error) throw new Error(error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Could not delete that mobile from your account.')
+  }
 }
