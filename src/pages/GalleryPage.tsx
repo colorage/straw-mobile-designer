@@ -13,6 +13,12 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useStrawMobileStore } from '../state/store'
 import { AccountControl } from '../ui/AccountControl'
 import { AccountNotices } from '../ui/AccountNotices'
+import {
+  DownloadIcon,
+  PublishIcon,
+  TrashIcon,
+  UnpublishIcon,
+} from '../ui/icons'
 
 function confirmOverwriteDraft(): boolean {
   const { shapes } = useStrawMobileStore.getState()
@@ -239,53 +245,53 @@ export function GalleryPage() {
                     <span className="gallery-item-date">{formatRelativeDate(entry.updatedAt)}</span>
                   </div>
                   <div className="gallery-item-actions">
-                    <button type="button" className="gallery-item-button" onClick={() => handleLoad(entry)}>
-                      Load
-                    </button>
-                    <button
-                      type="button"
-                      className="gallery-item-button"
-                      onClick={() => exportEntry(entry.id)}
-                    >
-                      Export
-                    </button>
                     {isCommunityEnabled && !isPublished && (
                       <button
                         type="button"
-                        className="gallery-item-button"
+                        className="gallery-item-icon-button"
                         disabled={isPublishPending}
+                        title={isPublishPending ? 'Publishing…' : 'Publish to community'}
+                        aria-label={
+                          isPublishPending ? `Publishing ${entry.name}` : `Publish ${entry.name}`
+                        }
                         onClick={() => handlePublish(entry)}
                       >
-                        {isPublishPending ? 'Publishing…' : 'Publish'}
+                        <PublishIcon className="gallery-item-icon" />
                       </button>
                     )}
                     {isCommunityEnabled && isPublished && (
-                      <>
-                        <button
-                          type="button"
-                          className="gallery-item-button"
-                          disabled={isPublishPending}
-                          title="Push the latest version of this mobile to the community gallery"
-                          onClick={() => handlePublish(entry)}
-                        >
-                          {isPublishPending ? 'Updating…' : 'Update'}
-                        </button>
-                        <button
-                          type="button"
-                          className="gallery-item-button gallery-item-button-danger"
-                          disabled={isPublishPending}
-                          onClick={() => handleUnpublish(entry)}
-                        >
-                          Unpublish
-                        </button>
-                      </>
+                      <button
+                        type="button"
+                        className="gallery-item-icon-button gallery-item-icon-button-danger"
+                        disabled={isPublishPending}
+                        title={isPublishPending ? 'Unpublishing…' : 'Unpublish from community'}
+                        aria-label={
+                          isPublishPending
+                            ? `Unpublishing ${entry.name}`
+                            : `Unpublish ${entry.name}`
+                        }
+                        onClick={() => handleUnpublish(entry)}
+                      >
+                        <UnpublishIcon className="gallery-item-icon" />
+                      </button>
                     )}
                     <button
                       type="button"
-                      className="gallery-item-button gallery-item-button-danger"
+                      className="gallery-item-icon-button"
+                      title="Download JSON"
+                      aria-label={`Download ${entry.name}`}
+                      onClick={() => exportEntry(entry.id)}
+                    >
+                      <DownloadIcon className="gallery-item-icon" />
+                    </button>
+                    <button
+                      type="button"
+                      className="gallery-item-icon-button gallery-item-icon-button-danger"
+                      title="Delete"
+                      aria-label={`Delete ${entry.name}`}
                       onClick={() => handleDelete(entry)}
                     >
-                      Delete
+                      <TrashIcon className="gallery-item-icon" />
                     </button>
                   </div>
                 </div>

@@ -1,3 +1,4 @@
+import { schedulePublishedSync } from '../community/autoPublish'
 import { useAuthStore } from '../auth/authStore'
 import { useStrawMobileStore } from '../state/store'
 import { persistDraftToGallery, useGalleryStore } from './galleryStore'
@@ -28,6 +29,11 @@ function clearPersistTimer() {
   persistTimer = null
 }
 
+function syncPublishedAfterPersist(): void {
+  const { activeGalleryId } = useGalleryStore.getState()
+  if (activeGalleryId) schedulePublishedSync(activeGalleryId)
+}
+
 /** Debounced gallery write after design edits (thumbnail capture is relatively expensive). */
 export function scheduleGalleryPersist(): void {
   if (!readyToPersist()) return
@@ -36,7 +42,7 @@ export function scheduleGalleryPersist(): void {
   persistTimer = setTimeout(() => {
     persistTimer = null
     if (useStrawMobileStore.getState().isPreviewMode) return
-    persistDraftToGallery()
+    if (persistDraftToGallery()) syncPublishedAfterPersist()
   }, GALLERY_PERSIST_DEBOUNCE_MS)
 }
 
@@ -45,7 +51,9 @@ export function flushGalleryPersist(): boolean {
   clearPersistTimer()
   if (!readyToPersist()) return false
   if (useStrawMobileStore.getState().isPreviewMode) return false
-  return persistDraftToGallery()
+  const wrote = persistDraftToGallery()
+  if (wrote) syncPublishedAfterPersist()
+  return wrote
 }
 
 /** Call before actions that replace the draft from an existing gallery entry. */
