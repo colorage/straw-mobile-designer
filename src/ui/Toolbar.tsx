@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { SHAPE_LABELS, type PrimitiveKind } from '../geometry/primitives'
 import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME } from '../scene/canvasBridge'
 import { useStrawMobileStore, type SlotIndex } from '../state/store'
@@ -6,10 +6,7 @@ import {
   OctahedronIcon,
   PlusIcon,
   PyramidIcon,
-  ScissorsIcon,
-  SelectIcon,
   SquareIcon,
-  ThreadsIcon,
   TriangleIcon,
 } from './icons'
 
@@ -31,7 +28,7 @@ const SHAPE_ICONS: Record<ToolbarShapeKind, ReactNode> = {
 
 const SLOT_INDEXES: SlotIndex[] = [0, 1, 2]
 
-/** Middle-left floating toolbar: add shapes + threads / select / scissors + selection buffers. */
+/** Middle-left floating toolbar: add shapes + selection buffers. */
 export function Toolbar() {
   const addShape = useStrawMobileStore((s) => s.addShape)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
@@ -39,22 +36,7 @@ export function Toolbar() {
   const applySlotBuffer = useStrawMobileStore((s) => s.useSlotBuffer)
   const slots = useStrawMobileStore((s) => s.slots)
   const hasSelection = useStrawMobileStore((s) => s.selectedShapeIds.length > 0)
-  const threadsActive = activeTool === 'threads'
-  const selectActive = activeTool === 'select'
   const scissorsActive = activeTool === 'scissors'
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      const target = event.target as HTMLElement | null
-      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
-      if (useStrawMobileStore.getState().activeTool === 'threads') return
-      event.preventDefault()
-      setActiveTool('threads')
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [setActiveTool])
 
   return (
     <div className="hud-cluster hud-middle-left" role="toolbar" aria-label="Shape tools">
@@ -85,46 +67,6 @@ export function Toolbar() {
           ))}
         </div>
       ))}
-      <div className="hud-tool-group">
-        <button
-          type="button"
-          className={`hud-icon-button hud-threads${threadsActive ? ' is-active' : ''}`}
-          title="Threads mode — click corners to connect shapes"
-          aria-label="Threads mode — connect shapes"
-          aria-pressed={threadsActive}
-          onClick={() => setActiveTool('threads')}
-        >
-          <ThreadsIcon className="hud-icon" />
-        </button>
-        <button
-          type="button"
-          className={`hud-icon-button hud-select${selectActive ? ' is-active' : ''}`}
-          title={
-            selectActive
-              ? 'Exit selection mode — click empty space or press Escape'
-              : 'Selection mode — click or drag a rectangle to select'
-          }
-          aria-label={selectActive ? 'Disable selection mode' : 'Enable selection mode'}
-          aria-pressed={selectActive}
-          onClick={() => setActiveTool(selectActive ? 'threads' : 'select')}
-        >
-          <SelectIcon className="hud-icon" />
-        </button>
-        <button
-          type="button"
-          className={`hud-icon-button hud-scissors${scissorsActive ? ' is-active' : ''}`}
-          title={
-            scissorsActive
-              ? 'Disable scissors mode (Escape)'
-              : 'Enable scissors mode — click a straw to cut it'
-          }
-          aria-label={scissorsActive ? 'Disable scissors mode' : 'Enable scissors mode'}
-          aria-pressed={scissorsActive}
-          onClick={() => setActiveTool(scissorsActive ? 'threads' : 'scissors')}
-        >
-          <ScissorsIcon className="hud-icon" />
-        </button>
-      </div>
       <div className="hud-tool-group" role="group" aria-label="Selection buffers">
         {SLOT_INDEXES.map((slot) => {
           const occupied = slots[slot] !== null
