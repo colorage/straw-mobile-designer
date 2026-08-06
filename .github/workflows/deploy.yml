@@ -11,8 +11,10 @@ permissions:
   id-token: write
 
 concurrency:
+  # Do not cancel in-flight Pages deploys — canceling leaves GitHub Pages stuck
+  # in deployment_queued until timeout (site then never updates).
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
