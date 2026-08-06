@@ -1,6 +1,5 @@
 import * as THREE from 'three'
-
-const DEFAULT_TARGET: [number, number, number] = [0, 2, 0]
+import { DEFAULT_ORBIT_TARGET } from './cameraDefaults'
 
 interface CameraView {
   camera: THREE.Camera | null
@@ -9,7 +8,7 @@ interface CameraView {
 
 const cameraView: CameraView = {
   camera: null,
-  target: new THREE.Vector3(...DEFAULT_TARGET),
+  target: new THREE.Vector3(...DEFAULT_ORBIT_TARGET),
 }
 
 /** Keep the latest camera + orbit look-at available to non-R3F code (e.g. placement). */
