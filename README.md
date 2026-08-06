@@ -47,4 +47,18 @@ In **Settings → Pages**:
 - **Branch**: `gh-pages` / `/` (root)
 - **Custom domain**: `spider.siaroza.com`
 
-The workflow also sets this automatically after each deploy. Leave it on `gh-pages`; do not point Pages at `main`.
+Leave it on `gh-pages`; do not point Pages at `main`.
+
+### If the site is stuck on old/broken HTML
+
+GitHub Pages can latch on `status: errored` with a ghost `in_progress` deployment. Actions cannot change Pages settings (API returns 403), so unlock it in the UI:
+
+1. Open [Deployments → github-pages](https://github.com/colorage/straw-mobile-designer/deployments/activity_log?environments_filter=github-pages) and delete any **in progress** / failed rows.
+2. Open [Settings → Pages](https://github.com/colorage/straw-mobile-designer/settings/pages):
+   - Remove the custom domain and save
+   - Set Source to **None** / disable Pages if shown, save, wait ~30s
+   - Set Source back to **Deploy from a branch → `gh-pages` / (root)**
+   - Re-add `spider.siaroza.com`, wait for DNS/HTTPS to go green
+3. Re-run **Deploy to GitHub Pages** (Actions → workflow_dispatch) or push an empty commit to `main`.
+
+When healthy, https://spider.siaroza.com/ must reference `/assets/*.js` — never `/src/main.tsx`.
