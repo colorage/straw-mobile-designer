@@ -11,6 +11,8 @@ export function ModeBar() {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (useStrawMobileStore.getState().isPreviewMode) return
+
       const target = event.target as HTMLElement | null
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
 

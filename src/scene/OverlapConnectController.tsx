@@ -129,7 +129,13 @@ export function OverlapConnectController() {
     }
 
     // Cheap mode gates run every frame so scissors/empty/disabled clear suggest immediately.
-    if (!overlapScannerEnabled || activeTool === 'scissors' || shapes.length === 0) {
+    const isPreviewMode = useStrawMobileStore.getState().isPreviewMode
+    if (
+      isPreviewMode ||
+      !overlapScannerEnabled ||
+      activeTool === 'scissors' ||
+      shapes.length === 0
+    ) {
       scanAccumulatorRef.current = 0
       idleMsRef.current = 0
       asleepRef.current = false

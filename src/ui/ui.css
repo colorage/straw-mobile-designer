@@ -679,6 +679,172 @@
   gap: 16px;
 }
 
+.gallery-page-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.gallery-item-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.community-toolbar {
+  max-width: 1100px;
+  margin: 0 auto 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.community-sort {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-muted);
+  gap: 3px;
+}
+
+.community-sort-button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-panel);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.community-sort-button:hover {
+  color: var(--text);
+}
+
+.community-sort-button.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.community-status {
+  max-width: 1100px;
+  margin: 32px auto 0;
+  font-size: 13px;
+  color: var(--text-subtle);
+  text-align: center;
+}
+
+.community-like-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.community-like-button.is-liked {
+  border-color: var(--danger-strong);
+  color: var(--danger-strong);
+}
+
+.community-like-icon {
+  display: block;
+}
+
+.preview-hud-title {
+  max-width: min(420px, calc(100vw - 48px));
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-elevated) 88%, transparent);
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+}
+
+.preview-hud-eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--text-label);
+}
+
+.preview-hud-name {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-hud-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: min(560px, calc(100vw - 24px));
+  pointer-events: auto;
+}
+
+.preview-hud-actions .gallery-page-action {
+  width: auto;
+  margin: 0;
+}
+
+.preview-hud-like {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 64px;
+  justify-content: center;
+}
+
+.preview-hud-error {
+  position: absolute;
+  left: 50%;
+  bottom: max(24px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--danger-strong);
+  background: var(--bg-elevated);
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.4;
+  max-width: min(480px, calc(100vw - 32px));
+  pointer-events: none;
+  text-align: center;
+}
+
+.preview-hud-status {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-subtle);
+  pointer-events: none;
+}
+
 /* Accounts: header control, dialog, and the banners above the grid. */
 
 .gallery-page-notices {

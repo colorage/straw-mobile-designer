@@ -11,6 +11,7 @@ re-running is safe.
 
 1. [`migrations/0001_auth_and_projects.sql`](migrations/0001_auth_and_projects.sql)
 2. [`migrations/0002_delete_own_account.sql`](migrations/0002_delete_own_account.sql)
+3. [`migrations/0003_community_gallery.sql`](migrations/0003_community_gallery.sql)
 
 `0001` creates:
 
@@ -22,6 +23,13 @@ re-running is safe.
 
 `0002` adds `public.delete_own_account()` so a signed-in user can permanently
 delete their auth account (profiles and projects cascade).
+
+`0003` adds the community gallery:
+
+- `public.public_projects` — published mobiles (readable by everyone; write = owner)
+- `public.project_likes` — one like per user per public project
+- A trigger that keeps denormalized `likes_count` in sync
+- A public-read policy on `profiles` so community cards can show nicknames
 
 ## 2. Auth settings
 

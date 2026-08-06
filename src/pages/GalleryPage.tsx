@@ -1,29 +1,18 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../auth/authStore'
+import { isCommunityEnabled, publishEntry, unpublishProject } from '../community/communityApi'
+import { usePublishedMapStore } from '../community/publishedMap'
 import { suppressNextGalleryPersist } from '../gallery/autoPersist'
 import { useGalleryStore } from '../gallery/galleryStore'
 import { readGalleryFile } from '../gallery/jsonIo'
 import { nextProjectName } from '../gallery/projectName'
+import { formatRelativeDate } from '../gallery/relativeDate'
 import type { GalleryEntry } from '../gallery/types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useStrawMobileStore } from '../state/store'
 import { AccountControl } from '../ui/AccountControl'
 import { AccountNotices } from '../ui/AccountNotices'
-
-function formatRelativeDate(iso: string): string {
-  const then = new Date(iso).getTime()
-  if (Number.isNaN(then)) return ''
-  const deltaMs = Date.now() - then
-  const minutes = Math.round(deltaMs / 60_000)
-  if (minutes < 1) return 'just now'
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.round(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.round(hours / 24)
-  if (days < 14) return `${days}d ago`
-  return new Date(iso).toLocaleDateString()
-}
 
 function confirmOverwriteDraft(): boolean {
   const { shapes } = useStrawMobileStore.getState()
@@ -55,10 +44,15 @@ export function GalleryPage() {
   const mode = useGalleryStore((s) => s.mode)
   const loading = useGalleryStore((s) => s.loading)
   const nickname = useAuthStore((s) => s.profile?.nickname)
+  const userId = useAuthStore((s) => s.user?.id ?? null)
   const reset = useStrawMobileStore((s) => s.reset)
   const setProjectName = useStrawMobileStore((s) => s.setProjectName)
+  const published = usePublishedMapStore((s) => s.published)
+  const markPublished = usePublishedMapStore((s) => s.markPublished)
+  const markUnpublished = usePublishedMapStore((s) => s.markUnpublished)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
+  const [publishPendingId, setPublishPendingId] = useState<string | null>(null)
 
   const goToDesigner = () => {
     navigate('/')
@@ -89,6 +83,39 @@ export function GalleryPage() {
     setError(null)
     if (!window.confirm(`Delete “${entry.name}” from the gallery?`)) return
     deleteEntry(entry.id)
+  }
+
+  const handlePublish = async (entry: GalleryEntry) => {
+    setError(null)
+    if (!userId) {
+      setError('Sign in to publish a mobile to the community gallery.')
+      return
+    }
+    setPublishPendingId(entry.id)
+    try {
+      const publicId = await publishEntry(entry, published[entry.id]?.publicId)
+      markPublished(entry.id, publicId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not publish this mobile.')
+    } finally {
+      setPublishPendingId(null)
+    }
+  }
+
+  const handleUnpublish = async (entry: GalleryEntry) => {
+    setError(null)
+    const record = published[entry.id]
+    if (!record) return
+    if (!window.confirm(`Remove “${entry.name}” from the community gallery?`)) return
+    setPublishPendingId(entry.id)
+    try {
+      await unpublishProject(record.publicId)
+      markUnpublished(entry.id)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not unpublish this mobile.')
+    } finally {
+      setPublishPendingId(null)
+    }
   }
 
   const handleImportClick = () => {
@@ -132,6 +159,11 @@ export function GalleryPage() {
             <button type="button" className="primary-button gallery-page-action" onClick={handleNew}>
               New
             </button>
+            {isCommunityEnabled && (
+              <Link to="/community" className="ghost-button gallery-page-action">
+                Community
+              </Link>
+            )}
             <button
               type="button"
               className="ghost-button gallery-page-action"
@@ -180,6 +212,8 @@ export function GalleryPage() {
         <ul className="gallery-page-grid">
           {entries.map((entry) => {
             const isActive = entry.id === activeGalleryId
+            const isPublished = Boolean(published[entry.id])
+            const isPublishPending = publishPendingId === entry.id
             return (
               <li key={entry.id} className={`gallery-item${isActive ? ' is-active' : ''}`}>
                 <button
@@ -198,7 +232,10 @@ export function GalleryPage() {
                 </button>
                 <div className="gallery-item-body">
                   <div className="gallery-item-meta">
-                    <span className="gallery-item-name">{entry.name}</span>
+                    <span className="gallery-item-name">
+                      {entry.name}
+                      {isPublished && <span className="gallery-item-badge">Public</span>}
+                    </span>
                     <span className="gallery-item-date">{formatRelativeDate(entry.updatedAt)}</span>
                   </div>
                   <div className="gallery-item-actions">
@@ -212,6 +249,37 @@ export function GalleryPage() {
                     >
                       Export
                     </button>
+                    {isCommunityEnabled && !isPublished && (
+                      <button
+                        type="button"
+                        className="gallery-item-button"
+                        disabled={isPublishPending}
+                        onClick={() => handlePublish(entry)}
+                      >
+                        {isPublishPending ? 'Publishing…' : 'Publish'}
+                      </button>
+                    )}
+                    {isCommunityEnabled && isPublished && (
+                      <>
+                        <button
+                          type="button"
+                          className="gallery-item-button"
+                          disabled={isPublishPending}
+                          title="Push the latest version of this mobile to the community gallery"
+                          onClick={() => handlePublish(entry)}
+                        >
+                          {isPublishPending ? 'Updating…' : 'Update'}
+                        </button>
+                        <button
+                          type="button"
+                          className="gallery-item-button gallery-item-button-danger"
+                          disabled={isPublishPending}
+                          onClick={() => handleUnpublish(entry)}
+                        >
+                          Unpublish
+                        </button>
+                      </>
+                    )}
                     <button
                       type="button"
                       className="gallery-item-button gallery-item-button-danger"
