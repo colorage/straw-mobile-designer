@@ -40,4 +40,11 @@ npm run build
 
 This repo deploys to GitHub Pages automatically via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to `main`.
 
-One-time setup after pushing to GitHub: in the repo's **Settings → Pages**, set **Source** to **GitHub Actions**. With the project custom domain, the site is served from the domain root (Vite `base` is `/`).
+The workflow builds the Vite app and publishes the `dist/` output to the **`gh-pages`** branch. Pages must serve that branch — **not** `main` (serving `main` publishes raw `/src/main.tsx` and breaks the app).
+
+In **Settings → Pages**:
+- **Source**: Deploy from a branch
+- **Branch**: `gh-pages` / `/` (root)
+- **Custom domain**: `spider.siaroza.com`
+
+The workflow also sets this automatically after each deploy. Leave it on `gh-pages`; do not point Pages at `main`.
