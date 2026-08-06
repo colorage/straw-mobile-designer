@@ -11,6 +11,7 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 - **Rigid loops**: when hand-tied straws close a loop (a triangle, a square, a pyramid face), the loop is fused into one rigid piece so it hangs as steadily as the equivalent prebuilt shape instead of wobbling on its thread joints. A simple loop also snaps to its regular shape on fusing — four equal straws become a true square rather than a frozen parallelogram, two solid plus two 1/2 straws a rectangle, five equal straws a regular pentagon, and so on (braced or 3D builds keep the shape you gave them). Mixed-size pieces remember each straw's size for the inventory and scissors. Toggle with the braced-frame button (top-right); switching it back on also stiffens loops you already built, and undo un-fuses.
 - **Undo / Redo**: reverse or re-apply design edits (add/remove shapes, connections, moves, straw size, reset, gallery load) via the Project panel or Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z.
 - **Gallery** (`/gallery`): named local saves with thumbnails; the current project is saved automatically on every edit and when opening the gallery. Browse/load/import/export/delete on the gallery page, plus **New** to clear the draft and start fresh in the designer.
+- **Community gallery** (`/community`): publish a mobile from your gallery to a shared, public gallery backed by [Supabase](https://supabase.com/). Browse everyone's published mobiles, sort by **Recent** or **Most liked**, like your favourites (one like per browser), and open any of them as a local copy to remix. Publishing is anonymous — no account or sign-up; each browser gets a stable anonymous identity so you can update/unpublish your own mobiles and your likes stick. Requires the Supabase setup below; without it these features hide and the app stays fully local.
 - **Straws Used panel**: a live count of straws in the design, broken down by size.
 - **Live gravity**: physics runs while you build. Free pieces stay put on the workbench until they have a connection path to the ceiling hook; once tied into that chain they become real rigid bodies ([@react-three/rapier](https://github.com/pmndrs/react-three-rapier)) linked by ball-and-socket joints, get a gentle wake nudge, and hang/sway under gravity.
 - **Lights & shadows**: directional lighting with cast/receive shadows on straws and a workbench floor (unlit fallback on software WebGL).
@@ -18,7 +19,8 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 ## Tech stack
 
 - [Vite](https://vite.dev/) + React + TypeScript
-- [React Router](https://reactrouter.com/) for designer (`/`) and gallery (`/gallery`) pages
+- [React Router](https://reactrouter.com/) for designer (`/`), gallery (`/gallery`), and community (`/community`) pages
+- [Supabase](https://supabase.com/) (Postgres + anonymous auth) for the optional community gallery
 - [three.js](https://threejs.org/) via [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber) and [@react-three/drei](https://docs.pmnd.rs/drei)
 - [@react-three/rapier](https://github.com/pmndrs/react-three-rapier) for physics
 - [zustand](https://github.com/pmndrs/zustand) for app state
@@ -29,6 +31,22 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 npm install
 npm run dev
 ```
+
+## Community gallery setup (Supabase)
+
+The designer and local gallery work with zero configuration. The community gallery (publish / browse / like) needs a free Supabase project:
+
+1. Create a project at [supabase.com](https://supabase.com/dashboard).
+2. Apply the schema in [`supabase/migrations/`](supabase/migrations/) — either paste the migration SQL into the dashboard's SQL editor, or link the repo and push it with the CLI:
+
+   ```bash
+   npx supabase link --project-ref <your-project-ref>
+   npx supabase db push
+   ```
+
+3. Enable **anonymous sign-ins**: Dashboard → Authentication → Sign In / Up → "Allow anonymous sign-ins". (Publishers and likers are identified by a per-browser anonymous user; enable Supabase's built-in CAPTCHA/rate limits if abuse becomes a concern.)
+4. Copy [`.env.example`](.env.example) to `.env` and fill in the **Project URL** and **anon/publishable key** from Project Settings → API.
+5. For the deployed site, set the same two values as GitHub Actions **repository variables** (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`) — the deploy workflow injects them at build time. Both values are public client-side values; access control lives in the database's row-level-security policies.
 
 ## Building
 

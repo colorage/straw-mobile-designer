@@ -664,6 +664,83 @@
   gap: 16px;
 }
 
+.gallery-item-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 6px 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+
+.community-toolbar {
+  max-width: 1100px;
+  margin: 0 auto 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.community-sort {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--bg-muted);
+  gap: 3px;
+}
+
+.community-sort-button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-panel);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.community-sort-button:hover {
+  color: var(--text);
+}
+
+.community-sort-button.is-active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.community-status {
+  max-width: 1100px;
+  margin: 32px auto 0;
+  font-size: 13px;
+  color: var(--text-subtle);
+  text-align: center;
+}
+
+.community-like-button {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.community-like-button.is-liked {
+  border-color: var(--danger-strong);
+  color: var(--danger-strong);
+}
+
+.community-like-icon {
+  display: block;
+}
+
 @media (max-width: 900px), (max-height: 700px) {
   :root {
     --bmc-size: 40px;
