@@ -94,6 +94,63 @@ export function SelectIcon({ className, title }: IconProps) {
   )
 }
 
+/** Spool of thread — connect-corners / threads mode. */
+export function ThreadsIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      {/* Top flange */}
+      <rect
+        x="6"
+        y="4.5"
+        width="11"
+        height="3"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      {/* Bottom flange */}
+      <rect
+        x="6"
+        y="16.5"
+        width="11"
+        height="3"
+        rx="1"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      {/* Core sides */}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M8 7.5v9M15 7.5v9"
+      />
+      {/* Diagonal thread wraps */}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M9 9.25 14 11.25M9 11.5 14 13.5M9 13.75 14 15.75"
+      />
+      {/* Loose thread tail */}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M17 11.5c1.2.2 2 .9 2 2"
+      />
+    </svg>
+  )
+}
+
 export function ScissorsIcon({ className, title }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>

@@ -145,7 +145,7 @@ export function Experience() {
         if (consumeGizmoClick()) return
         // Empty single-click leaves selection mode so orbit is uncontested.
         if (useStrawMobileStore.getState().activeTool === 'select') {
-          setActiveTool('none')
+          setActiveTool('threads')
           return
         }
         selectShape(null)

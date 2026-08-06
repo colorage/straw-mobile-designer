@@ -262,6 +262,13 @@
   display: block;
 }
 
+.hud-threads.is-active,
+.hud-threads.is-active:hover:not(:disabled) {
+  background: #6d4c41;
+  border-color: #bcaaa4;
+  color: #ffffff;
+}
+
 .hud-select.is-active,
 .hud-select.is-active:hover:not(:disabled) {
   background: #1565c0;

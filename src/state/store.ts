@@ -59,7 +59,7 @@ export {
  * so reloading the page — or closing and reopening the tab later — picks up
  * right where things were left off. Selection buffer slots are persisted with
  * the draft (and each gallery project) so they stay per-project.
- * Edit-tool and mode toggles (select/scissors, overlap scanner, rigid loops)
+ * Edit-tool and mode toggles (threads/select/scissors, overlap scanner, rigid loops)
  * are persisted across reloads; mid-click / selection / reel-in still start
  * fresh — see `partialize` below.
  */
@@ -70,13 +70,15 @@ const HISTORY_LIMIT = 50
 /** World offset applied to duplicated shapes so copies don't stack. */
 const DUPLICATE_OFFSET: Vector3Tuple = [0.45, 0.45, 0]
 
-/** Transient edit tool: orbit/navigate, select/marquee, or click-to-cut. */
-export type ActiveTool = 'none' | 'select' | 'scissors'
+/** Transient edit tool: thread/connect, select/marquee, or click-to-cut. */
+export type ActiveTool = 'threads' | 'select' | 'scissors'
 
-const ACTIVE_TOOLS: readonly ActiveTool[] = ['none', 'select', 'scissors']
+const ACTIVE_TOOLS: readonly ActiveTool[] = ['threads', 'select', 'scissors']
 
 function normalizeActiveTool(value: unknown): ActiveTool {
-  return ACTIVE_TOOLS.includes(value as ActiveTool) ? (value as ActiveTool) : 'none'
+  // Legacy drafts stored the default connect mode as 'none'.
+  if (value === 'none') return 'threads'
+  return ACTIVE_TOOLS.includes(value as ActiveTool) ? (value as ActiveTool) : 'threads'
 }
 
 const createId = () =>
@@ -111,7 +113,7 @@ export type PersistedDraftState = PersistedMobileState & {
   lastSavedAt: number
   /** Per-project selection buffers (toolbar 1/2/3). */
   slots: SlotBuffers
-  /** Last active edit tool (select / scissors / none). */
+  /** Last active edit tool (threads / select / scissors). */
   activeTool: ActiveTool
   /** Whether the overlap proximity scanner is on. */
   overlapScannerEnabled: boolean
@@ -581,7 +583,7 @@ function applyDesignSnapshot(
     overlapScanUi: null,
     overlapScanWakeToken: get().overlapScanWakeToken + 1,
     ...EMPTY_SELECTION,
-    activeTool: 'none',
+    activeTool: 'threads',
     reelIns: [],
     deferredConnectionIds: [],
     reelPositions: {},
@@ -611,7 +613,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       selectionAnchorId: null,
       selectedEndpoint: null,
       selectedEdge: null,
-      activeTool: 'none',
+      activeTool: 'threads',
       slots: [...EMPTY_SLOTS],
       reelIns: [],
       deferredConnectionIds: [],
@@ -1314,7 +1316,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           })
           return
         }
-        if (tool === 'none') {
+        if (tool === 'threads') {
           set({
             activeTool: tool,
             ...EMPTY_SELECTION,
@@ -1386,7 +1388,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           overlapScanUi: null,
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
-          activeTool: 'none',
+          activeTool: 'threads',
           slots: [...EMPTY_SLOTS],
           reelIns: [],
           deferredConnectionIds: [],
@@ -1410,7 +1412,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           overlapScanUi: null,
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
           ...EMPTY_SELECTION,
-          activeTool: 'none',
+          activeTool: 'threads',
           reelIns: [],
           deferredConnectionIds: [],
           reelPositions: {},
