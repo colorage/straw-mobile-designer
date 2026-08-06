@@ -11,32 +11,37 @@ permissions:
   id-token: write
 
 concurrency:
-  # Do not cancel in-flight Pages deploys — canceling leaves GitHub Pages stuck
-  # in deployment_queued until timeout (site then never updates).
+  # Queue deploys instead of canceling — mid-flight cancels leave Pages stuck
+  # in deployment_queued / "Deployment cancelled" until it clears.
   group: pages
   cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
+        with:
+          # Give Pages more time to leave deployment_queued after prior cancels.
+          timeout: 900000
