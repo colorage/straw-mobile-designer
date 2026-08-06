@@ -5,6 +5,7 @@ import { useGalleryStore } from '../gallery/galleryStore'
 import { readGalleryFile } from '../gallery/jsonIo'
 import { nextProjectName } from '../gallery/projectName'
 import type { GalleryEntry } from '../gallery/types'
+import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { useStrawMobileStore } from '../state/store'
 
 function formatRelativeDate(iso: string): string {
@@ -39,6 +40,7 @@ function confirmStartNew(): boolean {
 
 /** Full-page gallery: browse, load, import, export, and delete named saves. */
 export function GalleryPage() {
+  useDocumentTitle('Gallery · Павучы клуб')
   const navigate = useNavigate()
   const entries = useGalleryStore((s) => s.entries)
   const activeGalleryId = useGalleryStore((s) => s.activeGalleryId)
