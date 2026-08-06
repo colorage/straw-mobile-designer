@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import { syncShapeTransformsFromPhysics } from '../physics/syncTransforms'
 import { captureCanvasThumbnail } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
+import { queueCloudDelete, queueCloudUpsert } from './cloudSync'
 import { createGalleryId } from './ids'
 import { downloadEntryJson } from './jsonIo'
 import { nextProjectName } from './projectName'
@@ -36,10 +37,21 @@ function captureSnapshotForSave(): { project: ProjectSnapshot; thumbnailDataUrl:
   return { project, thumbnailDataUrl }
 }
 
+/**
+ * Where saves live. Guests keep the browser-local library; signing in switches
+ * the same store over to the account's rows in Supabase.
+ */
+export type GalleryMode = 'local' | 'cloud'
+
 interface GalleryState {
   entries: GalleryEntry[]
   /** Gallery entry currently loaded into the editor, if any. */
   activeGalleryId: string | null
+  mode: GalleryMode
+  /** True while the account's saves are being fetched. */
+  loading: boolean
+  /** Set when the account's saves could not be read. */
+  loadError: string | null
 
   saveCurrent: (name: string) => string
   updateActive: () => boolean
@@ -53,11 +65,20 @@ interface GalleryState {
 
 type PersistedGalleryState = Pick<GalleryState, 'entries' | 'activeGalleryId'>
 
+/** Mirror a local mutation up to the account when signed in. */
+function syncUp(entry: GalleryEntry | undefined, mode: GalleryMode): void {
+  if (mode !== 'cloud' || !entry) return
+  queueCloudUpsert(entry)
+}
+
 export const useGalleryStore = create<GalleryState>()(
   persist(
     (set, get) => ({
       entries: [],
       activeGalleryId: null,
+      mode: 'local',
+      loading: false,
+      loadError: null,
 
       saveCurrent: (name) => {
         const trimmed =
@@ -78,6 +99,7 @@ export const useGalleryStore = create<GalleryState>()(
           entries: [entry, ...state.entries],
           activeGalleryId: id,
         }))
+        syncUp(entry, get().mode)
         return id
       },
 
@@ -90,24 +112,34 @@ export const useGalleryStore = create<GalleryState>()(
         const { project, thumbnailDataUrl } = captureSnapshotForSave()
         const now = new Date().toISOString()
         const draftName = useStrawMobileStore.getState().projectName.trim() || existing.name
+        const updated: GalleryEntry = {
+          ...existing,
+          name: draftName,
+          project,
+          thumbnailDataUrl,
+          updatedAt: now,
+        }
         set((state) => ({
-          entries: state.entries.map((entry) =>
-            entry.id === activeGalleryId
-              ? { ...entry, name: draftName, project, thumbnailDataUrl, updatedAt: now }
-              : entry,
-          ),
+          entries: state.entries.map((entry) => (entry.id === activeGalleryId ? updated : entry)),
         }))
+        syncUp(updated, get().mode)
         return true
       },
 
       renameEntry: (id, name) => {
         const trimmed = name.trim()
         if (!trimmed) return
+        const existing = get().entries.find((entry) => entry.id === id)
+        if (!existing) return
+        const updated: GalleryEntry = {
+          ...existing,
+          name: trimmed,
+          updatedAt: new Date().toISOString(),
+        }
         set((state) => ({
-          entries: state.entries.map((entry) =>
-            entry.id === id ? { ...entry, name: trimmed, updatedAt: new Date().toISOString() } : entry,
-          ),
+          entries: state.entries.map((entry) => (entry.id === id ? updated : entry)),
         }))
+        syncUp(updated, get().mode)
       },
 
       deleteEntry: (id) => {
@@ -115,6 +147,7 @@ export const useGalleryStore = create<GalleryState>()(
           entries: state.entries.filter((entry) => entry.id !== id),
           activeGalleryId: state.activeGalleryId === id ? null : state.activeGalleryId,
         }))
+        if (get().mode === 'cloud') queueCloudDelete(id)
       },
 
       loadEntry: (id) => {
@@ -142,6 +175,7 @@ export const useGalleryStore = create<GalleryState>()(
         set((state) => ({
           entries: [entry, ...state.entries],
         }))
+        syncUp(entry, get().mode)
         return id
       },
 
@@ -156,8 +190,12 @@ export const useGalleryStore = create<GalleryState>()(
       name: GALLERY_STORAGE_KEY,
       version: GALLERY_STORAGE_VERSION,
       storage: createJSONStorage(() => localStorage),
+      // Signed-in saves live in the account, so the browser copy is emptied —
+      // this is what clears the local library after migrating it. The active id
+      // still persists so a reload keeps writing to the same project instead of
+      // creating a duplicate.
       partialize: (state): PersistedGalleryState => ({
-        entries: state.entries,
+        entries: state.mode === 'cloud' ? [] : state.entries,
         activeGalleryId: state.activeGalleryId,
       }),
       // v2: project snapshots may include per-project slots; older entries omit them.
