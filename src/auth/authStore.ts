@@ -27,6 +27,8 @@ interface AuthState {
   signInWithGoogle: () => Promise<AuthResult>
   linkGoogle: () => Promise<AuthResult>
   signOut: () => Promise<void>
+  /** Permanently deletes the auth user (and cascaded cloud data) via RPC. */
+  deleteAccount: () => Promise<AuthResult>
   setNickname: (nickname: string) => Promise<AuthResult>
   claimUsername: (username: string) => Promise<AuthResult>
 }
@@ -183,6 +185,26 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     set({ busy: true })
     try {
       await supabase.auth.signOut()
+    } finally {
+      set({ busy: false })
+    }
+  },
+
+  deleteAccount: async () => {
+    if (!supabase) return fail('Accounts are unavailable right now.')
+    set({ busy: true })
+    try {
+      const { error } = await supabase.rpc('delete_own_account')
+      if (error) {
+        return fail(
+          describeAuthError(error.message) || 'Could not delete that account.',
+        )
+      }
+      // The auth user is gone; clear the local session without calling the server.
+      await supabase.auth.signOut({ scope: 'local' })
+      return ok()
+    } catch (error) {
+      return fail(toMessage(error, 'Could not delete that account.'))
     } finally {
       set({ busy: false })
     }

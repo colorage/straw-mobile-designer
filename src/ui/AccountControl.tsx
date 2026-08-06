@@ -4,6 +4,7 @@ import { USERNAME_RULE_HINT } from '../auth/username'
 import { flushCloudSync } from '../gallery/cloudSync'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAccountPanelStore } from './accountPanelStore'
+import { UserIcon } from './icons'
 
 function useDismissOnEscape(open: boolean, close: () => void) {
   useEffect(() => {
@@ -114,7 +115,7 @@ function AuthForm({ mode, onSwitchMode }: { mode: 'signIn' | 'signUp'; onSwitchM
   )
 }
 
-/** Nickname, username, connected providers, and sign-out for the current user. */
+/** Nickname, username, connected providers, sign-out, and delete for the current user. */
 function ProfileForm({ onClose }: { onClose: () => void }) {
   const profile = useAuthStore((s) => s.profile)
   const user = useAuthStore((s) => s.user)
@@ -122,15 +123,25 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
   const setNickname = useAuthStore((s) => s.setNickname)
   const linkGoogle = useAuthStore((s) => s.linkGoogle)
   const signOut = useAuthStore((s) => s.signOut)
+  const deleteAccount = useAuthStore((s) => s.deleteAccount)
   const [draftNickname, setDraftNickname] = useState(profile?.nickname ?? '')
   const [status, setStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const deleteInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     setDraftNickname(profile?.nickname ?? '')
   }, [profile?.nickname])
 
+  useEffect(() => {
+    if (confirmingDelete) deleteInputRef.current?.focus()
+  }, [confirmingDelete])
+
   const googleLinked = user?.identities?.some((identity) => identity.provider === 'google') ?? false
+  const confirmPhrase = profile?.username ?? 'delete'
+  const confirmReady = deleteConfirm.trim().toLowerCase() === confirmPhrase.toLowerCase()
 
   const handleSaveNickname = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -143,6 +154,7 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
 
   const handleLinkGoogle = async () => {
     setError(null)
+    setStatus(null)
     const result = await linkGoogle()
     if (!result.ok) setError(result.message)
   }
@@ -154,46 +166,167 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
     onClose()
   }
 
+  const handleStartDelete = () => {
+    setError(null)
+    setStatus(null)
+    setDeleteConfirm('')
+    setConfirmingDelete(true)
+  }
+
+  const handleCancelDelete = () => {
+    setConfirmingDelete(false)
+    setDeleteConfirm('')
+    setError(null)
+  }
+
+  const handleDeleteAccount = async (event: React.FormEvent) => {
+    event.preventDefault()
+    setError(null)
+    if (!confirmReady) {
+      setError(
+        profile?.username
+          ? `Type your username (${profile.username}) to confirm.`
+          : 'Type “delete” to confirm.',
+      )
+      return
+    }
+    await flushCloudSync()
+    const result = await deleteAccount()
+    if (!result.ok) {
+      setError(result.message)
+      return
+    }
+    onClose()
+  }
+
   return (
-    <div className="account-form">
-      <form onSubmit={handleSaveNickname}>
-        <label className="account-field">
-          <span className="account-field-label">Nickname</span>
-          <input
-            className="account-input"
-            value={draftNickname}
-            onChange={(event) => setDraftNickname(event.target.value)}
-            maxLength={40}
-          />
-        </label>
-        <button type="submit" className="primary-button account-submit" disabled={busy}>
-          Save nickname
+    <div className="account-form account-profile">
+      <section className="account-section" aria-labelledby="account-section-profile">
+        <h3 id="account-section-profile" className="account-section-title">
+          Profile
+        </h3>
+        <form onSubmit={handleSaveNickname}>
+          <label className="account-field">
+            <span className="account-field-label">Nickname</span>
+            <input
+              className="account-input"
+              value={draftNickname}
+              onChange={(event) => setDraftNickname(event.target.value)}
+              maxLength={40}
+            />
+          </label>
+          <label className="account-field">
+            <span className="account-field-label">Username</span>
+            <input
+              className="account-input account-input-readonly"
+              value={profile?.username ? `@${profile.username}` : 'Not claimed yet'}
+              readOnly
+              disabled
+              tabIndex={-1}
+            />
+          </label>
+          <p className="account-hint account-hint-tight">
+            Username is permanent and used to sign in.
+          </p>
+          <button type="submit" className="primary-button account-submit" disabled={busy}>
+            Save nickname
+          </button>
+        </form>
+        {status && <p className="account-hint account-status">{status}</p>}
+      </section>
+
+      <section className="account-section" aria-labelledby="account-section-signin">
+        <h3 id="account-section-signin" className="account-section-title">
+          Sign-in
+        </h3>
+        {googleLinked ? (
+          <p className="account-hint account-hint-tight">Google is connected.</p>
+        ) : (
+          <button type="button" className="ghost-button" onClick={handleLinkGoogle} disabled={busy}>
+            Connect Google
+          </button>
+        )}
+      </section>
+
+      <section className="account-section" aria-labelledby="account-section-session">
+        <h3 id="account-section-session" className="account-section-title">
+          Session
+        </h3>
+        <button
+          type="button"
+          className="ghost-button"
+          onClick={handleSignOut}
+          disabled={busy}
+        >
+          Log out
         </button>
-      </form>
+      </section>
 
-      <p className="account-hint">
-        Username <strong>@{profile?.username ?? '—'}</strong> — permanent, used to sign in.
-      </p>
+      <section className="account-section account-section-danger" aria-labelledby="account-section-danger">
+        <h3 id="account-section-danger" className="account-section-title">
+          Danger zone
+        </h3>
+        {!confirmingDelete ? (
+          <>
+            <p className="account-hint account-hint-tight">
+              Permanently delete your account and every mobile saved to it. This cannot be undone.
+            </p>
+            <button
+              type="button"
+              className="ghost-button account-danger-button"
+              onClick={handleStartDelete}
+              disabled={busy}
+            >
+              Delete account
+            </button>
+          </>
+        ) : (
+          <form className="account-delete-confirm" onSubmit={handleDeleteAccount}>
+            <p className="account-hint account-hint-tight">
+              {profile?.username ? (
+                <>
+                  Type <strong>{profile.username}</strong> to confirm deletion.
+                </>
+              ) : (
+                <>
+                  Type <strong>delete</strong> to confirm deletion.
+                </>
+              )}
+            </p>
+            <label className="account-field">
+              <span className="account-field-label">Confirmation</span>
+              <input
+                ref={deleteInputRef}
+                className="account-input"
+                value={deleteConfirm}
+                onChange={(event) => setDeleteConfirm(event.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                placeholder={confirmPhrase}
+              />
+            </label>
+            <div className="account-danger-actions">
+              <button
+                type="button"
+                className="ghost-button"
+                onClick={handleCancelDelete}
+                disabled={busy}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="ghost-button account-danger-button"
+                disabled={busy || !confirmReady}
+              >
+                Delete forever
+              </button>
+            </div>
+          </form>
+        )}
+      </section>
 
-      {status && <p className="account-hint account-status">{status}</p>}
       {error && <p className="gallery-error account-error">{error}</p>}
-
-      {googleLinked ? (
-        <p className="account-hint">Google is connected.</p>
-      ) : (
-        <button type="button" className="ghost-button" onClick={handleLinkGoogle} disabled={busy}>
-          Connect Google
-        </button>
-      )}
-
-      <button
-        type="button"
-        className="ghost-button account-signout"
-        onClick={handleSignOut}
-        disabled={busy}
-      >
-        Log out
-      </button>
     </div>
   )
 }
@@ -216,19 +349,31 @@ export function AccountControl() {
   }, [user, panel, close])
 
   if (!isSupabaseConfigured) return null
-  if (!ready) return <span className="account-trigger account-trigger-idle">…</span>
+  if (!ready) {
+    return (
+      <span className="account-trigger account-trigger-idle" aria-hidden="true">
+        <UserIcon className="account-trigger-icon" />
+      </span>
+    )
+  }
 
   const signedIn = Boolean(user)
-  const label = signedIn ? (profile?.nickname ?? 'Account') : 'Sign in'
+  const nickname = profile?.nickname?.trim() || 'Account'
+  const label = signedIn ? nickname : 'Sign in'
+  const dialogTitle =
+    panel === 'profile' ? 'Your account' : panel === 'signUp' ? 'Create an account' : 'Sign in'
 
   return (
     <>
       <button
         type="button"
-        className="ghost-button gallery-page-action account-trigger"
+        className={`account-trigger${signedIn ? ' is-signed-in' : ''}`}
         onClick={() => open(signedIn ? 'profile' : 'signIn')}
+        aria-label={signedIn ? `Account: ${nickname}` : 'Sign in'}
+        title={label}
       >
-        {label}
+        <UserIcon className="account-trigger-icon" />
+        <span className="account-trigger-label">{label}</span>
       </button>
 
       {panel !== 'none' && (
@@ -239,15 +384,16 @@ export function AccountControl() {
             if (event.target === event.currentTarget) close()
           }}
         >
-          <div className="account-dialog" role="dialog" aria-modal="true" aria-label={label}>
+          <div
+            className={
+              panel === 'profile' ? 'account-dialog account-dialog-profile' : 'account-dialog'
+            }
+            role="dialog"
+            aria-modal="true"
+            aria-label={dialogTitle}
+          >
             <div className="account-dialog-head">
-              <h2 className="account-dialog-title">
-                {panel === 'profile'
-                  ? 'Your account'
-                  : panel === 'signUp'
-                    ? 'Create an account'
-                    : 'Sign in'}
-              </h2>
+              <h2 className="account-dialog-title">{dialogTitle}</h2>
               <button
                 type="button"
                 className="account-close"
