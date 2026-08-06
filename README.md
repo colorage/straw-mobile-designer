@@ -49,16 +49,14 @@ In **Settings → Pages**:
 
 Leave it on `gh-pages`; do not point Pages at `main`.
 
+Actions cannot change these settings (the Pages update API returns 403 for workflow tokens), so if they drift the workflow fails with an error pointing here — fix them manually in the UI.
+
 ### If the site is stuck on old/broken HTML
 
-GitHub Pages can latch on `status: errored` with a ghost `in_progress` deployment. Actions cannot change Pages settings (API returns 403), so unlock it in the UI:
+1. Open [Settings → Pages](https://github.com/colorage/straw-mobile-designer/settings/pages) and verify: Source = **Deploy from a branch → `gh-pages` / (root)**, custom domain = `spider.siaroza.com` (DNS already points `spider.siaroza.com` → `colorage.github.io`).
+2. Open [Actions](https://github.com/colorage/straw-mobile-designer/actions) and cancel any **pages build and deployment** run stuck on `deployment_in_progress`.
+3. Re-run **Deploy to GitHub Pages** (Actions → workflow_dispatch) or push to `main`.
 
-1. Open [Deployments → github-pages](https://github.com/colorage/straw-mobile-designer/deployments/activity_log?environments_filter=github-pages) and delete any **in progress** / failed rows.
-2. Open [Settings → Pages](https://github.com/colorage/straw-mobile-designer/settings/pages):
-   - Remove the custom domain and save
-   - Set Source to **None** / disable Pages if shown, save, wait ~30s
-   - Set Source back to **Deploy from a branch → `gh-pages` / (root)**
-   - Re-add `spider.siaroza.com`, wait for DNS/HTTPS to go green
-3. Re-run **Deploy to GitHub Pages** (Actions → workflow_dispatch) or push an empty commit to `main`.
+Do not give custom workflows the concurrency group `pages` — GitHub's built-in **pages build and deployment** workflow uses that group, so a workflow that holds it while waiting for the site to update blocks the Pages build itself (this caused the past `deployment_in_progress` hangs).
 
 When healthy, https://spider.siaroza.com/ must reference `/assets/*.js` — never `/src/main.tsx`.
