@@ -27,11 +27,13 @@ $$;
 
 revoke all on function app_private.delete_own_account() from public, anon, authenticated;
 
--- Thin RPC wrapper so the client can call supabase.rpc('delete_own_account').
+-- Public RPC: must be security definer so it can reach app_private (USAGE on
+-- that schema is revoked from authenticated). auth.uid() still reflects the
+-- caller's JWT, not the function owner.
 create or replace function public.delete_own_account()
 returns void
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 begin
