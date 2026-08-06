@@ -5,17 +5,23 @@ Everything below is a one-time setup; the app itself needs no server.
 
 ## 1. Apply the schema
 
-Run [`migrations/0001_auth_and_projects.sql`](migrations/0001_auth_and_projects.sql)
-in the dashboard SQL editor (or via `apply_migration` with the Supabase MCP
-server). It is idempotent, so re-running it is safe.
+Run these migrations in order in the dashboard SQL editor (or via
+`apply_migration` with the Supabase MCP server). Each is idempotent, so
+re-running is safe.
 
-It creates:
+1. [`migrations/0001_auth_and_projects.sql`](migrations/0001_auth_and_projects.sql)
+2. [`migrations/0002_delete_own_account.sql`](migrations/0002_delete_own_account.sql)
+
+`0001` creates:
 
 - `public.profiles` — one row per user: `username` (permanent login handle) and
   `nickname` (editable display name)
 - `public.projects` — saved mobiles, one row per gallery entry, snapshot in `project jsonb`
 - Row Level Security on both, restricted to `auth.uid()`
 - A trigger that creates the profile when an auth user is created
+
+`0002` adds `public.delete_own_account()` so a signed-in user can permanently
+delete their auth account (profiles and projects cascade).
 
 ## 2. Auth settings
 
