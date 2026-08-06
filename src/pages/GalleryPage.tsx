@@ -1,11 +1,14 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../auth/authStore'
 import { suppressNextGalleryPersist } from '../gallery/autoPersist'
 import { useGalleryStore } from '../gallery/galleryStore'
 import { readGalleryFile } from '../gallery/jsonIo'
 import { nextProjectName } from '../gallery/projectName'
 import type { GalleryEntry } from '../gallery/types'
 import { useStrawMobileStore } from '../state/store'
+import { AccountControl } from '../ui/AccountControl'
+import { AccountNotices } from '../ui/AccountNotices'
 
 function formatRelativeDate(iso: string): string {
   const then = new Date(iso).getTime()
@@ -47,6 +50,9 @@ export function GalleryPage() {
   const exportEntry = useGalleryStore((s) => s.exportEntry)
   const importEnvelope = useGalleryStore((s) => s.importEnvelope)
   const clearActive = useGalleryStore((s) => s.clearActive)
+  const mode = useGalleryStore((s) => s.mode)
+  const loading = useGalleryStore((s) => s.loading)
+  const nickname = useAuthStore((s) => s.profile?.nickname)
   const reset = useStrawMobileStore((s) => s.reset)
   const setProjectName = useStrawMobileStore((s) => s.setProjectName)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -114,10 +120,13 @@ export function GalleryPage() {
           <p className="gallery-page-eyebrow">Straw Mobile Designer</p>
           <h1 className="gallery-page-title">Gallery</h1>
           <p className="gallery-page-subtitle">
-            Named mobiles saved in this browser. Export JSON to back them up or move between devices.
+            {mode === 'cloud'
+              ? `Named mobiles saved to ${nickname ? `${nickname}’s` : 'your'} account, available from any browser. Export JSON for a personal backup.`
+              : 'Named mobiles saved in this browser. Export JSON to back them up or move between devices.'}
           </p>
         </div>
         <div className="gallery-page-header-actions">
+          <AccountControl />
           <button type="button" className="primary-button gallery-page-action" onClick={handleNew}>
             New
           </button>
@@ -137,9 +146,17 @@ export function GalleryPage() {
         </div>
       </header>
 
+      <div className="gallery-page-notices">
+        <AccountNotices />
+      </div>
+
       {error && <p className="gallery-error gallery-page-error">{error}</p>}
 
-      {entries.length === 0 ? (
+      {loading ? (
+        <div className="gallery-page-empty">
+          <p className="panel-hint">Loading your mobiles…</p>
+        </div>
+      ) : entries.length === 0 ? (
         <div className="gallery-page-empty">
           <p className="panel-hint">No saved mobiles yet.</p>
           <p className="panel-hint">
