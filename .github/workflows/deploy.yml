@@ -5,10 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Push the Vite build to a dedicated `gh-pages` branch and point Pages at
-# that branch. Deploying from `main` publishes raw source (/src/main.tsx) and
-# breaks the app; deploy-pages (workflow mode) has been wedging in
-# deployment_queued / errored after source toggles.
 permissions:
   contents: write
   pages: write
@@ -21,9 +17,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v5
         with:
@@ -36,52 +34,47 @@ jobs:
       - name: Stage Pages metadata in dist
         run: |
           set -euo pipefail
-          # Custom domain (also copied from public/ by Vite)
-          if [ -f public/CNAME ]; then
-            cp public/CNAME dist/CNAME
-          elif [ -f CNAME ]; then
-            cp CNAME dist/CNAME
+          if [ -f public/CNAME ]; then cp public/CNAME dist/CNAME
+          elif [ -f CNAME ]; then cp CNAME dist/CNAME
           fi
-          # Skip Jekyll so assets/ and SPA files are served as-is
           touch dist/.nojekyll
-          # SPA deep-link fallback (plugin also writes 404.html)
           test -f dist/404.html || cp dist/index.html dist/404.html
-          echo "dist contents:"
+          grep -E 'assets/.*\.(js|css)' dist/index.html
           ls -la dist
-          echo "index script tags:"
-          grep -E 'script|stylesheet' dist/index.html || true
 
-      - name: Cancel stuck Pages deployments
+      - name: Hard-clear wedged github-pages deployments
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           R="${{ github.repository }}"
-          echo "::group::Current Pages state"
-          gh api "repos/$R/pages" --jq '{status, build_type, source, html_url, cname}' || true
+          echo "::group::Pages state before clear"
+          gh api "repos/$R/pages" --jq '{status, build_type, source, cname}' || true
           echo "::endgroup::"
-
-          gh api "repos/$R/deployments?environment=github-pages&per_page=30" --jq '.[].id' \
-            | while read -r id; do
-                state=$(gh api "repos/$R/deployments/$id/statuses" --jq '.[0].state // "unknown"' 2>/dev/null || echo "unknown")
-                sha=$(gh api "repos/$R/deployments/$id" --jq '.sha' 2>/dev/null || true)
-                echo "deployment $id state=$state sha=${sha:-?}"
-                case "$state" in
-                  in_progress|queued|pending)
-                    if [ -n "${sha:-}" ]; then
-                      gh api -X POST "repos/$R/pages/deployments/$sha/cancel" >/dev/null 2>&1 \
-                        && echo "canceled $sha" || true
-                    fi
-                    ;;
-                esac
-              done
-
-          # Relax environment branch policy so gh-pages can publish
-          gh api -X PUT "repos/$R/environments/github-pages" --input - <<'EOF' >/dev/null 2>&1 || true
+          gh api -X PUT "repos/$R/environments/github-pages" --input - <<'EOF' || true
           {"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":false}}
           EOF
-          gh api -X POST "repos/$R/environments/github-pages/deployment-branch-policies" \
-            -f name=gh-pages -f type=branch >/dev/null 2>&1 || true
+          echo "::group::Clear deployments"
+          page=1
+          while [ "$page" -le 5 ]; do
+            ids=$(gh api "repos/$R/deployments?environment=github-pages&per_page=50&page=$page" --jq '.[].id')
+            [ -z "$ids" ] && break
+            for id in $ids; do
+              state=$(gh api "repos/$R/deployments/$id/statuses" --jq '.[0].state // "none"' 2>/dev/null || echo none)
+              echo "deployment $id state=$state"
+              gh api -X POST "repos/$R/deployments/$id/statuses" \
+                -f state=inactive \
+                -f description='clear wedged pages lock' \
+                -f environment=github-pages >/dev/null 2>&1 || true
+              gh api -X DELETE "repos/$R/deployments/$id" >/dev/null 2>&1 \
+                && echo "  deleted $id" \
+                || echo "  delete $id skipped"
+            done
+            page=$((page + 1))
+          done
+          echo "::endgroup::"
+          sleep 3
+          gh api "repos/$R/pages" --jq '{status, build_type, source, cname}' || true
 
       - name: Publish dist to gh-pages branch
         uses: JamesIves/github-pages-deploy-action@v4
@@ -92,56 +85,44 @@ jobs:
           single-commit: true
           force: true
 
-      - name: Point Pages at gh-pages and clear errored latch
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Bump gh-pages to retrigger Pages build
         run: |
           set -euo pipefail
-          R="${{ github.repository }}"
-
-          status=$(gh api "repos/$R/pages" --jq '.status // "unknown"' 2>/dev/null || echo "unknown")
-          branch=$(gh api "repos/$R/pages" --jq '.source.branch // "none"' 2>/dev/null || echo "none")
-          build_type=$(gh api "repos/$R/pages" --jq '.build_type // "unknown"' 2>/dev/null || echo "unknown")
-          echo "before: status=$status build_type=$build_type branch=$branch"
-
-          # If Pages latched on errored, bounce source to clear it, then land on gh-pages.
-          if [ "$status" = "errored" ] || [ "$status" = "building" ]; then
-            echo "Clearing stuck Pages status via workflow toggle"
-            printf '{"build_type":"workflow"}' | gh api -X PUT "repos/$R/pages" --input - || true
-            sleep 8
-          fi
-
-          echo "Setting Pages source to branch gh-pages / with custom domain"
-          printf '{"build_type":"legacy","source":{"branch":"gh-pages","path":"/"},"cname":"spider.siaroza.com"}' \
-            | gh api -X PUT "repos/$R/pages" --input -
-
-          sleep 5
-          gh api "repos/$R/pages" --jq '{status, build_type, source, html_url, cname}' || true
+          git fetch origin gh-pages
+          git checkout gh-pages
+          date -u +"redeploy %Y-%m-%dT%H:%M:%SZ" > .pages-redeploy
+          git add .pages-redeploy
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "chore: retrigger Pages publish after clearing deploy lock" || true
+          git push origin gh-pages
+          git checkout main
 
       - name: Wait until live site serves the Vite build
         run: |
           set -euo pipefail
           URL="https://spider.siaroza.com/"
-          echo "Polling $URL for /assets/*.js (not /src/main.tsx)…"
-          for i in $(seq 1 48); do
+          echo "Polling $URL for /assets/*.js (not /src/main.tsx)..."
+          for i in $(seq 1 60); do
             html=$(curl -fsS "$URL" 2>/dev/null || true)
-            if echo "$html" | grep -qE '/assets/[^"]+\.js'; then
-              if echo "$html" | grep -q '/src/main.tsx'; then
-                echo "attempt $i: still source HTML, waiting…"
-              else
-                asset=$(echo "$html" | grep -oE '/assets/[^"]+\.js' | head -1)
-                code=$(curl -s -o /dev/null -w '%{http_code}' "https://spider.siaroza.com${asset}")
-                echo "attempt $i: found $asset (HTTP $code)"
-                if [ "$code" = "200" ]; then
-                  echo "Live site is serving the Vite build."
-                  exit 0
-                fi
+            if echo "$html" | grep -qE '/assets/[^"]+\.js' \
+              && ! echo "$html" | grep -q '/src/main.tsx'; then
+              asset=$(echo "$html" | grep -oE '/assets/[^"]+\.js' | head -1)
+              code=$(curl -s -o /dev/null -w '%{http_code}' "https://spider.siaroza.com${asset}")
+              echo "attempt $i: $asset -> HTTP $code"
+              if [ "$code" = "200" ]; then
+                echo "Live site is serving the Vite build."
+                exit 0
               fi
             else
-              echo "attempt $i: no /assets/ yet (status=$(gh api repos/${{ github.repository }}/pages --jq .status 2>/dev/null || echo ?))"
+              st=$(gh api "repos/${{ github.repository }}/pages" --jq '.status' 2>/dev/null || echo '?')
+              echo "attempt $i: still broken/old HTML (pages status=$st)"
             fi
             sleep 10
           done
-          echo "::error::Timed out — live HTML still not the Vite build"
+          echo "::error::Timed out. Pages is likely still latched. Do the manual unlock steps in the README."
           curl -fsS "$URL" | head -40 || true
+          echo
+          echo "Open: https://github.com/${{ github.repository }}/settings/pages"
+          echo "And:  https://github.com/${{ github.repository }}/deployments/activity_log?environments_filter=github-pages"
           exit 1
