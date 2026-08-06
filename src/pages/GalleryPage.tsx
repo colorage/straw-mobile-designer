@@ -87,7 +87,16 @@ export function GalleryPage() {
 
   const handleDelete = (entry: GalleryEntry) => {
     setError(null)
-    if (!window.confirm(`Delete “${entry.name}” from the gallery?`)) return
+    const cloud = mode === 'cloud'
+    if (
+      !window.confirm(
+        cloud
+          ? `Delete “${entry.name}” from your account? This cannot be undone.`
+          : `Delete “${entry.name}” from the gallery?`,
+      )
+    ) {
+      return
+    }
     deleteEntry(entry.id)
   }
 

@@ -3,7 +3,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 import { syncShapeTransformsFromPhysics } from '../physics/syncTransforms'
 import { captureCanvasThumbnail } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
-import { queueCloudDelete, queueCloudUpsert } from './cloudSync'
+import { flushCloudSync, queueCloudDelete, queueCloudUpsert } from './cloudSync'
 import { createGalleryId } from './ids'
 import { downloadEntryJson } from './jsonIo'
 import { nextProjectName } from './projectName'
@@ -147,7 +147,12 @@ export const useGalleryStore = create<GalleryState>()(
           entries: state.entries.filter((entry) => entry.id !== id),
           activeGalleryId: state.activeGalleryId === id ? null : state.activeGalleryId,
         }))
-        if (get().mode === 'cloud') queueCloudDelete(id)
+        // Flush immediately so a stale in-flight upsert cannot recreate the row,
+        // and so a reload before the debounce timer still sees the deletion.
+        if (get().mode === 'cloud') {
+          queueCloudDelete(id)
+          void flushCloudSync()
+        }
       },
 
       loadEntry: (id) => {
