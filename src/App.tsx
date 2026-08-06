@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { DesignerPage } from './pages/DesignerPage'
 import { GalleryPage } from './pages/GalleryPage'
@@ -13,6 +14,7 @@ function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <BuyMeACoffeeButton />
+      <Analytics />
     </>
   )
 }
