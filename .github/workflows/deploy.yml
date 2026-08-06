@@ -5,118 +5,143 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Push the Vite build to a dedicated `gh-pages` branch and point Pages at
+# that branch. Deploying from `main` publishes raw source (/src/main.tsx) and
+# breaks the app; deploy-pages (workflow mode) has been wedging in
+# deployment_queued / errored after source toggles.
 permissions:
-  contents: read
+  contents: write
   pages: write
-  id-token: write
   deployments: write
 
 concurrency:
-  # Queue deploys instead of canceling — mid-flight cancels leave Pages stuck
-  # in deployment_queued / "Deployment cancelled" until it clears.
   group: pages
   cancel-in-progress: false
 
 jobs:
-  # Unwedge Pages before building. A prior switch to "Deploy from a branch"
-  # (legacy) plus cancelled Actions deploys leaves status=building and blocks
-  # new deploy-pages requests with "in progress deployment… cancel X first".
-  prepare:
+  deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
-      - name: Reset Pages to GitHub Actions and clear stuck deploys
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Stage Pages metadata in dist
+        run: |
+          set -euo pipefail
+          # Custom domain (also copied from public/ by Vite)
+          if [ -f public/CNAME ]; then
+            cp public/CNAME dist/CNAME
+          elif [ -f CNAME ]; then
+            cp CNAME dist/CNAME
+          fi
+          # Skip Jekyll so assets/ and SPA files are served as-is
+          touch dist/.nojekyll
+          # SPA deep-link fallback (plugin also writes 404.html)
+          test -f dist/404.html || cp dist/index.html dist/404.html
+          echo "dist contents:"
+          ls -la dist
+          echo "index script tags:"
+          grep -E 'script|stylesheet' dist/index.html || true
+
+      - name: Cancel stuck Pages deployments
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          R="${{ github.repository }}"
+          echo "::group::Current Pages state"
+          gh api "repos/$R/pages" --jq '{status, build_type, source, html_url, cname}' || true
+          echo "::endgroup::"
+
+          gh api "repos/$R/deployments?environment=github-pages&per_page=30" --jq '.[].id' \
+            | while read -r id; do
+                state=$(gh api "repos/$R/deployments/$id/statuses" --jq '.[0].state // "unknown"' 2>/dev/null || echo "unknown")
+                sha=$(gh api "repos/$R/deployments/$id" --jq '.sha' 2>/dev/null || true)
+                echo "deployment $id state=$state sha=${sha:-?}"
+                case "$state" in
+                  in_progress|queued|pending)
+                    if [ -n "${sha:-}" ]; then
+                      gh api -X POST "repos/$R/pages/deployments/$sha/cancel" >/dev/null 2>&1 \
+                        && echo "canceled $sha" || true
+                    fi
+                    ;;
+                esac
+              done
+
+          # Relax environment branch policy so gh-pages can publish
+          gh api -X PUT "repos/$R/environments/github-pages" --input - <<'EOF' >/dev/null 2>&1 || true
+          {"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":false}}
+          EOF
+          gh api -X POST "repos/$R/environments/github-pages/deployment-branch-policies" \
+            -f name=gh-pages -f type=branch >/dev/null 2>&1 || true
+
+      - name: Publish dist to gh-pages branch
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          folder: dist
+          branch: gh-pages
+          clean: true
+          single-commit: true
+          force: true
+
+      - name: Point Pages at gh-pages and clear errored latch
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           R="${{ github.repository }}"
 
-          echo "::group::Current Pages state"
-          gh api "repos/$R/pages" --jq '{status, build_type, source, html_url, cname}' || true
-          echo "::endgroup::"
-
+          status=$(gh api "repos/$R/pages" --jq '.status // "unknown"' 2>/dev/null || echo "unknown")
+          branch=$(gh api "repos/$R/pages" --jq '.source.branch // "none"' 2>/dev/null || echo "none")
           build_type=$(gh api "repos/$R/pages" --jq '.build_type // "unknown"' 2>/dev/null || echo "unknown")
-          if [ "$build_type" != "workflow" ]; then
-            echo "Pages build_type is '$build_type' — switching to GitHub Actions (workflow)"
-            printf '{"build_type":"workflow"}' | gh api -X PUT "repos/$R/pages" --input -
-            sleep 5
-          else
-            echo "Pages already on workflow source"
+          echo "before: status=$status build_type=$build_type branch=$branch"
+
+          # If Pages latched on errored, bounce source to clear it, then land on gh-pages.
+          if [ "$status" = "errored" ] || [ "$status" = "building" ]; then
+            echo "Clearing stuck Pages status via workflow toggle"
+            printf '{"build_type":"workflow"}' | gh api -X PUT "repos/$R/pages" --input - || true
+            sleep 8
           fi
 
-          echo "::group::Cancel stuck Pages deployments"
-          # Cancel any non-terminal github-pages deployments that block create.
-          gh api "repos/$R/deployments?environment=github-pages&per_page=20" --jq '.[].id' \
-            | while read -r id; do
-                state=$(gh api "repos/$R/deployments/$id/statuses" --jq '.[0].state // "unknown"' 2>/dev/null || echo "unknown")
-                echo "deployment $id state=$state"
-                case "$state" in
-                  in_progress|queued|pending)
-                    echo "Canceling Pages deployment for deployment id $id"
-                    # Prefer Pages cancel by deployment SHA/id when available
-                    sha=$(gh api "repos/$R/deployments/$id" --jq '.sha' 2>/dev/null || true)
-                    if [ -n "${sha:-}" ]; then
-                      gh api -X POST "repos/$R/pages/deployments/$sha/cancel" >/dev/null 2>&1 \
-                        && echo "canceled pages deployment $sha" \
-                        || echo "pages cancel for $sha skipped/failed (may already be gone)"
-                    fi
-                    ;;
-                esac
-              done
-          echo "::endgroup::"
+          echo "Setting Pages source to branch gh-pages / with custom domain"
+          printf '{"build_type":"legacy","source":{"branch":"gh-pages","path":"/"},"cname":"spider.siaroza.com"}' \
+            | gh api -X PUT "repos/$R/pages" --input -
 
-          # Also try canceling the known wedged build versions from recent failures.
-          for sha in \
-            822afadc25b46690f04c85fa79dce0c543cabca8 \
-            a8a6c69d38a1219d99702b5c5c4bf2614a2c83ea \
-            f23ed3fff97983df20fdab916322053e382c849e \
-            d7c18cf75de3fdb61d7465aca0d37ba0f185ff0a
-          do
-            gh api -X POST "repos/$R/pages/deployments/$sha/cancel" >/dev/null 2>&1 \
-              && echo "canceled pages deployment $sha" \
-              || true
-          done
-
-          echo "::group::Pages state after reset"
-          sleep 3
+          sleep 5
           gh api "repos/$R/pages" --jq '{status, build_type, source, html_url, cname}' || true
-          echo "::endgroup::"
 
-  build:
-    needs: prepare
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - name: Ensure CNAME in dist for custom domain
+      - name: Wait until live site serves the Vite build
         run: |
-          if [ -f public/CNAME ]; then
-            cp public/CNAME dist/CNAME
-          elif [ -f CNAME ]; then
-            cp CNAME dist/CNAME
-          fi
-          ls -la dist/CNAME || echo "No CNAME (Pages settings cname may still apply)"
-      - uses: actions/upload-pages-artifact@v4
-        with:
-          path: dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5
-        with:
-          # Give Pages more time to leave deployment_queued after prior cancels.
-          timeout: 600000
+          set -euo pipefail
+          URL="https://spider.siaroza.com/"
+          echo "Polling $URL for /assets/*.js (not /src/main.tsx)…"
+          for i in $(seq 1 48); do
+            html=$(curl -fsS "$URL" 2>/dev/null || true)
+            if echo "$html" | grep -qE '/assets/[^"]+\.js'; then
+              if echo "$html" | grep -q '/src/main.tsx'; then
+                echo "attempt $i: still source HTML, waiting…"
+              else
+                asset=$(echo "$html" | grep -oE '/assets/[^"]+\.js' | head -1)
+                code=$(curl -s -o /dev/null -w '%{http_code}' "https://spider.siaroza.com${asset}")
+                echo "attempt $i: found $asset (HTTP $code)"
+                if [ "$code" = "200" ]; then
+                  echo "Live site is serving the Vite build."
+                  exit 0
+                fi
+              fi
+            else
+              echo "attempt $i: no /assets/ yet (status=$(gh api repos/${{ github.repository }}/pages --jq .status 2>/dev/null || echo ?))"
+            fi
+            sleep 10
+          done
+          echo "::error::Timed out — live HTML still not the Vite build"
+          curl -fsS "$URL" | head -40 || true
+          exit 1
