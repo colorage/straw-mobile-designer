@@ -18,8 +18,8 @@ interface PublishedMapState {
 
 /**
  * Remembers which local gallery entries this browser has published, so
- * gallery cards can show Publish vs Update/Unpublish and re-publishing
- * overwrites the same public row.
+ * gallery cards can show Publish vs Unpublish. Published mobiles re-sync
+ * automatically when the local draft is saved.
  */
 export const usePublishedMapStore = create<PublishedMapState>()(
   persist(
