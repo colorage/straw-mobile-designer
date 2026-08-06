@@ -4,10 +4,13 @@ import { getScaledVertex } from '../state/shapeSpace'
 import type { Shape } from '../state/types'
 import { StrawMesh } from './StrawMesh'
 import { VertexHandle } from './VertexHandle'
+import { setMoveCursor } from './freeMoveDrag'
+import { isGizmoDragging } from './gizmoDrag'
 
 const STRAW_COLOR = '#dcc186'
 const STRAW_COLOR_SELECTED = '#8fb8ff'
 const STRAW_COLOR_SCISSORS_HOVER = '#e08a8a'
+const STRAW_COLOR_MOVE_TARGET = '#b8d4ff'
 
 interface ShapeGroupProps {
   shape: Shape
@@ -17,6 +20,10 @@ interface ShapeGroupProps {
   isVertexPending?: (vertexIndex: number) => boolean
   isVertexSuggested?: (vertexIndex: number) => boolean
   isVertexConnected?: (vertexIndex: number) => boolean
+  /** Corner is the active move/grab subtarget. */
+  isVertexMoveTarget?: (vertexIndex: number) => boolean
+  /** Straw is the active move/grab subtarget. */
+  isEdgeMoveTarget?: (edgeIndex: number) => boolean
   /** Tints the straws to indicate this shape is picked up for dragging. */
   selected?: boolean
   /** Soft cut-mode hover tint when the scissors tool is active. */
@@ -24,11 +31,13 @@ interface ShapeGroupProps {
   /** Click handler on the straw bodies (not the corner handles), used to pick a shape up for dragging. */
   onBodyClick?: (event: ThreeEvent<MouseEvent>) => void
   /**
-   * Click handler for one straw. Fused pieces use this so scissors cuts the
-   * straw under the cursor instead of the whole piece; the hover tint follows
-   * that single straw too.
+   * Click handler for one straw. Used by scissors (cut) and select mode (straw subselection).
    */
   onEdgeClick?: (edgeIndex: number) => void
+  /** Pointer-down on a move-target corner — starts free/physics drag. */
+  onVertexDragStart?: (vertexIndex: number, event: ThreeEvent<PointerEvent>) => void
+  /** Pointer-down on a move-target straw — starts free/physics drag. */
+  onEdgeDragStart?: (edgeIndex: number, event: ThreeEvent<PointerEvent>) => void
 }
 
 /** Renders a shape's straws plus (optionally) clickable corner handles. */
@@ -39,10 +48,14 @@ export function ShapeGroup({
   isVertexPending,
   isVertexSuggested,
   isVertexConnected,
+  isVertexMoveTarget,
+  isEdgeMoveTarget,
   selected,
   scissorsHover,
   onBodyClick,
   onEdgeClick,
+  onVertexDragStart,
+  onEdgeDragStart,
 }: ShapeGroupProps) {
   const [hovered, setHovered] = useState(false)
   const [hoveredEdge, setHoveredEdge] = useState<number | null>(null)
@@ -57,10 +70,13 @@ export function ShapeGroup({
       ? STRAW_COLOR_SCISSORS_HOVER
       : STRAW_COLOR
 
-  const edgeColor = (edgeIndex: number) =>
-    !selected && scissorsHover && onEdgeClick && hoveredEdge === edgeIndex
-      ? STRAW_COLOR_SCISSORS_HOVER
-      : color
+  const edgeColor = (edgeIndex: number) => {
+    if (isEdgeMoveTarget?.(edgeIndex)) return STRAW_COLOR_MOVE_TARGET
+    if (!selected && scissorsHover && onEdgeClick && hoveredEdge === edgeIndex) {
+      return STRAW_COLOR_SCISSORS_HOVER
+    }
+    return color
+  }
 
   return (
     <group
@@ -86,20 +102,30 @@ export function ShapeGroup({
         const straw = (
           <StrawMesh start={scaledVertices[a]} end={scaledVertices[b]} color={edgeColor(i)} />
         )
-        if (!onEdgeClick) return <group key={i}>{straw}</group>
+        const moveTarget = !!isEdgeMoveTarget?.(i)
+        if (!onEdgeClick && !onEdgeDragStart) return <group key={i}>{straw}</group>
         return (
           <group
             key={i}
             onClick={(event) => {
               event.stopPropagation()
-              onEdgeClick(i)
+              onEdgeClick?.(i)
             }}
+            onPointerDown={
+              moveTarget && onEdgeDragStart
+                ? (event) => {
+                    onEdgeDragStart(i, event)
+                  }
+                : undefined
+            }
             onPointerOver={(event) => {
               event.stopPropagation()
               setHoveredEdge(i)
+              if (moveTarget && !isGizmoDragging()) setMoveCursor(true)
             }}
             onPointerOut={() => {
               setHoveredEdge((current) => (current === i ? null : current))
+              if (moveTarget) setMoveCursor(false)
             }}
           >
             {straw}
@@ -114,7 +140,11 @@ export function ShapeGroup({
             pending={isVertexPending?.(i)}
             suggested={isVertexSuggested?.(i)}
             connected={isVertexConnected?.(i)}
+            moveTarget={isVertexMoveTarget?.(i)}
             onSelect={() => onVertexClick?.(i)}
+            onDragStart={
+              onVertexDragStart ? (event) => onVertexDragStart(i, event) : undefined
+            }
           />
         ))}
     </group>

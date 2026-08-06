@@ -30,6 +30,7 @@ import {
   type OverlapScanUi,
   type OverlapSuggest,
   type QuatTuple,
+  type SelectedEdge,
   type Shape,
   type ShapePose,
   type ShapeReelIn,
@@ -86,6 +87,8 @@ const createId = () =>
 const EMPTY_SELECTION = {
   selectedShapeIds: [] as string[],
   selectionAnchorId: null as string | null,
+  selectedEndpoint: null as EndpointRef | null,
+  selectedEdge: null as SelectedEdge | null,
 }
 
 function remapEndpoint(endpoint: EndpointRef, idMap: Map<string, string>): EndpointRef | null {
@@ -284,6 +287,13 @@ interface StrawMobileState {
   selectedShapeIds: string[]
   /** Anchor for Shift+range selection in the sidebar list. */
   selectionAnchorId: string | null
+  /**
+   * Corner selected for camera-plane / physics grab (select mode only).
+   * Null when dragging via the centroid cube or nothing is sub-selected.
+   */
+  selectedEndpoint: EndpointRef | null
+  /** Straw (edge) selected for grab; mutually exclusive with selectedEndpoint. */
+  selectedEdge: SelectedEdge | null
   /** Current edit tool (persisted across reloads; cleared on undo/load/reset). */
   activeTool: ActiveTool
   /**
@@ -355,6 +365,10 @@ interface StrawMobileState {
   /** Apply multiple position updates in one store write (one overlap-scan wake). */
   moveShapes: (updates: { id: string; position: Vector3Tuple }[]) => void
   selectShape: (id: string | null) => void
+  /** Select a corner for move/grab (select mode); clears straw subselection. */
+  selectMoveEndpoint: (endpoint: EndpointRef) => void
+  /** Select a straw for move/grab (select mode); clears corner subselection. */
+  selectMoveEdge: (edge: SelectedEdge) => void
   toggleShapeSelection: (id: string) => void
   selectShapeRange: (id: string) => void
   /** Replace the current selection with the given shape ids (last id is primary). */
@@ -494,6 +508,13 @@ function fuseCycleCluster(
       current.selectionAnchorId && cluster.shapeIds.has(current.selectionAnchorId)
         ? fusedId
         : current.selectionAnchorId,
+    selectedEndpoint: touchesCluster(current.selectedEndpoint ?? undefined)
+      ? null
+      : current.selectedEndpoint,
+    selectedEdge:
+      current.selectedEdge && cluster.shapeIds.has(current.selectedEdge.shapeId)
+        ? null
+        : current.selectedEdge,
   }))
 
   return fusedId
@@ -588,6 +609,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       rigidLoopsEnabled: true,
       selectedShapeIds: [],
       selectionAnchorId: null,
+      selectedEndpoint: null,
+      selectedEdge: null,
       activeTool: 'none',
       slots: [...EMPTY_SLOTS],
       reelIns: [],
@@ -709,6 +732,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
             ? {
                 selectedShapeIds: [id],
                 selectionAnchorId: id,
+                selectedEndpoint: null,
+                selectedEdge: null,
                 activeTool: 'select' as const,
               }
             : EMPTY_SELECTION),
@@ -792,6 +817,11 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           ),
           selectionAnchorId:
             current.selectionAnchorId === id ? null : current.selectionAnchorId,
+          selectedEndpoint: touchesAssembly(current.selectedEndpoint ?? undefined)
+            ? null
+            : current.selectedEndpoint,
+          selectedEdge:
+            current.selectedEdge?.shapeId === id ? null : current.selectedEdge,
         }))
 
         // Whatever is still a closed loop goes straight back to being rigid.
@@ -854,6 +884,15 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           selectedShapeIds: nextSelected,
           selectionAnchorId:
             selectionAnchorId && removeSet.has(selectionAnchorId) ? null : selectionAnchorId,
+          selectedEndpoint:
+            state.selectedEndpoint?.kind === 'shape' &&
+            removeSet.has(state.selectedEndpoint.shapeId)
+              ? null
+              : state.selectedEndpoint,
+          selectedEdge:
+            state.selectedEdge && removeSet.has(state.selectedEdge.shapeId)
+              ? null
+              : state.selectedEdge,
         }))
       },
 
@@ -870,7 +909,15 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       selectVertex: (endpoint) => {
-        const { pendingVertex, selectedShapeIds } = get()
+        const { activeTool, pendingVertex, selectedShapeIds } = get()
+
+        // Select mode: corner click picks a move/grab subtarget, not a thread tie.
+        if (activeTool === 'select') {
+          if (endpoint.kind === 'anchor') return
+          get().selectMoveEndpoint(endpoint)
+          return
+        }
+
         // Picking a corner to tie thread is a distinct interaction from dragging a
         // shape around; clear any active drag selection so its gizmo doesn't
         // linger over (and steal clicks from) the corner handles.
@@ -887,6 +934,27 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         }
 
         get().connectEndpoints(pendingVertex, endpoint)
+      },
+
+      selectMoveEndpoint: (endpoint) => {
+        if (endpoint.kind === 'anchor') return
+        set({
+          selectedShapeIds: [endpoint.shapeId],
+          selectionAnchorId: endpoint.shapeId,
+          selectedEndpoint: endpoint,
+          selectedEdge: null,
+          pendingVertex: null,
+        })
+      },
+
+      selectMoveEdge: (edge) => {
+        set({
+          selectedShapeIds: [edge.shapeId],
+          selectionAnchorId: edge.shapeId,
+          selectedEndpoint: null,
+          selectedEdge: edge,
+          pendingVertex: null,
+        })
       },
 
       connectEndpoints: (a, b) => {
@@ -1113,7 +1181,12 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         set(
           id === null
             ? EMPTY_SELECTION
-            : { selectedShapeIds: [id], selectionAnchorId: id },
+            : {
+                selectedShapeIds: [id],
+                selectionAnchorId: id,
+                selectedEndpoint: null,
+                selectedEdge: null,
+              },
         ),
 
       toggleShapeSelection: (id) => {
@@ -1126,12 +1199,16 @@ export const useStrawMobileStore = create<StrawMobileState>()(
               selectionAnchorId === id
                 ? (next[next.length - 1] ?? null)
                 : selectionAnchorId,
+            selectedEndpoint: null,
+            selectedEdge: null,
           })
           return
         }
         set({
           selectedShapeIds: [...selectedShapeIds, id],
           selectionAnchorId: id,
+          selectedEndpoint: null,
+          selectedEdge: null,
         })
       },
 
@@ -1141,7 +1218,12 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         const anchorIndex = shapes.findIndex((shape) => shape.id === anchorId)
         const targetIndex = shapes.findIndex((shape) => shape.id === id)
         if (anchorIndex < 0 || targetIndex < 0) {
-          set({ selectedShapeIds: [id], selectionAnchorId: id })
+          set({
+            selectedShapeIds: [id],
+            selectionAnchorId: id,
+            selectedEndpoint: null,
+            selectedEdge: null,
+          })
           return
         }
         const start = Math.min(anchorIndex, targetIndex)
@@ -1150,6 +1232,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           selectedShapeIds: shapes.slice(start, end + 1).map((shape) => shape.id),
           // Keep the original anchor fixed for subsequent Shift+range clicks.
           selectionAnchorId: anchorId,
+          selectedEndpoint: null,
+          selectedEdge: null,
         })
       },
 
@@ -1161,6 +1245,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         set({
           selectedShapeIds: ids,
           selectionAnchorId: ids[ids.length - 1] ?? null,
+          selectedEndpoint: null,
+          selectedEdge: null,
         })
       },
 
@@ -1178,6 +1264,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           connections: [...state.connections, ...clonedConnections],
           selectedShapeIds: newIds,
           selectionAnchorId: newIds[newIds.length - 1] ?? null,
+          selectedEndpoint: null,
+          selectedEdge: null,
           overlapScanWakeToken: state.overlapScanWakeToken + 1,
         }))
       },

@@ -87,8 +87,16 @@ export interface StrawCounts {
   total: number
 }
 
+/** A single straw (edge) selected for camera-plane / physics grab. */
+export type SelectedEdge = { shapeId: string; edgeIndex: number }
+
 /** Index of a selection buffer slot (toolbar buttons 1 / 2 / 3). */
 export type SlotIndex = 0 | 1 | 2
+
+export function selectedEdgesEqual(a: SelectedEdge | null, b: SelectedEdge | null): boolean {
+  if (!a || !b) return a === b
+  return a.shapeId === b.shapeId && a.edgeIndex === b.edgeIndex
+}
 
 /** Deep-cloned shapes + internal threads held in a buffer slot. */
 export type SlotBuffer = {

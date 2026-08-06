@@ -1,11 +1,12 @@
-import { RigidBody } from '@react-three/rapier'
-import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { RigidBody } from '@react-three/rapier'
 import type { Group } from 'three'
-import { SelectableShape } from '../scene/SelectableShape'
-import { ShapeGroup } from '../scene/ShapeGroup'
 import { useStrawMobileStore } from '../state/store'
 import type { Shape } from '../state/types'
+import { SelectableShape } from '../scene/SelectableShape'
+import { ShapeGroup } from '../scene/ShapeGroup'
+import { startFreeOrHangDrag } from '../scene/startDrag'
 import { getBodyRef } from './bodyRefRegistry'
 import { SHAPE_COLLISION_GROUPS } from './collisionGroups'
 import { registerMeshDriver } from './meshDriveRegistry'
@@ -123,9 +124,14 @@ function DrivenShapeVisual({
   const groupRef = useRef<Group>(null)
   const removeShape = useStrawMobileStore((s) => s.removeShape)
   const cutAssemblyEdge = useStrawMobileStore((s) => s.cutAssemblyEdge)
+  const selectShape = useStrawMobileStore((s) => s.selectShape)
+  const toggleShapeSelection = useStrawMobileStore((s) => s.toggleShapeSelection)
+  const selectMoveEdge = useStrawMobileStore((s) => s.selectMoveEdge)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
+  const isSelected = useStrawMobileStore((s) => s.selectedShapeIds.includes(shape.id))
+  const selectedEndpoint = useStrawMobileStore((s) => s.selectedEndpoint)
+  const selectedEdge = useStrawMobileStore((s) => s.selectedEdge)
   const isScissors = activeTool === 'scissors'
-  // A fused piece is cut one straw at a time; primitives are cut whole.
   const cutsPerStraw = isScissors && shape.kind === 'assembly'
 
   useLayoutEffect(() => {
@@ -156,7 +162,6 @@ function DrivenShapeVisual({
     const body = getBodyRef(shape.id).current
     if (!body) return
     try {
-      // Sleeping bodies are still — skip WASM pose reads until they wake.
       if (body.isSleeping()) return
       const t = body.translation()
       const r = body.rotation()
@@ -167,13 +172,45 @@ function DrivenShapeVisual({
     }
   })
 
-  const handleBodyClick =
-    isScissors && !cutsPerStraw
-      ? (event: ThreeEvent<MouseEvent>) => {
-          event.stopPropagation()
-          removeShape(shape.id)
-        }
-      : undefined
+  const handleBodyClick = (event: ThreeEvent<MouseEvent>) => {
+    event.stopPropagation()
+    if (isScissors && !cutsPerStraw) {
+      removeShape(shape.id)
+      return
+    }
+    if (activeTool !== 'select') return
+    if (event.nativeEvent.shiftKey) {
+      toggleShapeSelection(shape.id)
+      return
+    }
+    selectShape(shape.id)
+  }
+
+  const handleEdgeSelect = (edgeIndex: number) => {
+    if (isScissors && cutsPerStraw) {
+      cutAssemblyEdge(shape.id, edgeIndex)
+      return
+    }
+    if (activeTool !== 'select') return
+    const state = useStrawMobileStore.getState()
+    const alone =
+      state.selectedShapeIds.length === 1 && state.selectedShapeIds[0] === shape.id
+    if (!alone) {
+      selectShape(shape.id)
+      return
+    }
+    if (!state.selectedEdge && !state.selectedEndpoint) {
+      selectMoveEdge({ shapeId: shape.id, edgeIndex })
+      return
+    }
+    if (
+      state.selectedEdge?.shapeId === shape.id &&
+      state.selectedEdge.edgeIndex === edgeIndex
+    ) {
+      return
+    }
+    selectMoveEdge({ shapeId: shape.id, edgeIndex })
+  }
 
   return (
     <group ref={groupRef} position={shape.position} quaternion={shape.quaternion}>
@@ -184,10 +221,30 @@ function DrivenShapeVisual({
         isVertexPending={isVertexPending}
         isVertexSuggested={isVertexSuggested}
         isVertexConnected={isVertexConnected}
+        isVertexMoveTarget={(vertexIndex) =>
+          selectedEndpoint?.kind === 'shape' &&
+          selectedEndpoint.shapeId === shape.id &&
+          selectedEndpoint.vertexIndex === vertexIndex
+        }
+        isEdgeMoveTarget={(edgeIndex) =>
+          selectedEdge?.shapeId === shape.id && selectedEdge.edgeIndex === edgeIndex
+        }
+        selected={isSelected && activeTool === 'select'}
         scissorsHover={isScissors}
         onBodyClick={handleBodyClick}
         onEdgeClick={
-          cutsPerStraw ? (edgeIndex) => cutAssemblyEdge(shape.id, edgeIndex) : undefined
+          cutsPerStraw || activeTool === 'select' ? handleEdgeSelect : undefined
+        }
+        onVertexDragStart={
+          activeTool === 'select'
+            ? (vertexIndex, event) =>
+                startFreeOrHangDrag(shape, 'vertex', vertexIndex, null, event)
+            : undefined
+        }
+        onEdgeDragStart={
+          activeTool === 'select'
+            ? (edgeIndex, event) => startFreeOrHangDrag(shape, 'edge', null, edgeIndex, event)
+            : undefined
         }
       />
     </group>
@@ -198,12 +255,6 @@ function DrivenShapeVisual({
  * Every shape owns a rigid body for joints/colliders. Visuals and edit gizmos
  * live as sibling plain Three groups so free pieces never mount under a
  * stationary kinematic/fixed body (the PR #6 matrixWorld regression).
- *
- * Note: deliberately no unmount cleanup of the body ref here. In development,
- * React StrictMode double-invokes effect cleanup/setup on mount without
- * actually unmounting — clearing the shared ref registry entry there would
- * orphan the very ref this RigidBody is using, breaking joints. The registry
- * is cleaned up instead when a shape is actually removed (see store.ts).
  */
 export function PhysicsShape({
   shape,
@@ -216,11 +267,16 @@ export function PhysicsShape({
 }: PhysicsShapeProps) {
   const ref = getBodyRef(shape.id)
   const isSelected = useStrawMobileStore((s) => s.selectedShapeIds.includes(shape.id))
-  const showGizmo = useStrawMobileStore(
+  const showCentroidCube = useStrawMobileStore(
     (s) =>
       s.activeTool === 'select' &&
-      s.selectedShapeIds[s.selectedShapeIds.length - 1] === shape.id,
+      s.selectedShapeIds[s.selectedShapeIds.length - 1] === shape.id &&
+      s.selectedEndpoint === null &&
+      s.selectedEdge === null,
   )
+  const selectedEndpoint = useStrawMobileStore((s) => s.selectedEndpoint)
+  const selectedEdge = useStrawMobileStore((s) => s.selectedEdge)
+  const selectMoveEdge = useStrawMobileStore((s) => s.selectMoveEdge)
   const reelPosition = useStrawMobileStore((s) => s.reelPositions[shape.id])
   const reelQuaternion = useStrawMobileStore((s) => s.reelQuaternions[shape.id])
   const isDynamic = hanging && !reeling
@@ -229,8 +285,6 @@ export function PhysicsShape({
   const worldQuaternion = reelQuaternion ?? shape.quaternion
   const wasDynamicRef = useRef(false)
 
-  // When a shape first becomes dynamic (joins the hook chain / finishes reel-in),
-  // zero leftover reel velocity and apply a soft settle — not a random kick.
   useEffect(() => {
     if (!isDynamic) {
       wasDynamicRef.current = false
@@ -246,7 +300,6 @@ export function PhysicsShape({
       const body = ref.current
       if (body) {
         try {
-          // Wait until auto-colliders have attached so mass > 0 and impulses work.
           if (body.numColliders() === 0 && attempts < 20) {
             attempts += 1
             frameId = requestAnimationFrame(trySettle)
@@ -269,6 +322,27 @@ export function PhysicsShape({
     }
   }, [isDynamic, ref, shape.id])
 
+  const handleEdgeSelect = (edgeIndex: number) => {
+    const state = useStrawMobileStore.getState()
+    const alone =
+      state.selectedShapeIds.length === 1 && state.selectedShapeIds[0] === shape.id
+    if (!alone) {
+      state.selectShape(shape.id)
+      return
+    }
+    if (!state.selectedEdge && !state.selectedEndpoint) {
+      selectMoveEdge({ shapeId: shape.id, edgeIndex })
+      return
+    }
+    if (
+      state.selectedEdge?.shapeId === shape.id &&
+      state.selectedEdge.edgeIndex === edgeIndex
+    ) {
+      return
+    }
+    selectMoveEdge({ shapeId: shape.id, edgeIndex })
+  }
+
   return (
     <>
       <RigidBody
@@ -277,23 +351,14 @@ export function PhysicsShape({
         position={worldPosition}
         quaternion={worldQuaternion}
         colliders="hull"
-        // Hull meshes live in a hidden group so they don't double-draw; Rapier
-        // skips invisible children unless this flag is set (otherwise mass=0).
         includeInvisible
-        // Thin straw hulls have tiny volume; scale density so total mass is
-        // numerically stable under joints (~1–2 for a full-size octahedron).
         density={400}
         collisionGroups={SHAPE_COLLISION_GROUPS}
-        // Allow sleep once sway settles — otherwise one hanging straw keeps
-        // the Rapier island (and FPS) hot forever after the first connect.
         canSleep
         restitution={0.1}
-        // Base hanging damping; HangingEnergyLimiter raises it adaptively
-        // when many pieces hang or a body approaches the soft speed caps.
         linearDamping={isDynamic ? 0.65 : 0.4}
         angularDamping={isDynamic ? 0.8 : 0.55}
       >
-        {/* Hull source only — not rendered / not raycast-visible. */}
         <group visible={false}>
           <ShapeGroup shape={shape} interactive={false} />
         </group>
@@ -303,11 +368,20 @@ export function PhysicsShape({
         <SelectableShape
           shape={shape}
           isSelected={isSelected}
-          showGizmo={showGizmo}
+          showCentroidCube={showCentroidCube}
           onVertexClick={onVertexClick}
           isVertexPending={isVertexPending}
           isVertexSuggested={isVertexSuggested}
           isVertexConnected={isVertexConnected}
+          isVertexMoveTarget={(vertexIndex) =>
+            selectedEndpoint?.kind === 'shape' &&
+            selectedEndpoint.shapeId === shape.id &&
+            selectedEndpoint.vertexIndex === vertexIndex
+          }
+          isEdgeMoveTarget={(edgeIndex) =>
+            selectedEdge?.shapeId === shape.id && selectedEdge.edgeIndex === edgeIndex
+          }
+          onEdgeSelect={handleEdgeSelect}
         />
       ) : (
         <DrivenShapeVisual
