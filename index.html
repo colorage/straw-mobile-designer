@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>straw-mobile-designer</title>
+    <script>
+      try {
+        var raw = localStorage.getItem('straw-mobile-designer/theme')
+        if (raw) {
+          var parsed = JSON.parse(raw)
+          var theme = parsed && parsed.state && parsed.state.theme
+          if (theme === 'light' || theme === 'dark') {
+            document.documentElement.dataset.theme = theme
+            document.documentElement.style.colorScheme = theme
+          }
+        }
+      } catch (e) {}
+    </script>
+    <script type="module" crossorigin src="/assets/index-cYF34ypX.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CJEsgK7k.css">
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
