@@ -27,12 +27,14 @@ export function startFreeOrHangDrag(
   edgeIndex: number | null,
   event: ThreeEvent<PointerEvent>,
 ): void {
+  const store = useStrawMobileStore.getState()
+  if (store.isPreviewMode) return
+
   const camera = getBridgeCamera()
   const canvas = getBridgeCanvas()
   if (!camera || !canvas) return
 
-  const { connections, reelIns, selectedEndpoint, selectedEdge } =
-    useStrawMobileStore.getState()
+  const { connections, reelIns, selectedEndpoint, selectedEdge } = store
   const hanging = getHangingShapeIds(connections)
   const reeling = (reelIns ?? []).some((reel) => reel.shapeId === shape.id)
 
