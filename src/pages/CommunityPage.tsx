@@ -3,25 +3,13 @@ import { Link, useNavigate } from 'react-router-dom'
 import {
   fetchCommunityProjects,
   fetchMyLikes,
-  fetchProjectSnapshot,
   likeProject,
   unlikeProject,
   type CommunityProject,
   type CommunitySort,
 } from '../community/communityApi'
 import { getCurrentUserId, isCommunityEnabled } from '../community/supabaseClient'
-import { suppressNextGalleryPersist } from '../gallery/autoPersist'
-import { useGalleryStore } from '../gallery/galleryStore'
 import { formatRelativeDate } from '../gallery/relativeDate'
-import { useStrawMobileStore } from '../state/store'
-
-function confirmOverwriteDraft(): boolean {
-  const { shapes } = useStrawMobileStore.getState()
-  if (shapes.length === 0) return true
-  return window.confirm(
-    'Replace the current draft with this community mobile? Unsaved draft changes will be lost (the autosaved draft will update).',
-  )
-}
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
@@ -42,17 +30,14 @@ function HeartIcon({ filled }: { filled: boolean }) {
   )
 }
 
-/** Full-page community gallery: browse public mobiles, like them, open a copy. */
+/** Full-page community gallery: browse public mobiles, like them, open a preview. */
 export function CommunityPage() {
   const navigate = useNavigate()
-  const importEnvelope = useGalleryStore((s) => s.importEnvelope)
-  const loadEntry = useGalleryStore((s) => s.loadEntry)
 
   const [sort, setSort] = useState<CommunitySort>('recent')
   const [projects, setProjects] = useState<CommunityProject[] | null>(null)
   const [myLikes, setMyLikes] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
-  const [openPendingId, setOpenPendingId] = useState<string | null>(null)
   const [likePendingIds, setLikePendingIds] = useState<Set<string>>(new Set())
 
   const refresh = useCallback(async (nextSort: CommunitySort) => {
@@ -91,24 +76,8 @@ export function CommunityPage() {
     }
   }, [])
 
-  const handleOpen = async (item: CommunityProject) => {
-    setError(null)
-    if (!confirmOverwriteDraft()) return
-    setOpenPendingId(item.id)
-    try {
-      const envelope = await fetchProjectSnapshot(item.id)
-      const localId = importEnvelope(envelope)
-      suppressNextGalleryPersist()
-      if (!loadEntry(localId)) {
-        setError('Saved a copy to your gallery, but could not open it in the designer.')
-        return
-      }
-      navigate('/')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not open this mobile.')
-    } finally {
-      setOpenPendingId(null)
-    }
+  const handleOpen = (item: CommunityProject) => {
+    navigate(`/community/${item.id}`)
   }
 
   const handleToggleLike = async (item: CommunityProject) => {
@@ -123,15 +92,16 @@ export function CommunityPage() {
         else next.delete(item.id)
         return next
       })
-      setProjects((prev) =>
-        prev?.map((project) =>
-          project.id === item.id
-            ? {
-                ...project,
-                likesCount: Math.max(0, project.likesCount + (liked ? 1 : -1)),
-              }
-            : project,
-        ) ?? prev,
+      setProjects(
+        (prev) =>
+          prev?.map((project) =>
+            project.id === item.id
+              ? {
+                  ...project,
+                  likesCount: Math.max(0, project.likesCount + (liked ? 1 : -1)),
+                }
+              : project,
+          ) ?? prev,
       )
     }
 
@@ -159,8 +129,8 @@ export function CommunityPage() {
           <p className="gallery-page-eyebrow">Straw Mobile Designer</p>
           <h1 className="gallery-page-title">Community</h1>
           <p className="gallery-page-subtitle">
-            Mobiles published by other builders. Open one to save a copy into your gallery and
-            remix it in the designer.
+            Mobiles published by other builders. Open one to preview it in the designer, then
+            duplicate a copy into your gallery to remix.
           </p>
         </div>
         <div className="gallery-page-header-actions">
@@ -225,14 +195,13 @@ export function CommunityPage() {
         <ul className="gallery-page-grid">
           {projects.map((item) => {
             const liked = myLikes.has(item.id)
-            const isOpenPending = openPendingId === item.id
             return (
               <li key={item.id} className="gallery-item">
                 <button
                   type="button"
                   className="gallery-thumb-button"
                   onClick={() => handleOpen(item)}
-                  aria-label={`Open ${item.name}`}
+                  aria-label={`Preview ${item.name}`}
                 >
                   <img
                     className="gallery-thumb"
@@ -254,10 +223,9 @@ export function CommunityPage() {
                     <button
                       type="button"
                       className="gallery-item-button"
-                      disabled={isOpenPending}
                       onClick={() => handleOpen(item)}
                     >
-                      {isOpenPending ? 'Opening…' : 'Open'}
+                      Open
                     </button>
                     <button
                       type="button"

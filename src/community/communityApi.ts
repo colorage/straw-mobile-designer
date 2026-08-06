@@ -108,19 +108,35 @@ export async function fetchCommunityProjects(
  * result plugs straight into the gallery import flow.
  */
 export async function fetchProjectSnapshot(publicId: string): Promise<GalleryFileEnvelope> {
+  const detail = await fetchPublicProjectDetail(publicId)
+  return detail.envelope
+}
+
+/** Snapshot + like count for the community preview route. */
+export interface PublicProjectDetail {
+  envelope: GalleryFileEnvelope
+  likesCount: number
+}
+
+export async function fetchPublicProjectDetail(
+  publicId: string,
+): Promise<PublicProjectDetail> {
   const { data, error } = await getSupabase()
     .from('public_projects')
-    .select('name, project, published_at')
+    .select('name, project, published_at, likes_count')
     .eq('id', publicId)
     .single()
   if (error) throw new Error(error.message)
-  return parseImportFile({
-    format: GALLERY_FILE_FORMAT,
-    version: GALLERY_FILE_VERSION,
-    name: data.name,
-    savedAt: data.published_at,
-    project: data.project,
-  })
+  return {
+    envelope: parseImportFile({
+      format: GALLERY_FILE_FORMAT,
+      version: GALLERY_FILE_VERSION,
+      name: data.name,
+      savedAt: data.published_at,
+      project: data.project,
+    }),
+    likesCount: data.likes_count as number,
+  }
 }
 
 /** Ids of public projects the current user liked; empty when never signed in. */

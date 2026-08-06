@@ -329,9 +329,16 @@ interface StrawMobileState {
    * chain would dip below clearance; not persisted (re-lifts after remount).
    */
   anchorY: number
+  /**
+   * Community preview: scene is view-only (orbit + physics). Not persisted —
+   * preview sessions are route-scoped and park the working draft separately.
+   */
+  isPreviewMode: boolean
 
   /** Snapshot the current design before an undoable mutation (or drag-start). */
   pushHistory: () => void
+  /** Enter / leave community preview (disables edit mutations while true). */
+  setPreviewMode: (enabled: boolean) => void
   /** Re-enable the overlap proximity scanner after an idle sleep. */
   wakeOverlapScanner: () => void
   /** Turn the overlap proximity scanner on or off (clears HUD when disabling). */
@@ -402,6 +409,11 @@ type SetStrawMobileState = (
 
 /** Safety valve: a fuse can open the next loop, but never loop forever. */
 const MAX_FUSE_PASSES = 4
+
+/** Community preview is view-only; mutating design actions no-op while set. */
+function previewBlocksEdits(get: () => StrawMobileState): boolean {
+  return get().isPreviewMode
+}
 
 function connectionTouches(connection: Connection, shapeIds: ReadonlySet<string>): boolean {
   return (
@@ -623,6 +635,18 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       future: [],
       physicsEpoch: 0,
       anchorY: BASE_ANCHOR_Y,
+      isPreviewMode: false,
+
+      setPreviewMode: (enabled) => {
+        if (get().isPreviewMode === enabled) return
+        set({
+          isPreviewMode: enabled,
+          pendingVertex: null,
+          overlapSuggest: null,
+          overlapScanUi: null,
+          ...EMPTY_SELECTION,
+        })
+      },
 
       setAnchorY: (y) => {
         const next = Math.max(BASE_ANCHOR_Y, y)
@@ -685,6 +709,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       undo: () => {
+        if (previewBlocksEdits(get)) return
         const state = get()
         if (state.past.length === 0) return
         const past = [...state.past]
@@ -697,6 +722,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       redo: () => {
+        if (previewBlocksEdits(get)) return
         const state = get()
         if (state.future.length === 0) return
         const future = [...state.future]
@@ -709,6 +735,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       addShape: (kind, position) => {
+        if (previewBlocksEdits(get)) return ''
         get().pushHistory()
         const { vertices, edges } = PRIMITIVE_GENERATORS[kind]()
         const { strawSize, shapes } = get()
@@ -748,6 +775,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       cutAssemblyEdge: (id, edgeIndex) => {
+        if (previewBlocksEdits(get)) return
         const assembly = get().shapes.find((shape) => shape.id === id)
         if (!assembly || assembly.kind !== 'assembly' || assembly.edges.length <= 1) {
           get().removeShape(id)
@@ -835,7 +863,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       removeShapes: (ids) => {
-        if (ids.length === 0) return
+        if (previewBlocksEdits(get) || ids.length === 0) return
         const removeSet = new Set(ids)
         get().pushHistory()
         const {
@@ -899,18 +927,21 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       setStrawSize: (size) => {
+        if (previewBlocksEdits(get)) return
         if (get().strawSize === size) return
         get().pushHistory()
         set({ strawSize: size })
       },
 
       setProjectName: (name) => {
+        if (previewBlocksEdits(get)) return
         const trimmed = name.trim() || DEFAULT_PROJECT_NAME
         if (get().projectName === trimmed) return
         set({ projectName: trimmed, lastSavedAt: Date.now() })
       },
 
       selectVertex: (endpoint) => {
+        if (previewBlocksEdits(get)) return
         const { activeTool, pendingVertex, selectedShapeIds } = get()
 
         // Select mode: corner click picks a move/grab subtarget, not a thread tie.
@@ -939,6 +970,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       selectMoveEndpoint: (endpoint) => {
+        if (previewBlocksEdits(get)) return
         if (endpoint.kind === 'anchor') return
         set({
           selectedShapeIds: [endpoint.shapeId],
@@ -950,6 +982,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       selectMoveEdge: (edge) => {
+        if (previewBlocksEdits(get)) return
         set({
           selectedShapeIds: [edge.shapeId],
           selectionAnchorId: edge.shapeId,
@@ -960,6 +993,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       connectEndpoints: (a, b) => {
+        if (previewBlocksEdits(get)) return false
         if (endpointsEqual(a, b)) {
           set({ pendingVertex: null, overlapSuggest: null })
           return false
@@ -1114,6 +1148,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       removeConnection: (id) => {
+        if (previewBlocksEdits(get)) return
         get().pushHistory()
         const { connections, shapes, reelIns } = get()
         const previousHanging = getHangingShapeIds(connections)
@@ -1179,7 +1214,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         }))
       },
 
-      selectShape: (id) =>
+      selectShape: (id) => {
+        if (previewBlocksEdits(get)) return
         set(
           id === null
             ? EMPTY_SELECTION
@@ -1189,9 +1225,11 @@ export const useStrawMobileStore = create<StrawMobileState>()(
                 selectedEndpoint: null,
                 selectedEdge: null,
               },
-        ),
+        )
+      },
 
       toggleShapeSelection: (id) => {
+        if (previewBlocksEdits(get)) return
         const { selectedShapeIds, selectionAnchorId } = get()
         if (selectedShapeIds.includes(id)) {
           const next = selectedShapeIds.filter((selectedId) => selectedId !== id)
@@ -1215,6 +1253,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       selectShapeRange: (id) => {
+        if (previewBlocksEdits(get)) return
         const { shapes, selectionAnchorId } = get()
         const anchorId = selectionAnchorId ?? id
         const anchorIndex = shapes.findIndex((shape) => shape.id === anchorId)
@@ -1240,6 +1279,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       selectShapes: (ids) => {
+        if (previewBlocksEdits(get)) return
         if (ids.length === 0) {
           set(EMPTY_SELECTION)
           return
@@ -1253,6 +1293,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       duplicateSelection: () => {
+        if (previewBlocksEdits(get)) return
         const { shapes, connections, selectedShapeIds } = get()
         const buffer = snapshotSelectedBuffer(shapes, connections, selectedShapeIds)
         if (!buffer) return
@@ -1273,6 +1314,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       useSlotBuffer: (slot) => {
+        if (previewBlocksEdits(get)) return
         const { shapes, connections, selectedShapeIds, slots } = get()
         if (selectedShapeIds.length > 0) {
           const buffer = snapshotSelectedBuffer(shapes, connections, selectedShapeIds)
@@ -1307,6 +1349,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       setActiveTool: (tool) => {
+        if (previewBlocksEdits(get)) return
         if (tool === 'scissors') {
           set({
             activeTool: tool,
@@ -1378,6 +1421,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       },
 
       reset: () => {
+        if (previewBlocksEdits(get)) return
         get().pushHistory()
         const physicsEpoch = invalidatePhysics(get)
         set((state) => ({

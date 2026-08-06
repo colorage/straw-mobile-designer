@@ -23,9 +23,11 @@ function clearPersistTimer() {
 /** Debounced gallery write after design edits (thumbnail capture is relatively expensive). */
 export function scheduleGalleryPersist(): void {
   if (!bothStoresHydrated()) return
+  if (useStrawMobileStore.getState().isPreviewMode) return
   clearPersistTimer()
   persistTimer = setTimeout(() => {
     persistTimer = null
+    if (useStrawMobileStore.getState().isPreviewMode) return
     persistDraftToGallery()
   }, GALLERY_PERSIST_DEBOUNCE_MS)
 }
@@ -34,6 +36,7 @@ export function scheduleGalleryPersist(): void {
 export function flushGalleryPersist(): boolean {
   clearPersistTimer()
   if (!bothStoresHydrated()) return false
+  if (useStrawMobileStore.getState().isPreviewMode) return false
   return persistDraftToGallery()
 }
 
@@ -53,6 +56,9 @@ useGalleryStore.persist.onFinishHydration(() => {
 
 useStrawMobileStore.subscribe((state, prev) => {
   if (!bothStoresHydrated()) return
+
+  // Community preview must never write the local gallery.
+  if (state.isPreviewMode) return
 
   // Pose sync for gallery/unload must not re-arm another persist cycle.
   if (isPhysicsTransformSyncing()) return
