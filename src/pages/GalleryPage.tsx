@@ -118,31 +118,39 @@ export function GalleryPage() {
       <header className="gallery-page-header">
         <div className="gallery-page-header-text">
           <p className="gallery-page-eyebrow">Straw Mobile Designer</p>
-          <h1 className="gallery-page-title">Gallery</h1>
+          <h1 className="gallery-page-title">Projects</h1>
           <p className="gallery-page-subtitle">
             {mode === 'cloud'
               ? `Named mobiles saved to ${nickname ? `${nickname}’s` : 'your'} account, available from any browser. Export JSON for a personal backup.`
               : 'Named mobiles saved in this browser. Export JSON to back them up or move between devices.'}
           </p>
         </div>
-        <div className="gallery-page-header-actions">
-          <AccountControl />
-          <button type="button" className="primary-button gallery-page-action" onClick={handleNew}>
-            New
-          </button>
-          <button type="button" className="ghost-button gallery-page-action" onClick={handleImportClick}>
-            Import JSON
-          </button>
-          <Link to="/" className="ghost-button gallery-page-action gallery-page-back">
-            Back to designer
-          </Link>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="application/json,.json"
-            className="gallery-file-input"
-            onChange={handleImportFile}
-          />
+        <div className="gallery-page-header-tools">
+          <div className="gallery-page-project-actions" aria-label="Project actions">
+            <button type="button" className="primary-button gallery-page-action" onClick={handleNew}>
+              New
+            </button>
+            <button
+              type="button"
+              className="ghost-button gallery-page-action"
+              onClick={handleImportClick}
+            >
+              Import JSON
+            </button>
+            <Link to="/" className="ghost-button gallery-page-action gallery-page-back">
+              Back to designer
+            </Link>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="application/json,.json"
+              className="gallery-file-input"
+              onChange={handleImportFile}
+            />
+          </div>
+          <div className="gallery-page-account" aria-label="Account">
+            <AccountControl />
+          </div>
         </div>
       </header>
 
