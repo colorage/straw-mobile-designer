@@ -88,9 +88,9 @@ function CameraViewSync() {
 }
 
 /**
- * PivotControls sets `controls.enabled = false` while a gizmo is dragged. If
+ * Object-move drags set `controls.enabled = false` while active. If
  * pointerup is missed (released outside the window), orbit stays dead. Restore
- * on window-level pointerup/cancel after drei's own handler runs — but keep
+ * on window-level pointerup/cancel after the drag handler runs — but keep
  * orbit off while the selection tool owns the pointer.
  */
 function OrbitEnabledGuard() {

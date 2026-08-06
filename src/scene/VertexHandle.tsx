@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { ThreeEvent } from '@react-three/fiber'
 import type { Vector3Tuple } from '../geometry/primitives'
+import { setMoveCursor } from './freeMoveDrag'
+import { isGizmoDragging } from './gizmoDrag'
 import { useSoftwareGL } from './renderCapability'
 
 interface VertexHandleProps {
@@ -9,7 +11,11 @@ interface VertexHandleProps {
   /** Highlighted while overlapping another corner toward auto-connect. */
   suggested?: boolean
   connected?: boolean
+  /** Active move/grab subtarget in select mode. */
+  moveTarget?: boolean
   onSelect: () => void
+  /** Pointer-down when this corner is the move target — starts a drag. */
+  onDragStart?: (event: ThreeEvent<PointerEvent>) => void
 }
 
 const COLOR_DEFAULT = '#3d4250'
@@ -17,6 +23,7 @@ const COLOR_CONNECTED = '#5fd48a'
 const COLOR_PENDING = '#ff5a5f'
 const COLOR_HOVER = '#ffd166'
 const COLOR_SUGGESTED = '#ffd166'
+const COLOR_MOVE_TARGET = '#8fb8ff'
 
 // Generous invisible hit-area radius so corners are easy to click without
 // making the visible marker distractingly large.
@@ -28,29 +35,41 @@ export function VertexHandle({
   pending,
   suggested,
   connected,
+  moveTarget,
   onSelect,
+  onDragStart,
 }: VertexHandleProps) {
   const [hovered, setHovered] = useState(false)
   const softwareGL = useSoftwareGL()
 
   const color = pending
     ? COLOR_PENDING
-    : hovered || suggested
-      ? COLOR_HOVER
-      : connected
-        ? COLOR_CONNECTED
-        : COLOR_DEFAULT
-  const radius = pending || hovered || suggested ? 0.085 : 0.06
+    : moveTarget
+      ? COLOR_MOVE_TARGET
+      : hovered || suggested
+        ? COLOR_HOVER
+        : connected
+          ? COLOR_CONNECTED
+          : COLOR_DEFAULT
+  const radius = pending || hovered || suggested || moveTarget ? 0.085 : 0.06
 
   const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
     event.stopPropagation()
     setHovered(true)
-    document.body.style.cursor = 'pointer'
+    if (moveTarget && !isGizmoDragging()) {
+      setMoveCursor(true)
+    } else {
+      document.body.style.cursor = 'pointer'
+    }
   }
 
   const handlePointerOut = () => {
     setHovered(false)
-    document.body.style.cursor = 'auto'
+    if (moveTarget) {
+      setMoveCursor(false)
+    } else {
+      document.body.style.cursor = 'auto'
+    }
   }
 
   return (
@@ -63,6 +82,13 @@ export function VertexHandle({
           event.stopPropagation()
           onSelect()
         }}
+        onPointerDown={
+          moveTarget && onDragStart
+            ? (event) => {
+                onDragStart(event)
+              }
+            : undefined
+        }
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
       >
@@ -77,8 +103,16 @@ export function VertexHandle({
             color={color}
             roughness={0.45}
             metalness={0.1}
-            emissive={pending ? COLOR_PENDING : suggested ? COLOR_SUGGESTED : '#000000'}
-            emissiveIntensity={pending ? 0.5 : suggested ? 0.35 : 0}
+            emissive={
+              pending
+                ? COLOR_PENDING
+                : moveTarget
+                  ? COLOR_MOVE_TARGET
+                  : suggested
+                    ? COLOR_SUGGESTED
+                    : '#000000'
+            }
+            emissiveIntensity={pending ? 0.5 : moveTarget ? 0.35 : suggested ? 0.35 : 0}
           />
         )}
       </mesh>

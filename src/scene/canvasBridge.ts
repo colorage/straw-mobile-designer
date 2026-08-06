@@ -36,6 +36,16 @@ export function setCanvasBridge(
   if (nextScene) scene = nextScene
 }
 
+/** Live camera from the canvas bridge (null before the canvas mounts). */
+export function getBridgeCamera(): THREE.Camera | null {
+  return camera
+}
+
+/** Live canvas element from the bridge (null before mount). */
+export function getBridgeCanvas(): HTMLCanvasElement | null {
+  return canvasElement
+}
+
 /**
  * Project a browser client coordinate onto a placement plane.
  * Prefers the workbench plane (z = 0); if the view is edge-on to that plane,

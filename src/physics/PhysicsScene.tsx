@@ -2,6 +2,7 @@ import { CuboidCollider, Physics, RigidBody } from '@react-three/rapier'
 import { useMemo } from 'react'
 import { AnchorPoint } from '../scene/AnchorPoint'
 import { ConnectionThread } from '../scene/ConnectionThread'
+import { ObjectMoveController } from '../scene/ObjectMoveController'
 import { OverlapConnectController } from '../scene/OverlapConnectController'
 import { OverlapPreviewThread } from '../scene/OverlapPreviewThread'
 import { VertexHandle } from '../scene/VertexHandle'
@@ -10,6 +11,7 @@ import { endpointVertexKey, endpointsEqual, type Shape } from '../state/types'
 import { AnchorLiftController } from './AnchorLiftController'
 import { getBodyRef } from './bodyRefRegistry'
 import { ENVIRONMENT_COLLISION_GROUPS } from './collisionGroups'
+import { GrabController } from './GrabController'
 import { HangingEnergyLimiter } from './hangingEnergyLimiter'
 import { getHangingShapeIds } from './restingLayout'
 import { JointsLayer } from './JointsLayer'
@@ -130,6 +132,8 @@ export function PhysicsScene() {
       <AnchorLiftController />
       <ReelInController />
       <HangingEnergyLimiter />
+      <GrabController />
+      <ObjectMoveController />
       <OverlapConnectController />
       {shapes.map((shape) => (
         <PhysicsShape
