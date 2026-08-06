@@ -10,7 +10,8 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 - **Corner connections**: click a corner, then click another corner (or the ceiling hook) to tie a thread between them. Hold two corners overlapping for ~1 second to auto-connect — including free ends of hanging pieces once they settle (hub spokes already tied to the same corner are ignored). Toggle auto-connect with the magnet button (top-right, left of the theme switcher).
 - **Rigid loops**: when hand-tied straws close a loop (a triangle, a square, a pyramid face), the loop is fused into one rigid piece so it hangs as steadily as the equivalent prebuilt shape instead of wobbling on its thread joints. A simple loop also snaps to its regular shape on fusing — four equal straws become a true square rather than a frozen parallelogram, two solid plus two 1/2 straws a rectangle, five equal straws a regular pentagon, and so on (braced or 3D builds keep the shape you gave them). Mixed-size pieces remember each straw's size for the inventory and scissors. Toggle with the braced-frame button (top-right); switching it back on also stiffens loops you already built, and undo un-fuses.
 - **Undo / Redo**: reverse or re-apply design edits (add/remove shapes, connections, moves, straw size, reset, gallery load) via the Project panel or Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z.
-- **Gallery** (`/gallery`): named local saves with thumbnails; the current project is saved automatically on every edit and when opening the gallery. Browse/load/import/export/delete on the gallery page, plus **New** to clear the draft and start fresh in the designer.
+- **Gallery** (`/gallery`): named local or cloud-saved projects with thumbnails; the current project is saved automatically on every edit and when opening the gallery. Browse/load/import/export/delete on the gallery page, plus **New** to clear the draft and start fresh in the designer. Signed-in users can **Publish** a project to the community gallery; once published, further edits re-sync automatically.
+- **Community gallery** (`/community`): browse published mobiles, sort by **Recent** or **Most liked**, like favourites (signed-in), and open a read-only **preview** (`/community/:id`) with orbit + physics. From preview: **Duplicate to my gallery** opens a local/cloud copy in the full editor.
 - **Straws Used panel**: a live count of straws in the design, broken down by size.
 - **Live gravity**: physics runs while you build. Free pieces stay put on the workbench until they have a connection path to the ceiling hook; once tied into that chain they become real rigid bodies ([@react-three/rapier](https://github.com/pmndrs/react-three-rapier)) linked by ball-and-socket joints, get a gentle wake nudge, and hang/sway under gravity.
 - **Lights & shadows**: directional lighting with cast/receive shadows on straws and a workbench floor (unlit fallback on software WebGL).
@@ -38,25 +39,57 @@ npm run build
 
 ## Deployment
 
-This repo deploys to GitHub Pages automatically via [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push to `main`.
+This app deploys on **Vercel** via Git integration.
 
-The workflow builds the Vite app and publishes the `dist/` output to the **`gh-pages`** branch. Pages must serve that branch — **not** `main` (serving `main` publishes raw `/src/main.tsx` and breaks the app).
+| Branch | Environment | URL |
+|--------|-------------|-----|
+| `main` | Production | your production domain |
+| `preview` | Preview (staging) | https://preview.pavuk.club |
+| other feature branches / PRs | Preview | unique `*.vercel.app` URL per deploy |
 
-In **Settings → Pages**:
-- **Source**: Deploy from a branch
-- **Branch**: `gh-pages` / `/` (root)
-- **Custom domain**: `spider.siaroza.com`
+[`vercel.json`](vercel.json) rewrites all routes to `index.html` so client routes like `/gallery` work on refresh.
 
-Leave it on `gh-pages`; do not point Pages at `main`.
+### Staging domain (`preview.pavuk.club`)
 
-Actions cannot change these settings (the Pages update API returns 403 for workflow tokens), so if they drift the workflow fails with an error pointing here — fix them manually in the UI.
+In the Vercel project:
 
-### If the site is stuck on old/broken HTML
+1. **Settings → Git** — Production Branch = `main`
+2. **Settings → Domains** — add `preview.pavuk.club` and assign it to Git branch **`preview`** (not Production)
+3. At the `pavuk.club` DNS host, add the record Vercel shows (typically **CNAME** `preview` → `cname.vercel-dns.com`)
+4. Wait until the domain status is **Valid** (SSL ready)
 
-1. Open [Settings → Pages](https://github.com/colorage/straw-mobile-designer/settings/pages) and verify: Source = **Deploy from a branch → `gh-pages` / (root)**, custom domain = `spider.siaroza.com` (DNS already points `spider.siaroza.com` → `colorage.github.io`).
-2. Open [Actions](https://github.com/colorage/straw-mobile-designer/actions) and cancel any **pages build and deployment** run stuck on `deployment_in_progress`.
-3. Re-run **Deploy to GitHub Pages** (Actions → workflow_dispatch) or push to `main`.
+### Merge workflow (feature → preview → main)
 
-Do not give custom workflows the concurrency group `pages` — GitHub's built-in **pages build and deployment** workflow uses that group, so a workflow that holds it while waiting for the site to update blocks the Pages build itself (this caused the past `deployment_in_progress` hangs).
+Do not merge feature work straight into `main`. Promote through staging first.
 
-When healthy, https://spider.siaroza.com/ must reference `/assets/*.js` — never `/src/main.tsx`.
+**1. Branch from `preview`**
+
+```bash
+git checkout preview
+git pull origin preview
+git checkout -b feature/my-change
+# ... commit ...
+git push -u origin feature/my-change
+```
+
+**2. Merge into staging**
+
+1. Open a PR: **`feature/my-change` → `preview`** (not `main`)
+2. Use the Vercel Preview URL on the PR for PR-specific checks
+3. Merge into `preview`
+4. Test the staging site at **https://preview.pavuk.club**
+
+**3. Promote to production**
+
+1. Open a PR: **`preview` → `main`**
+2. Review the staging-tested changes
+3. Merge into `main` — Vercel deploys Production
+
+**4. Keep `preview` in sync after hotfixes on `main`**
+
+```bash
+git checkout preview
+git pull origin preview
+git merge main
+git push origin preview
+```

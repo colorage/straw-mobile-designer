@@ -213,6 +213,22 @@ export function GridIcon({ className, title }: IconProps) {
   )
 }
 
+export function UserIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <circle cx="12" cy="8" r="3.25" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M5.5 19.25c1.4-3.1 3.7-4.5 6.5-4.5s5.1 1.4 6.5 4.5"
+      />
+    </svg>
+  )
+}
+
 export function SunIcon({ className, title }: IconProps) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
@@ -421,6 +437,81 @@ export function RigidLoopIcon({ className, title }: IconProps) {
       <circle cx="18.5" cy="5.5" r="2" fill="currentColor" />
       <circle cx="5.5" cy="18.5" r="2" fill="currentColor" />
       <circle cx="18.5" cy="18.5" r="2" fill="currentColor" />
+    </svg>
+  )
+}
+
+/** Download arrow into a tray — gallery JSON export. */
+export function DownloadIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 4.5v10M8 10.5l4 4 4-4M6 18.5h12"
+      />
+    </svg>
+  )
+}
+
+/** Trash can — gallery delete. */
+export function TrashIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.5 8h11M9.5 8V6.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V8M8.5 8v10.5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V8"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M10.5 11.5v5M13.5 11.5v5"
+      />
+    </svg>
+  )
+}
+
+/** Globe — publish a mobile to the community gallery. */
+export function PublishIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M4.5 12h15M12 4.5c2.2 2.4 3.3 5 3.3 7.5S14.2 17.1 12 19.5M12 4.5C9.8 6.9 8.7 9.5 8.7 12s1.1 5.1 3.3 7.5"
+      />
+    </svg>
+  )
+}
+
+/** Globe with a slash — remove a mobile from the community gallery. */
+export function UnpublishIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        d="M4.5 12h15M12 4.5c2.2 2.4 3.3 5 3.3 7.5S14.2 17.1 12 19.5M12 4.5C9.8 6.9 8.7 9.5 8.7 12s1.1 5.1 3.3 7.5M5.5 5.5l13 13"
+      />
     </svg>
   )
 }

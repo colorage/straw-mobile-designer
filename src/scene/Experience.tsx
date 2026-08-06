@@ -7,6 +7,11 @@ import { PhysicsScene } from '../physics/PhysicsScene'
 import { usePhysicsPersistence } from '../physics/usePhysicsPersistence'
 import { useStrawMobileStore } from '../state/store'
 import { useThemeStore } from '../state/themeStore'
+import {
+  DEFAULT_CAMERA_FOV,
+  DEFAULT_CAMERA_POSITION,
+  DEFAULT_ORBIT_TARGET,
+} from './cameraDefaults'
 import { setCameraView } from './cameraView'
 import { setCanvasBridge } from './canvasBridge'
 import { MarqueeSelectController } from './MarqueeSelectController'
@@ -37,8 +42,6 @@ const SCENE_THEME = {
 
 const GRID_Y = -3.2
 
-const ORBIT_TARGET: [number, number, number] = [0, 2, 0]
-
 /**
  * Keeps the shared camera view in sync with the live camera + orbit target,
  * and owns the default OrbitControls instance.
@@ -65,7 +68,7 @@ function CameraViewSync() {
   useEffect(() => {
     const controls = controlsRef.current
     if (!controls) return
-    controls.target.set(...ORBIT_TARGET)
+    controls.target.set(...DEFAULT_ORBIT_TARGET)
     controls.enabled = !selectActive
     controls.update()
     // onCreated runs before makeDefault attaches controls — refresh debug handle.
@@ -128,11 +131,15 @@ export function Experience() {
     <Canvas
       shadows
       gl={{ preserveDrawingBuffer: true }}
-      camera={{ position: [6.5, 4.5, 8], fov: 42 }}
+      camera={{ position: [...DEFAULT_CAMERA_POSITION], fov: DEFAULT_CAMERA_FOV }}
       onCreated={(state) => {
         detectSoftwareGL(state.gl)
         setCanvasBridge(state.camera, state.gl.domElement, state.gl, state.scene)
-        setCameraView(state.camera, { x: 0, y: 2, z: 0 })
+        setCameraView(state.camera, {
+          x: DEFAULT_ORBIT_TARGET[0],
+          y: DEFAULT_ORBIT_TARGET[1],
+          z: DEFAULT_ORBIT_TARGET[2],
+        })
         exposeDebugGlobals(state.camera, state.size, {
           scene: state.scene,
           gl: state.gl,
