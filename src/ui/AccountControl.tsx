@@ -4,6 +4,7 @@ import { USERNAME_RULE_HINT } from '../auth/username'
 import { flushCloudSync } from '../gallery/cloudSync'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAccountPanelStore } from './accountPanelStore'
+import { UserIcon } from './icons'
 
 function useDismissOnEscape(open: boolean, close: () => void) {
   useEffect(() => {
@@ -348,19 +349,31 @@ export function AccountControl() {
   }, [user, panel, close])
 
   if (!isSupabaseConfigured) return null
-  if (!ready) return <span className="account-trigger account-trigger-idle">…</span>
+  if (!ready) {
+    return (
+      <span className="account-trigger account-trigger-idle" aria-hidden="true">
+        <UserIcon className="account-trigger-icon" />
+      </span>
+    )
+  }
 
   const signedIn = Boolean(user)
-  const label = signedIn ? (profile?.nickname ?? 'Account') : 'Sign in'
+  const nickname = profile?.nickname?.trim() || 'Account'
+  const label = signedIn ? nickname : 'Sign in'
+  const dialogTitle =
+    panel === 'profile' ? 'Your account' : panel === 'signUp' ? 'Create an account' : 'Sign in'
 
   return (
     <>
       <button
         type="button"
-        className="ghost-button gallery-page-action account-trigger"
+        className={`account-trigger${signedIn ? ' is-signed-in' : ''}`}
         onClick={() => open(signedIn ? 'profile' : 'signIn')}
+        aria-label={signedIn ? `Account: ${nickname}` : 'Sign in'}
+        title={label}
       >
-        {label}
+        <UserIcon className="account-trigger-icon" />
+        <span className="account-trigger-label">{label}</span>
       </button>
 
       {panel !== 'none' && (
@@ -377,16 +390,10 @@ export function AccountControl() {
             }
             role="dialog"
             aria-modal="true"
-            aria-label={label}
+            aria-label={dialogTitle}
           >
             <div className="account-dialog-head">
-              <h2 className="account-dialog-title">
-                {panel === 'profile'
-                  ? 'Your account'
-                  : panel === 'signUp'
-                    ? 'Create an account'
-                    : 'Sign in'}
-              </h2>
+              <h2 className="account-dialog-title">{dialogTitle}</h2>
               <button
                 type="button"
                 className="account-close"

@@ -70,8 +70,8 @@ export function AccountNotices() {
         <div className="account-notice-text">
           <p className="account-notice-title">These mobiles live in this browser only</p>
           <p className="account-notice-body">
-            Clearing site data or switching devices loses them. Create a free account to keep your
-            gallery — username and password, no email.
+            Clearing site data or switching devices loses them. Open the account menu to create a
+            free account — username and password, no email.
           </p>
         </div>
         <div className="account-notice-actions">
@@ -80,14 +80,7 @@ export function AccountNotices() {
             className="primary-button account-notice-button"
             onClick={() => openPanel('signUp')}
           >
-            Create account
-          </button>
-          <button
-            type="button"
-            className="ghost-button account-notice-button"
-            onClick={() => openPanel('signIn')}
-          >
-            Sign in
+            Open account
           </button>
         </div>
       </div>
