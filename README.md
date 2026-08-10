@@ -14,6 +14,7 @@ A browser-based [straw mobile](https://en.wikipedia.org/wiki/Straw_mobile) (himm
 - **Community gallery** (`/community`): browse published mobiles, sort by **Recent** or **Most liked**, like favourites (signed-in), and open a read-only **preview** (`/community/:id`) with orbit + physics. From preview: **Duplicate to my gallery** opens a local/cloud copy in the full editor.
 - **Straws Used panel**: a live count of straws in the design, broken down by size.
 - **Live gravity**: physics runs while you build. Free pieces stay put on the workbench until they have a connection path to the ceiling hook; once tied into that chain they become real rigid bodies ([@react-three/rapier](https://github.com/pmndrs/react-three-rapier)) linked by ball-and-socket joints, get a gentle wake nudge, and hang/sway under gravity.
+- **Fan / wind**: toggle a gentle gusty breeze on hanging pieces with the fan button (top-right). Off by default; preference is remembered across reloads.
 - **Lights & shadows**: directional lighting with cast/receive shadows on straws and a workbench floor (unlit fallback on software WebGL).
 
 ## Tech stack
