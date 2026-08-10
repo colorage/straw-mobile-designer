@@ -434,12 +434,14 @@ function connectionTouches(connection: Connection, shapeIds: ReadonlySet<string>
 }
 
 /**
- * Replace a closed loop of hand-tied straws with one fused shape.
+ * Replace a closed rigid cluster with one fused shape.
  *
- * Threads are ball joints, so an N-straw ring is N soft-linked bodies where the
+ * Threads are ball joints, so an N-body ring is N soft-linked bodies where the
  * toolbar equivalent is a single rigid body — which is exactly why hand-built
- * pyramids wobble. Merging the ring into one shape hands it to the same code
- * path a primitive uses. Returns the fused shape id, or null when the tie only
+ * pyramids wobble. Merging the cluster (straws, primitives, or prior assemblies
+ * locked by enough weld pins) into one shape hands it to the same code path a
+ * primitive uses. Hook and single-thread hang links stay outside the fuse so
+ * mobiles still swing. Returns the fused shape id, or null when the tie only
  * added a floppy branch.
  */
 function fuseCycleCluster(
