@@ -2,9 +2,9 @@ import { Link } from 'react-router-dom'
 import { flushGalleryPersist } from '../gallery/autoPersist'
 import { useStrawMobileStore } from '../state/store'
 import { useThemeStore } from '../state/themeStore'
-import { GridIcon, MagnetIcon, MoonIcon, RigidLoopIcon, SunIcon } from './icons'
+import { FanIcon, GridIcon, MagnetIcon, MoonIcon, RigidLoopIcon, SunIcon } from './icons'
 
-/** Top-right controls: rigid-loop toggle, scanner toggle, theme toggle, gallery exit. */
+/** Top-right controls: wind, rigid-loop, scanner, theme, gallery exit. */
 export function GalleryExit() {
   const theme = useThemeStore((s) => s.theme)
   const toggleTheme = useThemeStore((s) => s.toggleTheme)
@@ -23,8 +23,24 @@ export function GalleryExit() {
     ? 'Keep closed loops floppy'
     : 'Fuse closed loops into rigid pieces'
 
+  const windEnabled = useStrawMobileStore((s) => s.windEnabled)
+  const toggleWind = useStrawMobileStore((s) => s.toggleWind)
+  const windLabel = windEnabled
+    ? 'Turn wind off'
+    : 'Turn wind on — gentle breeze on hanging pieces'
+
   return (
     <div className="hud-cluster hud-top-right">
+      <button
+        type="button"
+        className={`hud-icon-button hud-fan${windEnabled ? ' is-active' : ''}`}
+        title={windLabel}
+        aria-label={windLabel}
+        aria-pressed={windEnabled}
+        onClick={toggleWind}
+      >
+        <FanIcon className="hud-icon" />
+      </button>
       <button
         type="button"
         className={`hud-icon-button hud-rigid${rigidLoopsEnabled ? ' is-active' : ''}`}

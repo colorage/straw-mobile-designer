@@ -18,6 +18,7 @@ import { JointsLayer } from './JointsLayer'
 import { PhysicsShape } from './PhysicsShape'
 import { ReelInController } from './ReelInController'
 import { reelInBodyKeys } from './reelIn'
+import { WindController } from './WindController'
 
 const GROUND_Y = -6
 
@@ -132,6 +133,7 @@ export function PhysicsScene() {
       <AnchorLiftController />
       <ReelInController />
       <HangingEnergyLimiter />
+      <WindController />
       <GrabController />
       <ObjectMoveController />
       <OverlapConnectController />

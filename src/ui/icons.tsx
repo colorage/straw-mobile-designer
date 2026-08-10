@@ -417,6 +417,40 @@ export function MagnetIcon({ className, title }: IconProps) {
   )
 }
 
+/** Desk fan — gentle wind on hanging pieces. */
+export function FanIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <circle
+        cx="12"
+        cy="10"
+        r="6.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+      />
+      <circle cx="12" cy="10" r="1.75" fill="currentColor" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 10c1.8-2.4 4.8-3.2 5.6-1.6.8 1.6-1.2 3.8-3.6 4.6M12 10c-2.4-1.8-3.2-4.8-1.6-5.6 1.6-.8 3.8 1.2 4.6 3.6M12 10c-1.8 2.4-4.8 3.2-5.6 1.6-.8-1.6 1.2-3.8 3.6-4.6"
+      />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 16.5V20M9.5 20h5"
+      />
+    </svg>
+  )
+}
+
 /** A braced frame with welded corners — closed loops simulated as one rigid piece. */
 export function RigidLoopIcon({ className, title }: IconProps) {
   return (
