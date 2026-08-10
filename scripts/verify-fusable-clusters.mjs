@@ -1,12 +1,11 @@
 /**
- * Quick checks for expanded fuse-cluster detection.
+ * Quick checks for fuse-cluster detection (rejects hinge chains).
  * Run: node scripts/verify-fusable-clusters.mjs
  *
  * Mirrors src/physics/rigidClusters.ts so CI / local checks stay dependency-free.
  */
 
 const MIN_LOOP_PINS = 3
-const MIN_RIGID_PIN_WELDS = 2
 
 function endpointBodyKey(endpoint) {
   return endpoint.kind === 'anchor' ? 'anchor' : endpoint.shapeId
@@ -14,10 +13,6 @@ function endpointBodyKey(endpoint) {
 
 function endpointVertexKey(endpoint) {
   return endpoint.kind === 'anchor' ? 'anchor' : `${endpoint.shapeId}:${endpoint.vertexIndex}`
-}
-
-function isRigidMember(shape) {
-  return shape.kind !== 'straw'
 }
 
 function findCycleConnectionIds(connections) {
@@ -155,17 +150,58 @@ function countWeldGroups(cluster, connections) {
   return roots.size
 }
 
-function hasEnoughWeldPins(cluster, members, connections) {
-  const weldGroups = countWeldGroups(cluster, connections)
-  if (weldGroups >= MIN_LOOP_PINS) return true
-  if (
-    weldGroups >= MIN_RIGID_PIN_WELDS &&
-    members.length >= 2 &&
-    members.every(isRigidMember)
-  ) {
-    return true
+function simpleGraphHasCycle(cluster, connections) {
+  const adjacency = new Map()
+  for (const id of cluster.shapeIds) adjacency.set(id, new Set())
+
+  for (const connection of connections) {
+    if (!cluster.connectionIds.has(connection.id)) continue
+    if (connection.a.kind !== 'shape' || connection.b.kind !== 'shape') continue
+    const a = connection.a.shapeId
+    const b = connection.b.shapeId
+    if (a === b || !cluster.shapeIds.has(a) || !cluster.shapeIds.has(b)) continue
+    adjacency.get(a).add(b)
+    adjacency.get(b).add(a)
   }
+
+  const disc = new Map()
+  let timer = 0
+
+  for (const root of cluster.shapeIds) {
+    if (disc.has(root)) continue
+
+    const stack = [{ node: root, parent: null, nextIndex: 0 }]
+    timer += 1
+    disc.set(root, timer)
+
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1]
+      const neighbors = [...(adjacency.get(frame.node) ?? [])]
+
+      if (frame.nextIndex >= neighbors.length) {
+        stack.pop()
+        continue
+      }
+
+      const next = neighbors[frame.nextIndex]
+      frame.nextIndex += 1
+      if (next === frame.parent) continue
+
+      if (disc.has(next)) return true
+
+      timer += 1
+      disc.set(next, timer)
+      stack.push({ node: next, parent: frame.node, nextIndex: 0 })
+    }
+  }
+
   return false
+}
+
+function isStructurallyRigid(cluster, connections) {
+  if (countWeldGroups(cluster, connections) < MIN_LOOP_PINS) return false
+  if (cluster.shapeIds.size === 2) return true
+  return simpleGraphHasCycle(cluster, connections)
 }
 
 function findFusableCluster(shapes, connections, newConnection, options = {}) {
@@ -179,15 +215,13 @@ function findFusableCluster(shapes, connections, newConnection, options = {}) {
   if (cluster.shapeIds.size < 2) return null
 
   const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
-  const members = []
   for (const id of cluster.shapeIds) {
     const shape = shapesById.get(id)
     if (!shape) return null
     if (options.reelingIds?.has(id)) return null
-    members.push(shape)
   }
 
-  if (!hasEnoughWeldPins(cluster, members, connections)) return null
+  if (!isStructurallyRigid(cluster, connections)) return null
   return cluster
 }
 
@@ -226,6 +260,28 @@ function triangle(id) {
   }
 }
 
+function square(id) {
+  return {
+    id,
+    kind: 'square',
+    size: 1,
+    vertices: [
+      [0.5, 0, 0.5],
+      [0.5, 0, -0.5],
+      [-0.5, 0, -0.5],
+      [-0.5, 0, 0.5],
+    ],
+    edges: [
+      [0, 1],
+      [1, 2],
+      [2, 3],
+      [3, 0],
+    ],
+    position: [0, 0, 0],
+    quaternion: [0, 0, 0, 1],
+  }
+}
+
 function link(id, aShape, aVertex, bShape, bVertex) {
   return {
     id,
@@ -258,8 +314,6 @@ function assert(name, condition) {
 // 2) Hub tripod (three straws on one shared corner) → no fuse
 {
   const shapes = [straw('s1'), straw('s2'), straw('s3')]
-  // Pairwise ties that all collapse onto one weld group: each straw's vertex 0
-  // tied to the next straw's vertex 0 — a graph cycle, but one pin.
   const connections = [
     link('c1', 's1', 0, 's2', 0),
     link('c2', 's2', 0, 's3', 0),
@@ -272,21 +326,16 @@ function assert(name, condition) {
 // 3) Triangle primitive + two straws closing a face → fuse
 {
   const shapes = [triangle('t1'), straw('s1'), straw('s2')]
-  // Primitive corners 0-1 already rigid; straws close 1→2 and 2→0.
   const connections = [
     link('c1', 't1', 1, 's1', 0),
     link('c2', 's1', 1, 's2', 0),
     link('c3', 's2', 1, 't1', 2),
-    // Second path around the primitive edge via another straw pair would also
-    // work; here the cycle is t1–s1–s2–t1. Need one more tie from t1:0?
-    // Actually t1 is only linked at vertices 1 and 2. Cycle: t1-s1-s2-t1 uses
-    // two attachments on t1 — that's a cycle through three bodies.
   ]
   const cluster = findFusableCluster(shapes, connections, connections[2])
   assert('triangle primitive + straws fuses', !!cluster && cluster.shapeIds.has('t1'))
 }
 
-// 4) Two triangles with 2 shared pins → fuse
+// 4) Two triangles with 2 shared pins → hinge, no fuse
 {
   const shapes = [triangle('t1'), triangle('t2')]
   const connections = [
@@ -294,10 +343,35 @@ function assert(name, condition) {
     link('c2', 't1', 1, 't2', 1),
   ]
   const cluster = findFusableCluster(shapes, connections, connections[1])
-  assert('double-pin rigid weld fuses', !!cluster && cluster.shapeIds.size === 2)
+  assert('double-pin hinge stays floppy', cluster === null)
 }
 
-// 5) Shape tied only to the hook → no fuse (hang rope untouched)
+// 5) Two triangles with 3 shared pins → face weld fuses
+{
+  const shapes = [triangle('t1'), triangle('t2')]
+  const connections = [
+    link('c1', 't1', 0, 't2', 0),
+    link('c2', 't1', 1, 't2', 1),
+    link('c3', 't1', 2, 't2', 2),
+  ]
+  const cluster = findFusableCluster(shapes, connections, connections[2])
+  assert('triple-pin face weld fuses', !!cluster && cluster.shapeIds.size === 2)
+}
+
+// 6) Three squares chained with 2+2 pins → hinge chain, no fuse
+{
+  const shapes = [square('q1'), square('q2'), square('q3')]
+  const connections = [
+    link('c1', 'q1', 2, 'q2', 0),
+    link('c2', 'q1', 3, 'q2', 1),
+    link('c3', 'q2', 2, 'q3', 0),
+    link('c4', 'q2', 3, 'q3', 1),
+  ]
+  const cluster = findFusableCluster(shapes, connections, connections[3])
+  assert('three-square hinge chain stays floppy', cluster === null)
+}
+
+// 7) Shape tied only to the hook → no fuse (hang rope untouched)
 {
   const shapes = [triangle('t1')]
   const connections = [
@@ -311,7 +385,7 @@ function assert(name, condition) {
   assert('hook-only hang does not fuse', cluster === null)
 }
 
-// 6) Two straws double-tied (degenerate digon) → no fuse (not all rigid)
+// 8) Two straws double-tied (degenerate digon) → no fuse
 {
   const shapes = [straw('s1'), straw('s2')]
   const connections = [

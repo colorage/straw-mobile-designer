@@ -13,6 +13,9 @@ import {
  * body with N hull colliders. Fusing the ring into one shape is what makes a
  * hand-built pyramid as stable as the toolbar one — and what keeps multi-piece
  * rigid constructions cheap under gravity.
+ *
+ * Two-corner edge ties are hinges, not welds: a chain of squares hung
+ * edge-to-edge must stay floppy spherical joints.
  */
 export interface FusableCluster {
   /** Shapes to merge into the fused piece. */
@@ -21,10 +24,8 @@ export interface FusableCluster {
   connectionIds: Set<string>
 }
 
-/** Classic straw loops need this many distinct weld corners (see below). */
+/** A rigid loop has to weld at least this many distinct corners (see below). */
 const MIN_LOOP_PINS = 3
-/** Already-rigid pieces locked at this many pins fuse (double-pin weld). */
-const MIN_RIGID_PIN_WELDS = 2
 
 type GraphEdge = {
   to: string
@@ -34,19 +35,14 @@ type GraphEdge = {
 }
 
 /**
- * A member that is already a multi-edge rigid body (toolbar primitive or
- * fused assembly). Single straws stay floppy until they close a real loop.
- */
-export function isRigidMember(shape: Shape): boolean {
-  return shape.kind !== 'straw'
-}
-
-/**
  * Connection ids that are *not* bridges, i.e. that take part in a cycle.
  *
  * Tarjan low-link over the shape-only graph. Anchor links are excluded so a
  * piece tied to the hook at two corners still swings from the hook, and
  * self-links (both ends on one shape) carry no information about rigidity.
+ *
+ * Parallel threads between two shapes count as a graph cycle (a digon). That
+ * alone is not enough to fuse — see `simpleGraphHasCycle` / pin checks.
  */
 function findCycleConnectionIds(connections: Connection[]): Set<string> {
   const adjacency = new Map<string, GraphEdge[]>()
@@ -183,8 +179,7 @@ function collectCycleComponent(
  * into a needle still has 4 weld groups even though its corner PAIRS overlap
  * in space, and it deserves to fuse (and snap square) rather than stay floppy.
  *
- * Two already-rigid pieces tied at two distinct corners are also rigid: the
- * second pin kills the hinge. Those fuse with only two weld groups.
+ * Two pins alone are only a hinge around the shared edge — those stay floppy.
  */
 function countWeldGroups(cluster: FusableCluster, connections: Connection[]): number {
   const parent = new Map<string, string>()
@@ -212,24 +207,76 @@ function countWeldGroups(cluster: FusableCluster, connections: Connection[]): nu
   return roots.size
 }
 
-/** Whether the cluster's weld topology is stiff enough to freeze. */
-function hasEnoughWeldPins(
-  cluster: FusableCluster,
-  members: Shape[],
-  connections: Connection[],
-): boolean {
-  const weldGroups = countWeldGroups(cluster, connections)
-  if (weldGroups >= MIN_LOOP_PINS) return true
-  // Double-pin lock: every member is already rigid, so two shared corners
-  // freeze relative rotation the way a third straw would in a soft loop.
-  if (
-    weldGroups >= MIN_RIGID_PIN_WELDS &&
-    members.length >= 2 &&
-    members.every(isRigidMember)
-  ) {
-    return true
+/**
+ * Whether the cluster's shapes form a cycle when parallel digon threads are
+ * collapsed to a single undirected edge per shape-pair.
+ *
+ * A path of edge-hinged squares (`S1=S2=S3`) is a cycle-component in the
+ * multigraph but a simple path — hinged, not rigid. A 3-straw triangle is a
+ * simple 3-cycle and should fuse.
+ */
+function simpleGraphHasCycle(cluster: FusableCluster, connections: Connection[]): boolean {
+  const adjacency = new Map<string, Set<string>>()
+  for (const id of cluster.shapeIds) adjacency.set(id, new Set())
+
+  for (const connection of connections) {
+    if (!cluster.connectionIds.has(connection.id)) continue
+    if (connection.a.kind !== 'shape' || connection.b.kind !== 'shape') continue
+    const a = connection.a.shapeId
+    const b = connection.b.shapeId
+    if (a === b || !cluster.shapeIds.has(a) || !cluster.shapeIds.has(b)) continue
+    adjacency.get(a)!.add(b)
+    adjacency.get(b)!.add(a)
   }
+
+  const disc = new Map<string, number>()
+  let timer = 0
+
+  for (const root of cluster.shapeIds) {
+    if (disc.has(root)) continue
+
+    const stack: { node: string; parent: string | null; nextIndex: number }[] = [
+      { node: root, parent: null, nextIndex: 0 },
+    ]
+    timer += 1
+    disc.set(root, timer)
+
+    while (stack.length > 0) {
+      const frame = stack[stack.length - 1]
+      const neighbors = [...(adjacency.get(frame.node) ?? [])]
+
+      if (frame.nextIndex >= neighbors.length) {
+        stack.pop()
+        continue
+      }
+
+      const next = neighbors[frame.nextIndex]
+      frame.nextIndex += 1
+      if (next === frame.parent) continue
+
+      if (disc.has(next)) return true
+
+      timer += 1
+      disc.set(next, timer)
+      stack.push({ node: next, parent: frame.node, nextIndex: 0 })
+    }
+  }
+
   return false
+}
+
+/**
+ * Whether the cluster's weld topology is stiff enough to freeze.
+ *
+ * - Need ≥3 distinct weld pins (two pins are only a hinge).
+ * - Two bodies with ≥3 pins: shared-face / tripod lock → fuse.
+ * - Three+ bodies: fuse only when the simple shape graph has a cycle
+ *   (rejects hinge chains of digons).
+ */
+function isStructurallyRigid(cluster: FusableCluster, connections: Connection[]): boolean {
+  if (countWeldGroups(cluster, connections) < MIN_LOOP_PINS) return false
+  if (cluster.shapeIds.size === 2) return true
+  return simpleGraphHasCycle(cluster, connections)
 }
 
 export interface FusableClusterOptions {
@@ -242,10 +289,11 @@ export interface FusableClusterOptions {
  * added a floppy branch.
  *
  * Any shape kind may fuse (straws, assemblies, toolbar primitives). Rejects
- * pieces still animating and hub-only cycles that are not actually rigid.
- * Two rigid pieces locked at two corners also fuse. Mixed straw sizes are
- * fine — the fused shape tracks a size per straw. Anchor / single-thread
- * hang links stay outside the cluster so mobiles still swing.
+ * pieces still animating, hub-only cycles, and hinge chains (squares hung
+ * edge-to-edge with two-corner ties). Two bodies sharing three or more pins
+ * still fuse as a rigid face. Mixed straw sizes are fine — the fused shape
+ * tracks a size per straw. Anchor / single-thread hang links stay outside
+ * the cluster so mobiles still swing.
  */
 export function findFusableCluster(
   shapes: Shape[],
@@ -263,15 +311,13 @@ export function findFusableCluster(
   if (cluster.shapeIds.size < 2) return null
 
   const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
-  const members: Shape[] = []
   for (const id of cluster.shapeIds) {
     const shape = shapesById.get(id)
     if (!shape) return null
     if (options.reelingIds?.has(id)) return null
-    members.push(shape)
   }
 
-  if (!hasEnoughWeldPins(cluster, members, connections)) return null
+  if (!isStructurallyRigid(cluster, connections)) return null
 
   return cluster
 }
