@@ -2,7 +2,13 @@ import { useSphericalJoint } from '@react-three/rapier'
 import { useMemo } from 'react'
 import { useStrawMobileStore } from '../state/store'
 import { getScaledVertex } from '../state/shapeSpace'
-import { endpointBodyKey, type Connection, type EndpointRef, type Shape } from '../state/types'
+import {
+  endpointBodyKey,
+  endpointVertexKey,
+  type Connection,
+  type EndpointRef,
+  type Shape,
+} from '../state/types'
 import { getBodyRef } from './bodyRefRegistry'
 import { connectionInvolvesReelIn, reelInBodyKeys } from './reelIn'
 
@@ -11,6 +17,17 @@ function localAnchorFor(endpoint: EndpointRef, shapesById: Map<string, Shape>): 
   const shape = shapesById.get(endpoint.shapeId)
   if (!shape) return [0, 0, 0]
   return getScaledVertex(shape, endpoint.vertexIndex)
+}
+
+/**
+ * Rapier's useSphericalJoint only creates the impulse joint once on mount
+ * (empty deps). Fuse remaps hang links onto a new assembly body while keeping
+ * the same connection id — without a key that includes the endpoints, this
+ * bridge would stay mounted against destroyed bodies and the welded piece
+ * would free-fall to the floor.
+ */
+function jointBridgeKey(connection: Connection): string {
+  return `${connection.id}:${endpointVertexKey(connection.a)}:${endpointVertexKey(connection.b)}`
 }
 
 /**
@@ -57,7 +74,11 @@ export function JointsLayer({ connections }: { connections: Connection[] }) {
       {connections.map((connection) =>
         deferredIds.has(connection.id) ||
         connectionInvolvesReelIn(connection, unlockedReelingIds) ? null : (
-          <JointBridge key={connection.id} connection={connection} shapesById={shapesById} />
+          <JointBridge
+            key={jointBridgeKey(connection)}
+            connection={connection}
+            shapesById={shapesById}
+          />
         ),
       )}
     </>
