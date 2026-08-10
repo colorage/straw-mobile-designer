@@ -6,12 +6,13 @@ import {
 } from '../state/types'
 
 /**
- * A closed loop of hand-tied straws that should behave as one rigid piece.
+ * A closed loop of tied shapes that should behave as one rigid piece.
  *
- * Ball-and-socket threads are deliberately floppy, so an N-straw ring is N
+ * Ball-and-socket threads are deliberately floppy, so an N-body ring is N
  * bodies and N soft joints where the equivalent toolbar primitive is a single
  * body with N hull colliders. Fusing the ring into one shape is what makes a
- * hand-built pyramid as stable as the toolbar one.
+ * hand-built pyramid as stable as the toolbar one — and what keeps multi-piece
+ * rigid constructions cheap under gravity.
  */
 export interface FusableCluster {
   /** Shapes to merge into the fused piece. */
@@ -20,17 +21,24 @@ export interface FusableCluster {
   connectionIds: Set<string>
 }
 
-/** Kinds that may be swallowed into a fused piece; primitives stay cuttable. */
-const FUSABLE_KINDS = new Set(['straw', 'assembly'])
-
-/** A rigid loop has to weld at least this many distinct corners (see below). */
-const MIN_DISTINCT_PINS = 3
+/** Classic straw loops need this many distinct weld corners (see below). */
+const MIN_LOOP_PINS = 3
+/** Already-rigid pieces locked at this many pins fuse (double-pin weld). */
+const MIN_RIGID_PIN_WELDS = 2
 
 type GraphEdge = {
   to: string
   connectionId: string
   /** Distinguishes the two directed halves of one connection. */
   edgeUid: string
+}
+
+/**
+ * A member that is already a multi-edge rigid body (toolbar primitive or
+ * fused assembly). Single straws stay floppy until they close a real loop.
+ */
+export function isRigidMember(shape: Shape): boolean {
+  return shape.kind !== 'straw'
 }
 
 /**
@@ -174,6 +182,9 @@ function collectCycleComponent(
  * legitimate loop can fold flat while it is tied — a 4-straw cycle collapsed
  * into a needle still has 4 weld groups even though its corner PAIRS overlap
  * in space, and it deserves to fuse (and snap square) rather than stay floppy.
+ *
+ * Two already-rigid pieces tied at two distinct corners are also rigid: the
+ * second pin kills the hinge. Those fuse with only two weld groups.
  */
 function countWeldGroups(cluster: FusableCluster, connections: Connection[]): number {
   const parent = new Map<string, string>()
@@ -201,6 +212,26 @@ function countWeldGroups(cluster: FusableCluster, connections: Connection[]): nu
   return roots.size
 }
 
+/** Whether the cluster's weld topology is stiff enough to freeze. */
+function hasEnoughWeldPins(
+  cluster: FusableCluster,
+  members: Shape[],
+  connections: Connection[],
+): boolean {
+  const weldGroups = countWeldGroups(cluster, connections)
+  if (weldGroups >= MIN_LOOP_PINS) return true
+  // Double-pin lock: every member is already rigid, so two shared corners
+  // freeze relative rotation the way a third straw would in a soft loop.
+  if (
+    weldGroups >= MIN_RIGID_PIN_WELDS &&
+    members.length >= 2 &&
+    members.every(isRigidMember)
+  ) {
+    return true
+  }
+  return false
+}
+
 export interface FusableClusterOptions {
   /** Shapes mid reel-in; fusing waits until their poses land. */
   reelingIds?: ReadonlySet<string>
@@ -210,10 +241,11 @@ export interface FusableClusterOptions {
  * The closed loop `newConnection` just completed, or null when the tie only
  * added a floppy branch.
  *
- * Rejects clusters that cannot be fused cleanly: members that are toolbar
- * primitives (kept separately cuttable), pieces still animating, and hub-only
- * cycles that weld fewer than three distinct corners (not actually rigid).
- * Mixed straw sizes are fine — the fused shape tracks a size per straw.
+ * Any shape kind may fuse (straws, assemblies, toolbar primitives). Rejects
+ * pieces still animating and hub-only cycles that are not actually rigid.
+ * Two rigid pieces locked at two corners also fuse. Mixed straw sizes are
+ * fine — the fused shape tracks a size per straw. Anchor / single-thread
+ * hang links stay outside the cluster so mobiles still swing.
  */
 export function findFusableCluster(
   shapes: Shape[],
@@ -231,14 +263,15 @@ export function findFusableCluster(
   if (cluster.shapeIds.size < 2) return null
 
   const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
+  const members: Shape[] = []
   for (const id of cluster.shapeIds) {
     const shape = shapesById.get(id)
     if (!shape) return null
-    if (!FUSABLE_KINDS.has(shape.kind)) return null
     if (options.reelingIds?.has(id)) return null
+    members.push(shape)
   }
 
-  if (countWeldGroups(cluster, connections) < MIN_DISTINCT_PINS) return null
+  if (!hasEnoughWeldPins(cluster, members, connections)) return null
 
   return cluster
 }

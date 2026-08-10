@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "verify:fuse": "node scripts/verify-fusable-clusters.mjs"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.2",
