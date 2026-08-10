@@ -15,9 +15,9 @@ const GALLERY_STORAGE_VERSION = 2
 const PLACEHOLDER_THUMBNAIL =
   'data:image/svg+xml,' +
   encodeURIComponent(
-    `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200" viewBox="0 0 320 200">
-      <rect width="320" height="200" fill="#1b1e29"/>
-      <text x="160" y="105" text-anchor="middle" fill="#9298ab" font-family="system-ui,sans-serif" font-size="14">No preview</text>
+    `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="320" viewBox="0 0 320 320">
+      <rect width="320" height="320" fill="#1b1e29"/>
+      <text x="160" y="165" text-anchor="middle" fill="#9298ab" font-family="system-ui,sans-serif" font-size="14">No preview</text>
     </svg>`,
   )
 

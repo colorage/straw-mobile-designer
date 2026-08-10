@@ -233,7 +233,7 @@ export function GalleryPage() {
                     src={entry.thumbnailDataUrl}
                     alt=""
                     width={320}
-                    height={200}
+                    height={320}
                   />
                 </button>
                 <div className="gallery-item-body">
