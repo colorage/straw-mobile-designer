@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../auth/authStore'
 import { isCommunityEnabled, publishEntry, unpublishProject } from '../community/communityApi'
@@ -19,6 +19,7 @@ import {
   TrashIcon,
   UnpublishIcon,
 } from '../ui/icons'
+import { CommunitySection } from './CommunitySection'
 
 function confirmOverwriteDraft(): boolean {
   const { shapes } = useStrawMobileStore.getState()
@@ -36,7 +37,7 @@ function confirmStartNew(): boolean {
   )
 }
 
-/** Full-page gallery: browse, load, import, export, and delete named saves. */
+/** Full-page gallery: personal projects and community in one scrollable screen. */
 export function GalleryPage() {
   useDocumentTitle('Gallery · Павучы клуб')
   const navigate = useNavigate()
@@ -59,6 +60,12 @@ export function GalleryPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [publishPendingId, setPublishPendingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (window.location.hash !== '#community') return
+    const target = document.getElementById('community')
+    target?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
 
   const goToDesigner = () => {
     navigate('/')
@@ -153,11 +160,9 @@ export function GalleryPage() {
       <header className="gallery-page-header">
         <div className="gallery-page-header-text">
           <p className="gallery-page-eyebrow">Straw Mobile Designer</p>
-          <h1 className="gallery-page-title">Projects</h1>
+          <h1 className="gallery-page-title">Gallery</h1>
           <p className="gallery-page-subtitle">
-            {mode === 'cloud'
-              ? `Named mobiles saved to ${nickname ? `${nickname}’s` : 'your'} account, available from any browser. Export JSON for a personal backup.`
-              : 'Named mobiles saved in this browser. Export JSON to back them up or move between devices.'}
+            Your projects and the community gallery on one screen.
           </p>
         </div>
         <div className="gallery-page-header-tools">
@@ -166,9 +171,9 @@ export function GalleryPage() {
               New
             </button>
             {isCommunityEnabled && (
-              <Link to="/community" className="ghost-button gallery-page-action">
+              <a href="#community" className="ghost-button gallery-page-action">
                 Community
-              </Link>
+              </a>
             )}
             <button
               type="button"
@@ -200,106 +205,123 @@ export function GalleryPage() {
 
       {error && <p className="gallery-error gallery-page-error">{error}</p>}
 
-      {loading ? (
-        <div className="gallery-page-empty">
-          <p className="panel-hint">Loading your mobiles…</p>
+      <section id="projects" className="gallery-section" aria-labelledby="projects-heading">
+        <div className="gallery-section-header">
+          <div className="gallery-section-header-text">
+            <h2 id="projects-heading" className="gallery-section-title">
+              Projects
+            </h2>
+            <p className="gallery-section-subtitle">
+              {mode === 'cloud'
+                ? `Named mobiles saved to ${nickname ? `${nickname}’s` : 'your'} account, available from any browser. Export JSON for a personal backup.`
+                : 'Named mobiles saved in this browser. Export JSON to back them up or move between devices.'}
+            </p>
+          </div>
         </div>
-      ) : entries.length === 0 ? (
-        <div className="gallery-page-empty">
-          <p className="panel-hint">No saved mobiles yet.</p>
-          <p className="panel-hint">
-            Build something in the designer — your current project is saved here automatically.
-          </p>
-          <Link to="/" className="primary-button gallery-page-action gallery-page-empty-cta">
-            Open designer
-          </Link>
-        </div>
-      ) : (
-        <ul className="gallery-page-grid">
-          {entries.map((entry) => {
-            const isActive = entry.id === activeGalleryId
-            const isPublished = Boolean(published[entry.id])
-            const isPublishPending = publishPendingId === entry.id
-            return (
-              <li key={entry.id} className={`gallery-item${isActive ? ' is-active' : ''}`}>
-                <button
-                  type="button"
-                  className="gallery-thumb-button"
-                  onClick={() => handleLoad(entry)}
-                  aria-label={`Load ${entry.name}`}
-                >
-                  <img
-                    className="gallery-thumb"
-                    src={entry.thumbnailDataUrl}
-                    alt=""
-                    width={320}
-                    height={320}
-                  />
-                </button>
-                <div className="gallery-item-body">
-                  <div className="gallery-item-meta">
-                    <span className="gallery-item-name">
-                      {entry.name}
-                      {isPublished && <span className="gallery-item-badge">Public</span>}
-                    </span>
-                    <span className="gallery-item-date">{formatRelativeDate(entry.updatedAt)}</span>
-                  </div>
-                  <div className="gallery-item-actions">
-                    {isCommunityEnabled && !isPublished && (
+
+        {loading ? (
+          <div className="gallery-page-empty gallery-section-empty">
+            <p className="panel-hint">Loading your mobiles…</p>
+          </div>
+        ) : entries.length === 0 ? (
+          <div className="gallery-page-empty gallery-section-empty">
+            <p className="panel-hint">No saved mobiles yet.</p>
+            <p className="panel-hint">
+              Build something in the designer — your current project is saved here automatically.
+            </p>
+            <Link to="/" className="primary-button gallery-page-action gallery-page-empty-cta">
+              Open designer
+            </Link>
+          </div>
+        ) : (
+          <ul className="gallery-page-grid">
+            {entries.map((entry) => {
+              const isActive = entry.id === activeGalleryId
+              const isPublished = Boolean(published[entry.id])
+              const isPublishPending = publishPendingId === entry.id
+              return (
+                <li key={entry.id} className={`gallery-item${isActive ? ' is-active' : ''}`}>
+                  <button
+                    type="button"
+                    className="gallery-thumb-button"
+                    onClick={() => handleLoad(entry)}
+                    aria-label={`Load ${entry.name}`}
+                  >
+                    <img
+                      className="gallery-thumb"
+                      src={entry.thumbnailDataUrl}
+                      alt=""
+                      width={320}
+                      height={320}
+                    />
+                  </button>
+                  <div className="gallery-item-body">
+                    <div className="gallery-item-meta">
+                      <span className="gallery-item-name">
+                        {entry.name}
+                        {isPublished && <span className="gallery-item-badge">Public</span>}
+                      </span>
+                      <span className="gallery-item-date">{formatRelativeDate(entry.updatedAt)}</span>
+                    </div>
+                    <div className="gallery-item-actions">
+                      {isCommunityEnabled && !isPublished && (
+                        <button
+                          type="button"
+                          className="gallery-item-icon-button"
+                          disabled={isPublishPending}
+                          title={isPublishPending ? 'Publishing…' : 'Publish to community'}
+                          aria-label={
+                            isPublishPending ? `Publishing ${entry.name}` : `Publish ${entry.name}`
+                          }
+                          onClick={() => handlePublish(entry)}
+                        >
+                          <PublishIcon className="gallery-item-icon" />
+                        </button>
+                      )}
+                      {isCommunityEnabled && isPublished && (
+                        <button
+                          type="button"
+                          className="gallery-item-icon-button gallery-item-icon-button-danger"
+                          disabled={isPublishPending}
+                          title={isPublishPending ? 'Unpublishing…' : 'Unpublish from community'}
+                          aria-label={
+                            isPublishPending
+                              ? `Unpublishing ${entry.name}`
+                              : `Unpublish ${entry.name}`
+                          }
+                          onClick={() => handleUnpublish(entry)}
+                        >
+                          <UnpublishIcon className="gallery-item-icon" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         className="gallery-item-icon-button"
-                        disabled={isPublishPending}
-                        title={isPublishPending ? 'Publishing…' : 'Publish to community'}
-                        aria-label={
-                          isPublishPending ? `Publishing ${entry.name}` : `Publish ${entry.name}`
-                        }
-                        onClick={() => handlePublish(entry)}
+                        title="Download JSON"
+                        aria-label={`Download ${entry.name}`}
+                        onClick={() => exportEntry(entry.id)}
                       >
-                        <PublishIcon className="gallery-item-icon" />
+                        <DownloadIcon className="gallery-item-icon" />
                       </button>
-                    )}
-                    {isCommunityEnabled && isPublished && (
                       <button
                         type="button"
                         className="gallery-item-icon-button gallery-item-icon-button-danger"
-                        disabled={isPublishPending}
-                        title={isPublishPending ? 'Unpublishing…' : 'Unpublish from community'}
-                        aria-label={
-                          isPublishPending
-                            ? `Unpublishing ${entry.name}`
-                            : `Unpublish ${entry.name}`
-                        }
-                        onClick={() => handleUnpublish(entry)}
+                        title="Delete"
+                        aria-label={`Delete ${entry.name}`}
+                        onClick={() => handleDelete(entry)}
                       >
-                        <UnpublishIcon className="gallery-item-icon" />
+                        <TrashIcon className="gallery-item-icon" />
                       </button>
-                    )}
-                    <button
-                      type="button"
-                      className="gallery-item-icon-button"
-                      title="Download JSON"
-                      aria-label={`Download ${entry.name}`}
-                      onClick={() => exportEntry(entry.id)}
-                    >
-                      <DownloadIcon className="gallery-item-icon" />
-                    </button>
-                    <button
-                      type="button"
-                      className="gallery-item-icon-button gallery-item-icon-button-danger"
-                      title="Delete"
-                      aria-label={`Delete ${entry.name}`}
-                      onClick={() => handleDelete(entry)}
-                    >
-                      <TrashIcon className="gallery-item-icon" />
-                    </button>
+                    </div>
                   </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      )}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
+      <CommunitySection />
     </div>
   )
 }
