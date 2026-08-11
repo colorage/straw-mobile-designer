@@ -1,6 +1,5 @@
 import { Analytics } from '@vercel/analytics/react'
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { CommunityPage } from './pages/CommunityPage'
 import { DesignerPage } from './pages/DesignerPage'
 import { GalleryPage } from './pages/GalleryPage'
 import { PreviewPage } from './pages/PreviewPage'
@@ -14,7 +13,7 @@ function App() {
         <Route path="/" element={<DesignerPage />} />
         <Route path="/gallery" element={<GalleryPage />} />
         <Route path="/community/:id" element={<PreviewPage />} />
-        <Route path="/community" element={<CommunityPage />} />
+        <Route path="/community" element={<Navigate to="/gallery#community" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <BuyMeACoffeeButton />

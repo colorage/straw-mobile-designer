@@ -594,13 +594,19 @@
 }
 
 .gallery-page {
-  min-height: 100vh;
+  /* Constrained height so overflow-y scrolls; body is overflow:hidden for the designer. */
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   box-sizing: border-box;
   padding: 28px 24px 40px;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-ui);
+  overflow-x: hidden;
   overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .gallery-page-header {
@@ -731,6 +737,51 @@
   align-items: center;
 }
 
+.gallery-section {
+  max-width: 1100px;
+  margin: 0 auto 40px;
+  scroll-margin-top: 24px;
+}
+
+.gallery-section:last-child {
+  margin-bottom: 0;
+}
+
+.gallery-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  margin-bottom: 16px;
+}
+
+.gallery-section-header-text {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.gallery-section-title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.2px;
+  color: var(--text-strong);
+}
+
+.gallery-section-subtitle {
+  margin: 0;
+  max-width: 42rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-subtle);
+}
+
+.gallery-section-empty {
+  margin: 0;
+  max-width: none;
+}
+
 .gallery-item-badge {
   display: inline-block;
   margin-left: 6px;
@@ -746,10 +797,10 @@
 }
 
 .community-toolbar {
-  max-width: 1100px;
-  margin: 0 auto 16px;
+  margin: 0;
   display: flex;
   justify-content: flex-end;
+  flex: 0 0 auto;
 }
 
 .community-sort {
@@ -782,11 +833,10 @@
 }
 
 .community-status {
-  max-width: 1100px;
-  margin: 32px auto 0;
+  margin: 12px 0 0;
   font-size: 13px;
   color: var(--text-subtle);
-  text-align: center;
+  text-align: left;
 }
 
 .community-like-button {

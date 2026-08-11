@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../auth/authStore'
 import {
   fetchCommunityProjects,
@@ -11,7 +11,6 @@ import {
   type CommunitySort,
 } from '../community/communityApi'
 import { formatRelativeDate } from '../gallery/relativeDate'
-import { useDocumentTitle } from '../hooks/useDocumentTitle'
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
@@ -32,9 +31,8 @@ function HeartIcon({ filled }: { filled: boolean }) {
   )
 }
 
-/** Full-page community gallery: browse public mobiles, like them, open a preview. */
-export function CommunityPage() {
-  useDocumentTitle('Community · Павучы клуб')
+/** Community gallery section: browse public mobiles, like them, open a preview. */
+export function CommunitySection() {
   const navigate = useNavigate()
   const userId = useAuthStore((s) => s.user?.id ?? null)
 
@@ -130,70 +128,56 @@ export function CommunityPage() {
   }
 
   return (
-    <div className="gallery-page">
-      <header className="gallery-page-header">
-        <div className="gallery-page-header-text">
-          <p className="gallery-page-eyebrow">Павучы клуб</p>
-          <h1 className="gallery-page-title">Community</h1>
-          <p className="gallery-page-subtitle">
-            Mobiles published by other builders. Open one to preview it in the designer, then
-            duplicate a copy into your projects to remix.
+    <section id="community" className="gallery-section" aria-labelledby="community-heading">
+      <div className="gallery-section-header">
+        <div className="gallery-section-header-text">
+          <h2 id="community-heading" className="gallery-section-title">
+            Community
+          </h2>
+          <p className="gallery-section-subtitle">
+            Mobiles published by other builders. Open one to preview it, then duplicate a copy into
+            your projects to remix.
           </p>
         </div>
-        <div className="gallery-page-header-actions">
-          <Link to="/gallery" className="ghost-button gallery-page-action">
-            My projects
-          </Link>
-          <Link to="/" className="ghost-button gallery-page-action gallery-page-back">
-            Back to designer
-          </Link>
-        </div>
-      </header>
-
-      {isCommunityEnabled && (
-        <div className="community-toolbar">
-          <div className="community-sort" role="group" aria-label="Sort community mobiles">
-            <button
-              type="button"
-              className={`community-sort-button${sort === 'recent' ? ' is-active' : ''}`}
-              aria-pressed={sort === 'recent'}
-              onClick={() => setSort('recent')}
-            >
-              Recent
-            </button>
-            <button
-              type="button"
-              className={`community-sort-button${sort === 'liked' ? ' is-active' : ''}`}
-              aria-pressed={sort === 'liked'}
-              onClick={() => setSort('liked')}
-            >
-              Most liked
-            </button>
+        {isCommunityEnabled && (
+          <div className="community-toolbar">
+            <div className="community-sort" role="group" aria-label="Sort community mobiles">
+              <button
+                type="button"
+                className={`community-sort-button${sort === 'recent' ? ' is-active' : ''}`}
+                aria-pressed={sort === 'recent'}
+                onClick={() => setSort('recent')}
+              >
+                Recent
+              </button>
+              <button
+                type="button"
+                className={`community-sort-button${sort === 'liked' ? ' is-active' : ''}`}
+                aria-pressed={sort === 'liked'}
+                onClick={() => setSort('liked')}
+              >
+                Most liked
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {error && <p className="gallery-error gallery-page-error">{error}</p>}
 
       {!isCommunityEnabled ? (
-        <div className="gallery-page-empty">
+        <div className="gallery-page-empty gallery-section-empty">
           <p className="panel-hint">The community gallery is not configured for this build.</p>
-          <Link to="/gallery" className="primary-button gallery-page-action gallery-page-empty-cta">
-            Back to my projects
-          </Link>
         </div>
       ) : projects === null ? (
         <p className="community-status">Loading community mobiles…</p>
       ) : projects.length === 0 ? (
-        <div className="gallery-page-empty">
+        <div className="gallery-page-empty gallery-section-empty">
           <p className="panel-hint">Nothing here yet.</p>
           <p className="panel-hint">
-            Be the first: open your projects and hit Publish on a mobile you like
+            Be the first: publish a mobile from your projects above
             {userId ? '.' : ' (sign in required).'}
           </p>
-          <Link to="/gallery" className="primary-button gallery-page-action gallery-page-empty-cta">
-            Open my projects
-          </Link>
         </div>
       ) : (
         <ul className="gallery-page-grid">
@@ -249,6 +233,6 @@ export function CommunityPage() {
           })}
         </ul>
       )}
-    </div>
+    </section>
   )
 }
