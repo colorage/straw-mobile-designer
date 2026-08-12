@@ -6,12 +6,18 @@ import {
 } from '../state/types'
 
 /**
- * A closed loop of hand-tied straws that should behave as one rigid piece.
+ * A closed loop of tied shapes that should behave as one rigid piece.
  *
- * Ball-and-socket threads are deliberately floppy, so an N-straw ring is N
+ * Ball-and-socket threads are deliberately floppy, so an N-body ring is N
  * bodies and N soft joints where the equivalent toolbar primitive is a single
  * body with N hull colliders. Fusing the ring into one shape is what makes a
- * hand-built pyramid as stable as the toolbar one.
+ * hand-built pyramid as stable as the toolbar one — and what keeps multi-piece
+ * rigid constructions cheap under gravity.
+ *
+ * We fuse the *smallest* rigid subcluster that contains the new tie (a
+ * 3-triangle corner, a straw face, or a 3-pin face lock), then multipass can
+ * swallow the rest of a tetrahedron. Two-corner square chains and square rings
+ * stay hinged.
  */
 export interface FusableCluster {
   /** Shapes to merge into the fused piece. */
@@ -20,11 +26,11 @@ export interface FusableCluster {
   connectionIds: Set<string>
 }
 
-/** Kinds that may be swallowed into a fused piece; primitives stay cuttable. */
-const FUSABLE_KINDS = new Set(['straw', 'assembly'])
-
 /** A rigid loop has to weld at least this many distinct corners (see below). */
-const MIN_DISTINCT_PINS = 3
+const MIN_LOOP_PINS = 3
+
+/** Panel kinds that may form a rigid face cycle (triangles / straws / prior fuses). */
+const FUSABLE_PANEL_KINDS = new Set(['straw', 'triangle', 'assembly'])
 
 type GraphEdge = {
   to: string
@@ -39,6 +45,9 @@ type GraphEdge = {
  * Tarjan low-link over the shape-only graph. Anchor links are excluded so a
  * piece tied to the hook at two corners still swings from the hook, and
  * self-links (both ends on one shape) carry no information about rigidity.
+ *
+ * Parallel threads between two shapes count as a graph cycle (a digon). That
+ * alone is not enough to fuse — see pin checks and simple-cycle search.
  */
 function findCycleConnectionIds(connections: Connection[]): Set<string> {
   const adjacency = new Map<string, GraphEdge[]>()
@@ -128,41 +137,6 @@ function findCycleConnectionIds(connections: Connection[]): Set<string> {
   return cycleIds
 }
 
-/** Shapes joined to `seedId` through cycle threads only. */
-function collectCycleComponent(
-  connections: Connection[],
-  cycleIds: ReadonlySet<string>,
-  seedId: string,
-): FusableCluster {
-  const cycleConnections = connections.filter((connection) => cycleIds.has(connection.id))
-  const adjacency = new Map<string, { to: string; connectionId: string }[]>()
-  for (const connection of cycleConnections) {
-    const a = endpointBodyKey(connection.a)
-    const b = endpointBodyKey(connection.b)
-    const listA = adjacency.get(a) ?? []
-    listA.push({ to: b, connectionId: connection.id })
-    adjacency.set(a, listA)
-    const listB = adjacency.get(b) ?? []
-    listB.push({ to: a, connectionId: connection.id })
-    adjacency.set(b, listB)
-  }
-
-  const shapeIds = new Set<string>([seedId])
-  const connectionIds = new Set<string>()
-  const stack = [seedId]
-  while (stack.length > 0) {
-    const node = stack.pop()!
-    for (const { to, connectionId } of adjacency.get(node) ?? []) {
-      connectionIds.add(connectionId)
-      if (shapeIds.has(to)) continue
-      shapeIds.add(to)
-      stack.push(to)
-    }
-  }
-
-  return { shapeIds, connectionIds }
-}
-
 /**
  * Count the distinct corners the cluster's threads weld together — connected
  * components over tied endpoints, NOT spatial positions.
@@ -170,10 +144,7 @@ function collectCycleComponent(
  * Three straws tied pairwise at one shared corner form a graph cycle but a
  * floppy tripod: all its ties collapse into a single weld group, so there is
  * nothing rigid to freeze. Real loops (triangle, square, pyramid face) weld
- * three or more separate corners. Counting topologically matters because a
- * legitimate loop can fold flat while it is tied — a 4-straw cycle collapsed
- * into a needle still has 4 weld groups even though its corner PAIRS overlap
- * in space, and it deserves to fuse (and snap square) rather than stay floppy.
+ * three or more separate corners. Two pins alone are only a hinge.
  */
 function countWeldGroups(cluster: FusableCluster, connections: Connection[]): number {
   const parent = new Map<string, string>()
@@ -201,19 +172,132 @@ function countWeldGroups(cluster: FusableCluster, connections: Connection[]): nu
   return roots.size
 }
 
+/** Undirected simple adjacency (one edge per shape-pair) over cycle ties. */
+function buildSimpleAdjacency(
+  connections: Connection[],
+  cycleIds: ReadonlySet<string>,
+  within?: ReadonlySet<string>,
+): Map<string, Set<string>> {
+  const adjacency = new Map<string, Set<string>>()
+  const touch = (id: string) => {
+    if (!adjacency.has(id)) adjacency.set(id, new Set())
+  }
+
+  for (const connection of connections) {
+    if (!cycleIds.has(connection.id)) continue
+    if (connection.a.kind !== 'shape' || connection.b.kind !== 'shape') continue
+    const a = connection.a.shapeId
+    const b = connection.b.shapeId
+    if (a === b) continue
+    if (within && (!within.has(a) || !within.has(b))) continue
+    touch(a)
+    touch(b)
+    adjacency.get(a)!.add(b)
+    adjacency.get(b)!.add(a)
+  }
+  return adjacency
+}
+
+/**
+ * Shortest simple cycle (length ≥3) through the undirected edge `start–end`,
+ * or null when that edge only sits on digons / trees.
+ */
+function findShortestSimpleCycleThroughEdge(
+  adjacency: Map<string, Set<string>>,
+  start: string,
+  end: string,
+): string[] | null {
+  if (!adjacency.get(start)?.has(end)) return null
+
+  // BFS from `end`, forbidding the direct edge back to `start` on the first
+  // step, until we reach `start` again — that path + the direct edge is the
+  // shortest simple cycle through (start, end).
+  const queue: string[] = []
+  const parent = new Map<string, string | null>()
+
+  for (const neighbor of adjacency.get(end) ?? []) {
+    if (neighbor === start) continue
+    queue.push(neighbor)
+    parent.set(neighbor, end)
+  }
+  parent.set(end, null)
+
+  let reached: string | null = null
+  while (queue.length > 0) {
+    const node = queue.shift()!
+    if (node === start) {
+      reached = node
+      break
+    }
+    for (const next of adjacency.get(node) ?? []) {
+      if (parent.has(next)) continue
+      // Do not use the chord (start–end) as a bypass while searching.
+      if (node === end && next === start) continue
+      parent.set(next, node)
+      queue.push(next)
+    }
+  }
+
+  if (reached !== start) return null
+
+  const cycle: string[] = [start]
+  let cursor: string | null = parent.get(start) ?? null
+  while (cursor && cursor !== end) {
+    cycle.push(cursor)
+    cursor = parent.get(cursor) ?? null
+  }
+  if (cursor !== end) return null
+  cycle.push(end)
+  return cycle
+}
+
+/** Connections whose both ends lie in `shapeIds` and participate in cycles. */
+function connectionsWithin(
+  connections: Connection[],
+  cycleIds: ReadonlySet<string>,
+  shapeIds: ReadonlySet<string>,
+): Set<string> {
+  const ids = new Set<string>()
+  for (const connection of connections) {
+    if (!cycleIds.has(connection.id)) continue
+    if (connection.a.kind !== 'shape' || connection.b.kind !== 'shape') continue
+    if (!shapeIds.has(connection.a.shapeId) || !shapeIds.has(connection.b.shapeId)) continue
+    if (connection.a.shapeId === connection.b.shapeId) continue
+    ids.add(connection.id)
+  }
+  return ids
+}
+
+function clusterFromShapeIds(
+  shapeIds: Iterable<string>,
+  connections: Connection[],
+  cycleIds: ReadonlySet<string>,
+): FusableCluster {
+  const ids = new Set(shapeIds)
+  return {
+    shapeIds: ids,
+    connectionIds: connectionsWithin(connections, cycleIds, ids),
+  }
+}
+
+/** Square / octahedron panels make foldable rings — never fuse those cycles. */
+function panelCycleAllowed(members: Shape[]): boolean {
+  return members.every((shape) => FUSABLE_PANEL_KINDS.has(shape.kind))
+}
+
 export interface FusableClusterOptions {
   /** Shapes mid reel-in; fusing waits until their poses land. */
   reelingIds?: ReadonlySet<string>
 }
 
 /**
- * The closed loop `newConnection` just completed, or null when the tie only
- * added a floppy branch.
+ * The smallest rigid cluster `newConnection` just completed, or null when the
+ * tie only added a floppy hinge / branch.
  *
- * Rejects clusters that cannot be fused cleanly: members that are toolbar
- * primitives (kept separately cuttable), pieces still animating, and hub-only
- * cycles that weld fewer than three distinct corners (not actually rigid).
- * Mixed straw sizes are fine — the fused shape tracks a size per straw.
+ * Prefers a 3-pin lock between two bodies, otherwise the shortest simple cycle
+ * through the new shape-pair when every panel is a straw, triangle, or prior
+ * assembly (tetrahedron corners). Square hinge chains and square rings stay
+ * floppy. Anchor / single-thread hang links stay outside so mobiles swing.
  */
 export function findFusableCluster(
   shapes: Shape[],
@@ -227,18 +311,36 @@ export function findFusableCluster(
   const cycleIds = findCycleConnectionIds(connections)
   if (!cycleIds.has(newConnection.id)) return null
 
-  const cluster = collectCycleComponent(connections, cycleIds, newConnection.a.shapeId)
-  if (cluster.shapeIds.size < 2) return null
-
+  const shapeA = newConnection.a.shapeId
+  const shapeB = newConnection.b.shapeId
   const shapesById = new Map(shapes.map((shape) => [shape.id, shape]))
-  for (const id of cluster.shapeIds) {
-    const shape = shapesById.get(id)
-    if (!shape) return null
-    if (!FUSABLE_KINDS.has(shape.kind)) return null
+
+  if (!shapesById.has(shapeA) || !shapesById.has(shapeB)) return null
+  if (options.reelingIds?.has(shapeA) || options.reelingIds?.has(shapeB)) return null
+
+  // --- Two-body face lock (≥3 distinct pins between the pair) ---
+  // Any kinds: three shared corners freeze relative motion (shared face).
+  const pairIds = new Set([shapeA, shapeB])
+  const pairCluster = clusterFromShapeIds(pairIds, connections, cycleIds)
+  if (countWeldGroups(pairCluster, connections) >= MIN_LOOP_PINS) {
+    return pairCluster
+  }
+
+  // --- Shortest simple cycle through this shape-pair ---
+  const adjacency = buildSimpleAdjacency(connections, cycleIds)
+  const cycle = findShortestSimpleCycleThroughEdge(adjacency, shapeA, shapeB)
+  if (!cycle || cycle.length < 3) return null
+
+  for (const id of cycle) {
+    if (!shapesById.has(id)) return null
     if (options.reelingIds?.has(id)) return null
   }
 
-  if (countWeldGroups(cluster, connections) < MIN_DISTINCT_PINS) return null
+  const members = cycle.map((id) => shapesById.get(id)!)
+  if (!panelCycleAllowed(members)) return null
 
-  return cluster
+  const cycleCluster = clusterFromShapeIds(cycle, connections, cycleIds)
+  if (countWeldGroups(cycleCluster, connections) < MIN_LOOP_PINS) return null
+
+  return cycleCluster
 }

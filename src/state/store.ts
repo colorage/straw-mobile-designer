@@ -59,7 +59,7 @@ export {
  * so reloading the page — or closing and reopening the tab later — picks up
  * right where things were left off. Selection buffer slots are persisted with
  * the draft (and each gallery project) so they stay per-project.
- * Edit-tool and mode toggles (threads/select/scissors, overlap scanner, rigid loops)
+ * Edit-tool and mode toggles (threads/select/scissors, overlap scanner, rigid loops, wind)
  * are persisted across reloads; mid-click / selection / reel-in still start
  * fresh — see `partialize` below.
  */
@@ -119,6 +119,8 @@ export type PersistedDraftState = PersistedMobileState & {
   overlapScannerEnabled: boolean
   /** Whether closed straw loops fuse into rigid pieces. */
   rigidLoopsEnabled: boolean
+  /** Whether gentle wind blows on hanging pieces. */
+  windEnabled: boolean
 }
 
 /** Clone the durable design fields for a history entry. */
@@ -285,6 +287,11 @@ interface StrawMobileState {
    * undo/redo/load/reset.
    */
   rigidLoopsEnabled: boolean
+  /**
+   * User toggle for a gentle breeze on hanging pieces. Persisted across
+   * reloads; not reset by undo/redo/load/reset.
+   */
+  windEnabled: boolean
   /** Shapes currently selected (last id is the primary / gizmo target). */
   selectedShapeIds: string[]
   /** Anchor for Shift+range selection in the sidebar list. */
@@ -349,6 +356,10 @@ interface StrawMobileState {
   setRigidLoopsEnabled: (enabled: boolean) => void
   /** Toggle rigid-loop fusing on/off. */
   toggleRigidLoops: () => void
+  /** Turn wind simulation on or off. */
+  setWindEnabled: (enabled: boolean) => void
+  /** Toggle wind simulation on/off. */
+  toggleWind: () => void
   setAnchorY: (y: number) => void
   undo: () => void
   redo: () => void
@@ -423,13 +434,16 @@ function connectionTouches(connection: Connection, shapeIds: ReadonlySet<string>
 }
 
 /**
- * Replace a closed loop of hand-tied straws with one fused shape.
+ * Replace a closed rigid cluster with one fused shape.
  *
- * Threads are ball joints, so an N-straw ring is N soft-linked bodies where the
+ * Threads are ball joints, so an N-body ring is N soft-linked bodies where the
  * toolbar equivalent is a single rigid body — which is exactly why hand-built
- * pyramids wobble. Merging the ring into one shape hands it to the same code
- * path a primitive uses. Returns the fused shape id, or null when the tie only
- * added a floppy branch.
+ * pyramids wobble. Merging the smallest rigid subcluster (a straw face, a
+ * 3-triangle corner, or a 3-pin face lock — not a two-corner square hinge)
+ * into one shape hands it to the same code path a primitive uses. Multipass
+ * then swallows the rest of a tetrahedron. Hook and single-thread hang links
+ * stay outside the fuse so mobiles still swing. Returns the fused shape id,
+ * or null when the tie only added a floppy branch.
  */
 function fuseCycleCluster(
   set: SetStrawMobileState,
@@ -621,6 +635,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       overlapScanUi: null,
       overlapScannerEnabled: true,
       rigidLoopsEnabled: true,
+      windEnabled: false,
       selectedShapeIds: [],
       selectionAnchorId: null,
       selectedEndpoint: null,
@@ -698,6 +713,15 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       toggleRigidLoops: () => {
         get().setRigidLoopsEnabled(!get().rigidLoopsEnabled)
+      },
+
+      setWindEnabled: (enabled) => {
+        if (get().windEnabled === enabled) return
+        set({ windEnabled: enabled })
+      },
+
+      toggleWind: () => {
+        get().setWindEnabled(!get().windEnabled)
       },
 
       pushHistory: () => {
@@ -1473,7 +1497,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
       version: PERSISTED_STORAGE_VERSION,
       storage: createJSONStorage(() => localStorage),
       // Click-in-progress / selection / reel-in / undo stacks are transient;
-      // tool mode prefs (activeTool, scanner, rigid loops) survive reloads.
+      // tool mode prefs (activeTool, scanner, rigid loops, wind) survive reloads.
       partialize: (state): PersistedDraftState => ({
         shapes: state.shapes,
         connections: state.connections,
@@ -1484,6 +1508,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
         activeTool: state.activeTool,
         overlapScannerEnabled: state.overlapScannerEnabled,
         rigidLoopsEnabled: state.rigidLoopsEnabled,
+        windEnabled: state.windEnabled,
       }),
       migrate: (persisted, _version) => {
         const state = persisted as Partial<PersistedDraftState> & { placedCount?: number }
@@ -1498,6 +1523,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           activeTool: normalizeActiveTool(rest.activeTool),
           overlapScannerEnabled: rest.overlapScannerEnabled ?? true,
           rigidLoopsEnabled: rest.rigidLoopsEnabled ?? true,
+          windEnabled: rest.windEnabled ?? false,
         }
       },
       merge: (persisted, current) => {
@@ -1519,6 +1545,7 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           activeTool: normalizeActiveTool(saved.activeTool ?? current.activeTool),
           overlapScannerEnabled: saved.overlapScannerEnabled ?? current.overlapScannerEnabled,
           rigidLoopsEnabled: saved.rigidLoopsEnabled ?? current.rigidLoopsEnabled,
+          windEnabled: saved.windEnabled ?? current.windEnabled,
           slots: normalizeSlots(saved.slots),
           past: [],
           future: [],

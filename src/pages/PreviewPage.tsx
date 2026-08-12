@@ -113,7 +113,7 @@ export function PreviewPage() {
   }, [id, userId])
 
   const handleBack = () => {
-    navigate('/community')
+    navigate('/gallery#community')
   }
 
   const handleDuplicate = () => {
