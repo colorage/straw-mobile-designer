@@ -1,3 +1,5 @@
+import { useT, useTOrRaw } from '../i18n/t'
+import { LanguageSwitcher } from './LanguageSwitcher'
 import { CommentIcon } from './icons'
 
 type PreviewHudProps = {
@@ -51,20 +53,25 @@ export function PreviewHud({
   onBack,
   error,
 }: PreviewHudProps) {
+  const t = useT()
+  const tRaw = useTOrRaw()
+  const displayTitle = title || t('preview.untitled')
+
   return (
     <>
       <div className="hud-cluster hud-top-left preview-hud-title">
-        <p className="preview-hud-eyebrow">View only</p>
-        <h1 className="preview-hud-name">{title || 'Untitled'}</h1>
-        <p className="preview-hud-hint">Orbit to look around. Duplicate to edit.</p>
+        <p className="preview-hud-eyebrow">{t('preview.eyebrow')}</p>
+        <h1 className="preview-hud-name">{displayTitle}</h1>
+        <p className="preview-hud-hint">{t('preview.hint')}</p>
       </div>
 
       <div className="hud-cluster hud-top-right preview-hud-actions">
+        <LanguageSwitcher />
         <button
           type="button"
           className={`ghost-button gallery-page-action community-like-button preview-hud-like${liked ? ' is-liked' : ''}`}
           aria-pressed={liked}
-          aria-label={liked ? `Unlike ${title}` : `Like ${title}`}
+          aria-label={liked ? t('community.unlike', { name: displayTitle }) : t('community.like', { name: displayTitle })}
           disabled={likeDisabled}
           onClick={onLike}
         >
@@ -76,7 +83,11 @@ export function PreviewHud({
           className={`ghost-button gallery-page-action community-comment-button preview-hud-like${commentsOpen ? ' is-open' : ''}`}
           aria-pressed={commentsOpen}
           aria-expanded={commentsOpen}
-          aria-label={commentsOpen ? 'Close comments' : `Comments on ${title}`}
+          aria-label={
+            commentsOpen
+              ? t('comments.close')
+              : t('comments.onMobile', { name: displayTitle })
+          }
           disabled={commentsDisabled}
           onClick={onToggleComments}
         >
@@ -89,14 +100,14 @@ export function PreviewHud({
           disabled={duplicateDisabled}
           onClick={onDuplicate}
         >
-          {duplicateDisabled ? 'Duplicating…' : 'Duplicate to my gallery'}
+          {duplicateDisabled ? t('preview.duplicating') : t('preview.duplicate')}
         </button>
         <button type="button" className="ghost-button gallery-page-action" onClick={onBack}>
-          Back to gallery
+          {t('preview.back')}
         </button>
       </div>
 
-      {error && <p className="preview-hud-error">{error}</p>}
+      {error && <p className="preview-hud-error">{tRaw(error)}</p>}
     </>
   )
 }

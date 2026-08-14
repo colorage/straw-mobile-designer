@@ -4,6 +4,7 @@ import {
   formatCm,
   type ConstructionSizeCm,
 } from '../geometry/constructionSize'
+import { useT } from '../i18n/t'
 import { computeStrawCounts, formatSolidEquivalent } from '../state/store'
 import { useStrawMobileStore } from '../state/store'
 
@@ -12,6 +13,7 @@ const SIZE_REFRESH_MS = 250
 
 /** Bottom-right live tally (left of Buy Me a Coffee): solid-equivalent total, per-size counts, and size in cm. */
 export function StrawInventory() {
+  const t = useT()
   const shapes = useStrawMobileStore((s) => s.shapes)
   const counts = useMemo(() => computeStrawCounts(shapes), [shapes])
   const [size, setSize] = useState<ConstructionSizeCm | null>(null)
@@ -26,9 +28,9 @@ export function StrawInventory() {
 
   return (
     <div className="hud-cluster hud-bottom-right" aria-live="polite">
-      <p className="hud-stats-line">Straws used: {formatSolidEquivalent(counts.total)}</p>
+      <p className="hud-stats-line">{t('inventory.strawsUsed', { count: formatSolidEquivalent(counts.total) })}</p>
       <p className="hud-stats-line hud-stats-breakdown">
-        Solid: {counts.bySize[1]}
+        {t('inventory.solid', { count: counts.bySize[1] })}
         <span className="hud-stats-gap" />
         1/2: {counts.bySize[0.5]}
         <span className="hud-stats-gap" />
@@ -36,7 +38,7 @@ export function StrawInventory() {
       </p>
       {size ? (
         <p className="hud-stats-line hud-stats-breakdown">
-          Size: {formatCm(size.widthCm)} × {formatCm(size.heightCm)} cm
+          {t('inventory.size', { width: formatCm(size.widthCm), height: formatCm(size.heightCm) })}
         </p>
       ) : null}
     </div>

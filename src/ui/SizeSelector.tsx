@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { useT } from '../i18n/t'
 import { STRAW_SIZES, STRAW_SIZE_LABELS, type StrawSize } from '../state/types'
 import { useStrawMobileStore } from '../state/store'
 import { useHelpPanelStore } from './helpPanelStore'
@@ -19,6 +20,7 @@ const SIZE_ICONS: Record<StrawSize, ReactNode> = {
 
 /** Middle-right: straw-cut length + threads / select / scissors modes. */
 export function SizeSelector() {
+  const t = useT()
   const strawSize = useStrawMobileStore((s) => s.strawSize)
   const setStrawSize = useStrawMobileStore((s) => s.setStrawSize)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
@@ -42,8 +44,8 @@ export function SizeSelector() {
   }, [setActiveTool])
 
   return (
-    <div className="hud-cluster hud-middle-right" role="toolbar" aria-label="Size and mode tools">
-      <div className="hud-tool-group" role="radiogroup" aria-label="Straw size">
+    <div className="hud-cluster hud-middle-right" role="toolbar" aria-label={t('size.toolbar')}>
+      <div className="hud-tool-group" role="radiogroup" aria-label={t('size.group')}>
         {STRAW_SIZES.map((size) => {
           const selected = strawSize === size
           const label = STRAW_SIZE_LABELS[size]
@@ -63,12 +65,12 @@ export function SizeSelector() {
           )
         })}
       </div>
-      <div className="hud-tool-group" role="group" aria-label="Interaction modes">
+      <div className="hud-tool-group" role="group" aria-label={t('size.modes')}>
         <button
           type="button"
           className={`hud-icon-button hud-threads${threadsActive ? ' is-active' : ''}`}
-          title="Threads mode — click corners to connect shapes"
-          aria-label="Threads mode — connect shapes"
+          title={t('size.threadsTitle')}
+          aria-label={t('size.threadsLabel')}
           aria-pressed={threadsActive}
           onClick={() => setActiveTool('threads')}
         >
@@ -77,12 +79,8 @@ export function SizeSelector() {
         <button
           type="button"
           className={`hud-icon-button hud-select${selectActive ? ' is-active' : ''}`}
-          title={
-            selectActive
-              ? 'Exit selection mode — click empty space or press Escape'
-              : 'Selection mode — click or drag a rectangle to select'
-          }
-          aria-label={selectActive ? 'Disable selection mode' : 'Enable selection mode'}
+          title={selectActive ? t('size.selectExitTitle') : t('size.selectEnterTitle')}
+          aria-label={selectActive ? t('size.selectDisable') : t('size.selectEnable')}
           aria-pressed={selectActive}
           onClick={() => setActiveTool(selectActive ? 'threads' : 'select')}
         >
@@ -91,12 +89,8 @@ export function SizeSelector() {
         <button
           type="button"
           className={`hud-icon-button hud-scissors${scissorsActive ? ' is-active' : ''}`}
-          title={
-            scissorsActive
-              ? 'Disable scissors mode (Escape)'
-              : 'Enable scissors mode — click a straw to cut it'
-          }
-          aria-label={scissorsActive ? 'Disable scissors mode' : 'Enable scissors mode'}
+          title={scissorsActive ? t('size.scissorsDisableTitle') : t('size.scissorsEnableTitle')}
+          aria-label={scissorsActive ? t('size.scissorsDisable') : t('size.scissorsEnable')}
           aria-pressed={scissorsActive}
           onClick={() => setActiveTool(scissorsActive ? 'threads' : 'scissors')}
         >

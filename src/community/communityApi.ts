@@ -105,7 +105,7 @@ function rowToProject(row: CommunityProjectRow): CommunityProject {
 }
 
 function requireSignedIn(
-  message = 'Sign in to publish and like community mobiles.',
+  message = 'community.signInToPublishLike',
 ): string {
   const userId = useAuthStore.getState().user?.id
   if (!userId) {
@@ -283,16 +283,16 @@ export async function createComment(
   body: string,
   files: File[],
 ): Promise<CommunityComment> {
-  const userId = requireSignedIn('Sign in to comment.')
+  const userId = requireSignedIn('community.signInToComment')
   const trimmed = body.trim()
   if (trimmed.length > COMMENT_BODY_MAX) {
-    throw new Error(`Comments can be at most ${COMMENT_BODY_MAX} characters.`)
+    throw new Error('community.commentTooLong')
   }
   if (!trimmed && files.length === 0) {
-    throw new Error('Write a comment or add a photo.')
+    throw new Error('community.commentEmpty')
   }
   if (files.length > COMMENT_PHOTO_MAX_COUNT) {
-    throw new Error(`Up to ${COMMENT_PHOTO_MAX_COUNT} photos per comment.`)
+    throw new Error('community.commentPhotoLimit')
   }
 
   const supabase = requireSupabase()

@@ -75,7 +75,7 @@ async function drainOnce(): Promise<boolean> {
       upserts.slice(upsertIndex),
       deletes.slice(deleteIndex),
     )
-    publish(error instanceof Error ? error.message : 'Could not save to your account.')
+    publish(error instanceof Error ? error.message : 'gallery.cloudSaveFailed')
     return false
   }
 }

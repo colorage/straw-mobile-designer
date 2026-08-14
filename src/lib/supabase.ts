@@ -29,6 +29,6 @@ export const supabase: SupabaseClient | null = isSupabaseConfigured
 
 /** Narrowing helper for the many call sites that need a configured client. */
 export function requireSupabase(): SupabaseClient {
-  if (!supabase) throw new Error('Accounts are unavailable: Supabase is not configured.')
+  if (!supabase) throw new Error('auth.accountsUnavailable')
   return supabase
 }

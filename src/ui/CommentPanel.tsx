@@ -6,6 +6,7 @@ import {
   validateCommentPhotoFile,
 } from '../community/commentPhotos'
 import { formatRelativeDate } from '../gallery/relativeDate'
+import { useT, useTOrRaw } from '../i18n/t'
 import { CommentIcon } from './icons'
 
 type CommentPanelProps = {
@@ -51,6 +52,8 @@ export function CommentPanel({
   onSubmit,
   onDelete,
 }: CommentPanelProps) {
+  const t = useT()
+  const tRaw = useTOrRaw()
   const [body, setBody] = useState('')
   const [draftPhotos, setDraftPhotos] = useState<DraftPhoto[]>([])
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null)
@@ -146,12 +149,12 @@ export function CommentPanel({
         className={`comment-panel${open ? ' is-open' : ''}`}
         aria-hidden={!open}
         inert={!open}
-        aria-label={`Comments on ${projectTitle || 'this mobile'}`}
+        aria-label={t('comments.onMobile', { name: projectTitle || t('comments.thisMobile') })}
       >
         <header className="comment-panel-header">
           <div className="comment-panel-heading">
             <CommentIcon className="comment-panel-heading-icon" />
-            <h2 className="comment-panel-title">Comments</h2>
+            <h2 className="comment-panel-title">{t('comments.title')}</h2>
             {comments ? (
               <span className="comment-panel-count">{comments.length}</span>
             ) : null}
@@ -159,7 +162,7 @@ export function CommentPanel({
           <button
             type="button"
             className="account-close"
-            aria-label="Close comments"
+            aria-label={t('comments.close')}
             onClick={onClose}
           >
             ×
@@ -168,15 +171,15 @@ export function CommentPanel({
 
         <div ref={listRef} className="comment-panel-list">
           {loading && comments === null ? (
-            <p className="comment-panel-status">Loading comments…</p>
+            <p className="comment-panel-status">{t('comments.loading')}</p>
           ) : comments && comments.length === 0 ? (
-            <p className="comment-panel-status">No comments yet. Be the first.</p>
+            <p className="comment-panel-status">{t('comments.empty')}</p>
           ) : (
             comments?.map((comment) => (
               <article key={comment.id} className="comment-item">
                 <div className="comment-item-meta">
                   <span className="comment-item-author">
-                    {comment.authorNickname || 'Builder'}
+                    {comment.authorNickname || t('comments.builder')}
                   </span>
                   <span className="comment-item-date">{formatRelativeDate(comment.createdAt)}</span>
                   {canDeleteComment(comment, userId, projectOwnerId) ? (
@@ -186,7 +189,7 @@ export function CommentPanel({
                       disabled={deletingId === comment.id}
                       onClick={() => void handleDelete(comment.id)}
                     >
-                      {deletingId === comment.id ? 'Deleting…' : 'Delete'}
+                      {deletingId === comment.id ? t('comments.deleting') : t('comments.delete')}
                     </button>
                   ) : null}
                 </div>
@@ -215,19 +218,19 @@ export function CommentPanel({
           )}
         </div>
 
-        {error ? <p className="comment-panel-error">{error}</p> : null}
+        {error ? <p className="comment-panel-error">{tRaw(error)}</p> : null}
 
         {signedIn ? (
           <form className="comment-compose" onSubmit={(event) => void handleSubmit(event)}>
             <label className="comment-compose-label" htmlFor="comment-body">
-              Add a comment
+              {t('comments.add')}
             </label>
             <textarea
               id="comment-body"
               className="comment-compose-input"
               rows={3}
               maxLength={COMMENT_BODY_MAX}
-              placeholder="Say something about this mobile…"
+              placeholder={t('comments.placeholder')}
               value={body}
               disabled={submitting}
               onChange={(event) => setBody(event.target.value)}
@@ -240,7 +243,7 @@ export function CommentPanel({
                     <button
                       type="button"
                       className="comment-compose-preview-remove"
-                      aria-label="Remove photo"
+                      aria-label={t('comments.removePhoto')}
                       onClick={() => handleRemoveDraft(photo.id)}
                     >
                       ×
@@ -264,15 +267,15 @@ export function CommentPanel({
                 disabled={submitting || photoSlotsLeft <= 0}
                 onClick={() => fileInputRef.current?.click()}
               >
-                {photoSlotsLeft <= 0 ? 'Photo limit' : 'Add photos'}
+                {photoSlotsLeft <= 0 ? t('comments.photoLimit') : t('comments.addPhotos')}
               </button>
               <button type="submit" className="primary-button comment-compose-submit" disabled={!canPost}>
-                {submitting ? 'Posting…' : 'Post'}
+                {submitting ? t('comments.posting') : t('comments.post')}
               </button>
             </div>
           </form>
         ) : (
-          <p className="comment-panel-signin">Sign in to comment.</p>
+          <p className="comment-panel-signin">{t('comments.signIn')}</p>
         )}
       </aside>
 
@@ -280,7 +283,7 @@ export function CommentPanel({
         <button
           type="button"
           className="comment-lightbox"
-          aria-label="Close photo"
+          aria-label={t('comments.closePhoto')}
           onClick={() => setLightboxUrl(null)}
         >
           <img src={lightboxUrl} alt="" />

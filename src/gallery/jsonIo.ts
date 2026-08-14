@@ -136,22 +136,22 @@ export function serializeEntry(entry: GalleryEntry): GalleryFileEnvelope {
  */
 export function parseImportFile(raw: unknown): GalleryFileEnvelope {
   if (!isRecord(raw)) {
-    throw new Error('This file is not a valid straw mobile JSON export.')
+    throw new Error('json.invalidExport')
   }
   if (raw.format !== GALLERY_FILE_FORMAT) {
-    throw new Error('This file is not a straw mobile designer export.')
+    throw new Error('json.notDesignerExport')
   }
   if (raw.version !== GALLERY_FILE_VERSION) {
-    throw new Error(`Unsupported export version (${String(raw.version)}).`)
+    throw new Error('json.unsupportedVersion')
   }
   if (typeof raw.name !== 'string' || raw.name.trim() === '') {
-    throw new Error('Export is missing a name.')
+    throw new Error('json.missingName')
   }
   if (typeof raw.savedAt !== 'string') {
-    throw new Error('Export is missing a saved date.')
+    throw new Error('json.missingDate')
   }
   if (!isProjectSnapshot(raw.project)) {
-    throw new Error('Export project data is missing or invalid.')
+    throw new Error('json.missingProject')
   }
   return {
     format: GALLERY_FILE_FORMAT,
@@ -186,7 +186,7 @@ export async function readGalleryFile(file: File): Promise<GalleryFileEnvelope> 
   try {
     raw = JSON.parse(text) as unknown
   } catch {
-    throw new Error('Could not parse JSON from this file.')
+    throw new Error('json.parseFailed')
   }
   return parseImportFile(raw)
 }

@@ -43,7 +43,7 @@ function entryToRow(entry: GalleryEntry, userId: string) {
 }
 
 export async function fetchCloudEntries(): Promise<GalleryEntry[]> {
-  if (!supabase) throw new Error('Accounts are unavailable.')
+  if (!supabase) throw new Error('auth.accountsUnavailable')
   const { data, error } = await supabase
     .from('projects')
     .select('id, name, thumbnail_data_url, project, created_at, updated_at')
@@ -53,7 +53,7 @@ export async function fetchCloudEntries(): Promise<GalleryEntry[]> {
 }
 
 export async function upsertCloudEntry(entry: GalleryEntry, userId: string): Promise<void> {
-  if (!supabase) throw new Error('Accounts are unavailable.')
+  if (!supabase) throw new Error('auth.accountsUnavailable')
   const { error } = await supabase.from('projects').upsert(entryToRow(entry, userId))
   if (error) throw new Error(error.message)
 }
@@ -70,7 +70,7 @@ export async function upsertCloudEntries(
 }
 
 export async function deleteCloudEntry(id: string): Promise<void> {
-  if (!supabase) throw new Error('Accounts are unavailable.')
+  if (!supabase) throw new Error('auth.accountsUnavailable')
   const { error } = await supabase.from('projects').delete().eq('id', id)
   if (error) throw new Error(error.message)
 }

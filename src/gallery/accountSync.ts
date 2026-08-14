@@ -77,7 +77,7 @@ async function adoptAccount(): Promise<void> {
       loadError:
         error instanceof Error
           ? error.message
-          : 'Could not open your account gallery. Your local mobiles are still here.',
+          : 'gallery.loadErrorFallback',
     })
   }
 }

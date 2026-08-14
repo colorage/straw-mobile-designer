@@ -11,6 +11,7 @@ import {
   type CommunitySort,
 } from '../community/communityApi'
 import { formatRelativeDate } from '../gallery/relativeDate'
+import { useT, useTOrRaw } from '../i18n/t'
 import { CommentIcon } from '../ui/icons'
 
 function HeartIcon({ filled }: { filled: boolean }) {
@@ -34,6 +35,8 @@ function HeartIcon({ filled }: { filled: boolean }) {
 
 /** Community gallery section: browse public mobiles, like them, open a preview. */
 export function CommunitySection() {
+  const t = useT()
+  const tRaw = useTOrRaw()
   const navigate = useNavigate()
   const userId = useAuthStore((s) => s.user?.id ?? null)
 
@@ -49,7 +52,7 @@ export function CommunitySection() {
       const items = await fetchCommunityProjects(nextSort)
       setProjects(items)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not load the community gallery.')
+      setError(err instanceof Error ? err.message : 'community.couldNotLoad')
       setProjects((prev) => prev ?? [])
     }
   }, [])
@@ -85,7 +88,7 @@ export function CommunitySection() {
   const handleToggleLike = async (item: CommunityProject) => {
     if (likePendingIds.has(item.id)) return
     if (!userId) {
-      setError('Sign in to like community mobiles.')
+      setError('community.signInToLike')
       return
     }
     setError(null)
@@ -118,7 +121,7 @@ export function CommunitySection() {
       else await likeProject(item.id)
     } catch (err) {
       applyLike(wasLiked)
-      setError(err instanceof Error ? err.message : 'Could not update the like.')
+      setError(err instanceof Error ? err.message : 'community.couldNotLike')
     } finally {
       setLikePendingIds((prev) => {
         const next = new Set(prev)
@@ -133,23 +136,20 @@ export function CommunitySection() {
       <div className="gallery-section-header">
         <div className="gallery-section-header-text">
           <h2 id="community-heading" className="gallery-section-title">
-            Community
+            {t('community.title')}
           </h2>
-          <p className="gallery-section-subtitle">
-            Mobiles published by other builders. Open one to preview it, then duplicate a copy into
-            your projects to remix.
-          </p>
+          <p className="gallery-section-subtitle">{t('community.subtitle')}</p>
         </div>
         {isCommunityEnabled && (
           <div className="community-toolbar">
-            <div className="community-sort" role="group" aria-label="Sort community mobiles">
+            <div className="community-sort" role="group" aria-label={t('community.sort')}>
               <button
                 type="button"
                 className={`community-sort-button${sort === 'recent' ? ' is-active' : ''}`}
                 aria-pressed={sort === 'recent'}
                 onClick={() => setSort('recent')}
               >
-                Recent
+                {t('community.recent')}
               </button>
               <button
                 type="button"
@@ -157,27 +157,26 @@ export function CommunitySection() {
                 aria-pressed={sort === 'liked'}
                 onClick={() => setSort('liked')}
               >
-                Most liked
+                {t('community.mostLiked')}
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {error && <p className="gallery-error gallery-page-error">{error}</p>}
+      {error && <p className="gallery-error gallery-page-error">{tRaw(error)}</p>}
 
       {!isCommunityEnabled ? (
         <div className="gallery-page-empty gallery-section-empty">
-          <p className="panel-hint">The community gallery is not configured for this build.</p>
+          <p className="panel-hint">{t('community.notConfigured')}</p>
         </div>
       ) : projects === null ? (
-        <p className="community-status">Loading community mobiles…</p>
+        <p className="community-status">{t('community.loading')}</p>
       ) : projects.length === 0 ? (
         <div className="gallery-page-empty gallery-section-empty">
-          <p className="panel-hint">Nothing here yet.</p>
+          <p className="panel-hint">{t('community.empty')}</p>
           <p className="panel-hint">
-            Be the first: publish a mobile from your projects above
-            {userId ? '.' : ' (sign in required).'}
+            {userId ? t('community.emptyHint') : t('community.emptyHintSignIn')}
           </p>
         </div>
       ) : (
@@ -190,7 +189,7 @@ export function CommunitySection() {
                   type="button"
                   className="gallery-thumb-button"
                   onClick={() => handleOpen(item)}
-                  aria-label={`Preview ${item.name}`}
+                  aria-label={t('community.previewName', { name: item.name })}
                 >
                   <img
                     className="gallery-thumb"
@@ -215,11 +214,11 @@ export function CommunitySection() {
                       className="gallery-item-button"
                       onClick={() => handleOpen(item)}
                     >
-                      Open
+                      {t('community.open')}
                     </button>
                     <span
                       className="community-comment-count"
-                      aria-label={`${item.commentsCount} comments`}
+                      aria-label={t('community.commentsCount', { count: item.commentsCount })}
                     >
                       <CommentIcon className="community-comment-icon" />
                       <span>{item.commentsCount}</span>
@@ -228,7 +227,7 @@ export function CommunitySection() {
                       type="button"
                       className={`gallery-item-button community-like-button${liked ? ' is-liked' : ''}`}
                       aria-pressed={liked}
-                      aria-label={liked ? `Unlike ${item.name}` : `Like ${item.name}`}
+                      aria-label={liked ? t('community.unlike', { name: item.name }) : t('community.like', { name: item.name })}
                       onClick={() => handleToggleLike(item)}
                     >
                       <HeartIcon filled={liked} />

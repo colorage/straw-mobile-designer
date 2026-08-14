@@ -15,10 +15,10 @@ export function commentPhotoPublicUrl(path: string): string {
 
 export function validateCommentPhotoFile(file: File): void {
   if (!ALLOWED_TYPES.has(file.type)) {
-    throw new Error('Photos must be JPEG, PNG, or WebP.')
+    throw new Error('community.photoType')
   }
   if (file.size > COMMENT_PHOTO_MAX_INPUT_BYTES) {
-    throw new Error('Each photo must be 10 MB or smaller.')
+    throw new Error('community.photoSize')
   }
 }
 
@@ -30,7 +30,7 @@ export async function compressCommentPhoto(file: File): Promise<Blob> {
     const img = await new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image()
       image.onload = () => resolve(image)
-      image.onerror = () => reject(new Error('Could not read that image.'))
+      image.onerror = () => reject(new Error('community.photoProcess'))
       image.src = url
     })
     const scale = Math.min(
@@ -43,12 +43,12 @@ export async function compressCommentPhoto(file: File): Promise<Blob> {
     canvas.width = width
     canvas.height = height
     const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('Could not process that photo.')
+    if (!ctx) throw new Error('community.photoProcess')
     ctx.drawImage(img, 0, 0, width, height)
     const blob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (result) =>
-          result ? resolve(result) : reject(new Error('Could not process that photo.')),
+          result ? resolve(result) : reject(new Error('community.photoProcess')),
         'image/jpeg',
         COMMENT_PHOTO_JPEG_QUALITY,
       )

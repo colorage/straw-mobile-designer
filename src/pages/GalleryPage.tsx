@@ -10,9 +10,12 @@ import { nextProjectName } from '../gallery/projectName'
 import { formatRelativeDate } from '../gallery/relativeDate'
 import type { GalleryEntry } from '../gallery/types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { BRAND_NAME } from '../i18n/locales'
+import { t, useT, useTOrRaw } from '../i18n/t'
 import { useStrawMobileStore } from '../state/store'
 import { AccountControl } from '../ui/AccountControl'
 import { AccountNotices } from '../ui/AccountNotices'
+import { LanguageSwitcher } from '../ui/LanguageSwitcher'
 import {
   DownloadIcon,
   PublishIcon,
@@ -24,22 +27,20 @@ import { CommunitySection } from './CommunitySection'
 function confirmOverwriteDraft(): boolean {
   const { shapes } = useStrawMobileStore.getState()
   if (shapes.length === 0) return true
-  return window.confirm(
-    'Replace the current draft with this gallery mobile? Unsaved draft changes will be lost (the autosaved draft will update).',
-  )
+  return window.confirm(t('gallery.confirmOverwrite'))
 }
 
 function confirmStartNew(): boolean {
   const { shapes } = useStrawMobileStore.getState()
   if (shapes.length === 0) return true
-  return window.confirm(
-    'Clear the current draft and start a new mobile? Unsaved draft changes will be lost (the autosaved draft will update).',
-  )
+  return window.confirm(t('gallery.confirmNew'))
 }
 
 /** Full-page gallery: personal projects and community in one scrollable screen. */
 export function GalleryPage() {
-  useDocumentTitle('Gallery · Павучы клуб')
+  const translate = useT()
+  const tRaw = useTOrRaw()
+  useDocumentTitle(`${translate('gallery.title')} · ${BRAND_NAME}`)
   const navigate = useNavigate()
   const entries = useGalleryStore((s) => s.entries)
   const activeGalleryId = useGalleryStore((s) => s.activeGalleryId)
@@ -86,7 +87,7 @@ export function GalleryPage() {
     if (!confirmOverwriteDraft()) return
     suppressNextGalleryPersist()
     if (!loadEntry(entry.id)) {
-      setError('Could not load that mobile.')
+      setError('gallery.couldNotLoad')
       return
     }
     goToDesigner()
@@ -94,14 +95,14 @@ export function GalleryPage() {
 
   const handleDelete = (entry: GalleryEntry) => {
     setError(null)
-    if (!window.confirm(`Delete “${entry.name}” from the gallery?`)) return
+    if (!window.confirm(t('gallery.confirmDelete', { name: entry.name }))) return
     deleteEntry(entry.id)
   }
 
   const handlePublish = async (entry: GalleryEntry) => {
     setError(null)
     if (!userId) {
-      setError('Sign in to publish a mobile to the community gallery.')
+      setError('gallery.signInToPublish')
       return
     }
     setPublishPendingId(entry.id)
@@ -109,7 +110,7 @@ export function GalleryPage() {
       const publicId = await publishEntry(entry, published[entry.id]?.publicId)
       markPublished(entry.id, publicId)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not publish this mobile.')
+      setError(err instanceof Error ? err.message : 'gallery.couldNotPublish')
     } finally {
       setPublishPendingId(null)
     }
@@ -119,13 +120,13 @@ export function GalleryPage() {
     setError(null)
     const record = published[entry.id]
     if (!record) return
-    if (!window.confirm(`Remove “${entry.name}” from the community gallery?`)) return
+    if (!window.confirm(t('gallery.confirmUnpublish', { name: entry.name }))) return
     setPublishPendingId(entry.id)
     try {
       await unpublishProject(record.publicId)
       markUnpublished(entry.id)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not unpublish this mobile.')
+      setError(err instanceof Error ? err.message : 'gallery.couldNotUnpublish')
     } finally {
       setPublishPendingId(null)
     }
@@ -146,39 +147,41 @@ export function GalleryPage() {
       if (!confirmOverwriteDraft()) return
       suppressNextGalleryPersist()
       if (!loadEntry(id)) {
-        setError('Imported, but could not load into the designer.')
+        setError('gallery.importedNotLoad')
         return
       }
       goToDesigner()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not import that file.')
+      setError(err instanceof Error ? err.message : 'gallery.couldNotImport')
     }
   }
+
+  const cloudSubtitle = nickname
+    ? translate('gallery.projectsCloudNamed', { name: nickname })
+    : translate('gallery.projectsCloudYou')
 
   return (
     <div className="gallery-page">
       <header className="gallery-page-header">
         <div className="gallery-page-header-text">
-          <p className="gallery-page-eyebrow">Straw Mobile Designer</p>
-          <h1 className="gallery-page-title">Gallery</h1>
-          <p className="gallery-page-subtitle">
-            Your projects and the community gallery on one screen.
-          </p>
+          <p className="gallery-page-eyebrow">{translate('gallery.eyebrow')}</p>
+          <h1 className="gallery-page-title">{translate('gallery.title')}</h1>
+          <p className="gallery-page-subtitle">{translate('gallery.subtitle')}</p>
         </div>
         <div className="gallery-page-header-tools">
-          <div className="gallery-page-project-actions" aria-label="Project actions">
+          <div className="gallery-page-project-actions" aria-label={translate('gallery.projectActions')}>
             <button type="button" className="primary-button gallery-page-action" onClick={handleNew}>
-              New
+              {translate('gallery.new')}
             </button>
             <button
               type="button"
               className="ghost-button gallery-page-action"
               onClick={handleImportClick}
             >
-              Import JSON
+              {translate('gallery.importJson')}
             </button>
             <Link to="/" className="ghost-button gallery-page-action gallery-page-back">
-              Back to designer
+              {translate('gallery.backToDesigner')}
             </Link>
             <input
               ref={fileInputRef}
@@ -188,7 +191,8 @@ export function GalleryPage() {
               onChange={handleImportFile}
             />
           </div>
-          <div className="gallery-page-account" aria-label="Account">
+          <div className="gallery-page-account" aria-label={translate('gallery.account')}>
+            <LanguageSwitcher />
             <AccountControl />
           </div>
         </div>
@@ -198,34 +202,30 @@ export function GalleryPage() {
         <AccountNotices />
       </div>
 
-      {error && <p className="gallery-error gallery-page-error">{error}</p>}
+      {error && <p className="gallery-error gallery-page-error">{tRaw(error)}</p>}
 
       <section id="projects" className="gallery-section" aria-labelledby="projects-heading">
         <div className="gallery-section-header">
           <div className="gallery-section-header-text">
             <h2 id="projects-heading" className="gallery-section-title">
-              Projects
+              {translate('gallery.projects')}
             </h2>
             <p className="gallery-section-subtitle">
-              {mode === 'cloud'
-                ? `Named mobiles saved to ${nickname ? `${nickname}’s` : 'your'} account, available from any browser. Export JSON for a personal backup.`
-                : 'Named mobiles saved in this browser. Export JSON to back them up or move between devices.'}
+              {mode === 'cloud' ? cloudSubtitle : translate('gallery.projectsLocal')}
             </p>
           </div>
         </div>
 
         {loading ? (
           <div className="gallery-page-empty gallery-section-empty">
-            <p className="panel-hint">Loading your mobiles…</p>
+            <p className="panel-hint">{translate('gallery.loading')}</p>
           </div>
         ) : entries.length === 0 ? (
           <div className="gallery-page-empty gallery-section-empty">
-            <p className="panel-hint">No saved mobiles yet.</p>
-            <p className="panel-hint">
-              Build something in the designer — your current project is saved here automatically.
-            </p>
+            <p className="panel-hint">{translate('gallery.empty')}</p>
+            <p className="panel-hint">{translate('gallery.emptyHint')}</p>
             <Link to="/" className="primary-button gallery-page-action gallery-page-empty-cta">
-              Open designer
+              {translate('gallery.openDesigner')}
             </Link>
           </div>
         ) : (
@@ -240,7 +240,7 @@ export function GalleryPage() {
                     type="button"
                     className="gallery-thumb-button"
                     onClick={() => handleLoad(entry)}
-                    aria-label={`Load ${entry.name}`}
+                    aria-label={translate('gallery.load', { name: entry.name })}
                   >
                     <img
                       className="gallery-thumb"
@@ -254,7 +254,9 @@ export function GalleryPage() {
                     <div className="gallery-item-meta">
                       <span className="gallery-item-name">
                         {entry.name}
-                        {isPublished && <span className="gallery-item-badge">Public</span>}
+                        {isPublished && (
+                          <span className="gallery-item-badge">{translate('gallery.public')}</span>
+                        )}
                       </span>
                       <span className="gallery-item-date">{formatRelativeDate(entry.updatedAt)}</span>
                     </div>
@@ -264,9 +266,15 @@ export function GalleryPage() {
                           type="button"
                           className="gallery-item-icon-button"
                           disabled={isPublishPending}
-                          title={isPublishPending ? 'Publishing…' : 'Publish to community'}
+                          title={
+                            isPublishPending
+                              ? translate('gallery.publishing')
+                              : translate('gallery.publish')
+                          }
                           aria-label={
-                            isPublishPending ? `Publishing ${entry.name}` : `Publish ${entry.name}`
+                            isPublishPending
+                              ? translate('gallery.publishingName', { name: entry.name })
+                              : translate('gallery.publishName', { name: entry.name })
                           }
                           onClick={() => handlePublish(entry)}
                         >
@@ -278,11 +286,15 @@ export function GalleryPage() {
                           type="button"
                           className="gallery-item-icon-button gallery-item-icon-button-danger"
                           disabled={isPublishPending}
-                          title={isPublishPending ? 'Unpublishing…' : 'Unpublish from community'}
+                          title={
+                            isPublishPending
+                              ? translate('gallery.unpublishing')
+                              : translate('gallery.unpublish')
+                          }
                           aria-label={
                             isPublishPending
-                              ? `Unpublishing ${entry.name}`
-                              : `Unpublish ${entry.name}`
+                              ? translate('gallery.unpublishingName', { name: entry.name })
+                              : translate('gallery.unpublishName', { name: entry.name })
                           }
                           onClick={() => handleUnpublish(entry)}
                         >
@@ -292,8 +304,8 @@ export function GalleryPage() {
                       <button
                         type="button"
                         className="gallery-item-icon-button"
-                        title="Download JSON"
-                        aria-label={`Download ${entry.name}`}
+                        title={translate('gallery.downloadJson')}
+                        aria-label={translate('gallery.downloadName', { name: entry.name })}
                         onClick={() => exportEntry(entry.id)}
                       >
                         <DownloadIcon className="gallery-item-icon" />
@@ -301,8 +313,8 @@ export function GalleryPage() {
                       <button
                         type="button"
                         className="gallery-item-icon-button gallery-item-icon-button-danger"
-                        title="Delete"
-                        aria-label={`Delete ${entry.name}`}
+                        title={translate('gallery.delete')}
+                        aria-label={translate('gallery.deleteName', { name: entry.name })}
                         onClick={() => handleDelete(entry)}
                       >
                         <TrashIcon className="gallery-item-icon" />
