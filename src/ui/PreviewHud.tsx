@@ -44,8 +44,9 @@ export function PreviewHud({
   return (
     <>
       <div className="hud-cluster hud-top-left preview-hud-title">
-        <p className="preview-hud-eyebrow">Community preview</p>
+        <p className="preview-hud-eyebrow">View only</p>
         <h1 className="preview-hud-name">{title || 'Untitled'}</h1>
+        <p className="preview-hud-hint">Orbit to look around. Duplicate to edit.</p>
       </div>
 
       <div className="hud-cluster hud-top-right preview-hud-actions">
