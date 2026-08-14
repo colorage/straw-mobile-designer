@@ -11,6 +11,7 @@ import {
   type CommunitySort,
 } from '../community/communityApi'
 import { formatRelativeDate } from '../gallery/relativeDate'
+import { CommentIcon } from '../ui/icons'
 
 function HeartIcon({ filled }: { filled: boolean }) {
   return (
@@ -216,6 +217,13 @@ export function CommunitySection() {
                     >
                       Open
                     </button>
+                    <span
+                      className="community-comment-count"
+                      aria-label={`${item.commentsCount} comments`}
+                    >
+                      <CommentIcon className="community-comment-icon" />
+                      <span>{item.commentsCount}</span>
+                    </span>
                     <button
                       type="button"
                       className={`gallery-item-button community-like-button${liked ? ' is-liked' : ''}`}

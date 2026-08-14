@@ -7,6 +7,14 @@ import {
   type GalleryFileEnvelope,
 } from '../gallery/types'
 import { isSupabaseConfigured, requireSupabase } from '../lib/supabase'
+import {
+  COMMENT_BODY_MAX,
+  COMMENT_PHOTO_MAX_COUNT,
+  compressCommentPhoto,
+  commentPhotoPublicUrl,
+  removeCommentPhotos,
+  uploadCommentPhoto,
+} from './commentPhotos'
 
 export type CommunitySort = 'recent' | 'liked'
 
@@ -19,9 +27,27 @@ export interface CommunityProject {
   name: string
   thumbnailDataUrl: string
   likesCount: number
+  commentsCount: number
   publishedAt: string
   owner: string
   ownerNickname: string | null
+}
+
+export interface CommunityCommentPhoto {
+  id: string
+  storagePath: string
+  publicUrl: string
+  sortOrder: number
+}
+
+export interface CommunityComment {
+  id: string
+  projectId: string
+  author: string
+  authorNickname: string | null
+  body: string
+  createdAt: string
+  photos: CommunityCommentPhoto[]
 }
 
 interface CommunityProjectRow {
@@ -29,13 +55,33 @@ interface CommunityProjectRow {
   name: string
   thumbnail_data_url: string
   likes_count: number
+  comments_count: number
   published_at: string
   owner: string
   profiles: { nickname: string } | { nickname: string }[] | null
 }
 
+interface CommentPhotoRow {
+  id: string
+  storage_path: string
+  sort_order: number
+}
+
+interface CommentRow {
+  id: string
+  project_id: string
+  author: string
+  body: string
+  created_at: string
+  profiles: { nickname: string } | { nickname: string }[] | null
+  project_comment_photos: CommentPhotoRow[] | null
+}
+
 const LIST_COLUMNS =
-  'id, name, thumbnail_data_url, likes_count, published_at, owner, profiles(nickname)'
+  'id, name, thumbnail_data_url, likes_count, comments_count, published_at, owner, profiles(nickname)'
+
+const COMMENT_COLUMNS =
+  'id, project_id, author, body, created_at, profiles(nickname), project_comment_photos(id, storage_path, sort_order)'
 
 function rowNickname(
   profiles: CommunityProjectRow['profiles'],
@@ -51,18 +97,44 @@ function rowToProject(row: CommunityProjectRow): CommunityProject {
     name: row.name,
     thumbnailDataUrl: row.thumbnail_data_url,
     likesCount: row.likes_count,
+    commentsCount: row.comments_count,
     publishedAt: row.published_at,
     owner: row.owner,
     ownerNickname: rowNickname(row.profiles),
   }
 }
 
-function requireSignedIn(): string {
+function requireSignedIn(
+  message = 'Sign in to publish and like community mobiles.',
+): string {
   const userId = useAuthStore.getState().user?.id
   if (!userId) {
-    throw new Error('Sign in to publish and like community mobiles.')
+    throw new Error(message)
   }
   return userId
+}
+
+function photoRowsToPhotos(rows: CommentPhotoRow[] | null): CommunityCommentPhoto[] {
+  return [...(rows ?? [])]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map((row) => ({
+      id: row.id,
+      storagePath: row.storage_path,
+      publicUrl: commentPhotoPublicUrl(row.storage_path),
+      sortOrder: row.sort_order,
+    }))
+}
+
+function rowToComment(row: CommentRow): CommunityComment {
+  return {
+    id: row.id,
+    projectId: row.project_id,
+    author: row.author,
+    authorNickname: rowNickname(row.profiles),
+    body: row.body,
+    createdAt: row.created_at,
+    photos: photoRowsToPhotos(row.project_comment_photos),
+  }
 }
 
 /**
@@ -136,10 +208,12 @@ export async function fetchProjectSnapshot(publicId: string): Promise<GalleryFil
   return detail.envelope
 }
 
-/** Snapshot + like count for the community preview route. */
+/** Snapshot + like/comment counts for the community preview route. */
 export interface PublicProjectDetail {
   envelope: GalleryFileEnvelope
   likesCount: number
+  commentsCount: number
+  owner: string
 }
 
 export async function fetchPublicProjectDetail(
@@ -147,7 +221,7 @@ export async function fetchPublicProjectDetail(
 ): Promise<PublicProjectDetail> {
   const { data, error } = await requireSupabase()
     .from('public_projects')
-    .select('name, project, published_at, likes_count')
+    .select('name, project, published_at, likes_count, comments_count, owner')
     .eq('id', publicId)
     .single()
   if (error) throw new Error(error.message)
@@ -160,6 +234,8 @@ export async function fetchPublicProjectDetail(
       project: data.project,
     }),
     likesCount: data.likes_count as number,
+    commentsCount: data.comments_count as number,
+    owner: data.owner as string,
   }
 }
 
@@ -189,5 +265,106 @@ export async function unlikeProject(publicId: string): Promise<void> {
     .delete()
     .eq('project_id', publicId)
     .eq('user_id', userId)
+  if (error) throw new Error(error.message)
+}
+
+export async function fetchComments(projectId: string): Promise<CommunityComment[]> {
+  const { data, error } = await requireSupabase()
+    .from('project_comments')
+    .select(COMMENT_COLUMNS)
+    .eq('project_id', projectId)
+    .order('created_at', { ascending: true })
+  if (error) throw new Error(error.message)
+  return (data as CommentRow[]).map(rowToComment)
+}
+
+export async function createComment(
+  projectId: string,
+  body: string,
+  files: File[],
+): Promise<CommunityComment> {
+  const userId = requireSignedIn('Sign in to comment.')
+  const trimmed = body.trim()
+  if (trimmed.length > COMMENT_BODY_MAX) {
+    throw new Error(`Comments can be at most ${COMMENT_BODY_MAX} characters.`)
+  }
+  if (!trimmed && files.length === 0) {
+    throw new Error('Write a comment or add a photo.')
+  }
+  if (files.length > COMMENT_PHOTO_MAX_COUNT) {
+    throw new Error(`Up to ${COMMENT_PHOTO_MAX_COUNT} photos per comment.`)
+  }
+
+  const supabase = requireSupabase()
+  const { data, error } = await supabase
+    .from('project_comments')
+    .insert({ project_id: projectId, body: trimmed })
+    .select('id, project_id, author, body, created_at')
+    .single()
+  if (error) throw new Error(error.message)
+
+  const commentId = data.id as string
+  const uploadedPaths: string[] = []
+  try {
+    const photos: CommunityCommentPhoto[] = []
+    for (let i = 0; i < files.length; i++) {
+      const photoId = crypto.randomUUID()
+      const blob = await compressCommentPhoto(files[i])
+      const path = await uploadCommentPhoto(userId, commentId, photoId, blob)
+      uploadedPaths.push(path)
+      const { data: photoRow, error: photoError } = await supabase
+        .from('project_comment_photos')
+        .insert({ comment_id: commentId, storage_path: path, sort_order: i })
+        .select('id, storage_path, sort_order')
+        .single()
+      if (photoError) throw new Error(photoError.message)
+      photos.push({
+        id: photoRow.id as string,
+        storagePath: photoRow.storage_path as string,
+        publicUrl: commentPhotoPublicUrl(photoRow.storage_path as string),
+        sortOrder: photoRow.sort_order as number,
+      })
+    }
+    return {
+      id: commentId,
+      projectId,
+      author: userId,
+      authorNickname: useAuthStore.getState().profile?.nickname ?? null,
+      body: trimmed,
+      createdAt: data.created_at as string,
+      photos,
+    }
+  } catch (err) {
+    await supabase.from('project_comments').delete().eq('id', commentId)
+    if (uploadedPaths.length > 0) {
+      try {
+        await removeCommentPhotos(uploadedPaths)
+      } catch {
+        // Row delete already cascades; Storage trigger also tries to clean up.
+      }
+    }
+    throw err
+  }
+}
+
+export async function deleteComment(commentId: string): Promise<void> {
+  requireSignedIn()
+  const supabase = requireSupabase()
+  const { data: photos } = await supabase
+    .from('project_comment_photos')
+    .select('storage_path')
+    .eq('comment_id', commentId)
+  const paths = ((photos as { storage_path: string }[] | null) ?? []).map(
+    (row) => row.storage_path,
+  )
+  if (paths.length > 0) {
+    try {
+      await removeCommentPhotos(paths)
+    } catch {
+      // Project owners cannot delete another user's Storage objects; the SQL
+      // trigger removes them when the comment row is deleted.
+    }
+  }
+  const { error } = await supabase.from('project_comments').delete().eq('id', commentId)
   if (error) throw new Error(error.message)
 }

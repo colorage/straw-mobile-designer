@@ -1,10 +1,16 @@
+import { CommentIcon } from './icons'
+
 type PreviewHudProps = {
   title: string
   likesCount: number
+  commentsCount: number
   liked: boolean
+  commentsOpen: boolean
   likeDisabled?: boolean
+  commentsDisabled?: boolean
   duplicateDisabled?: boolean
   onLike: () => void
+  onToggleComments: () => void
   onDuplicate: () => void
   onBack: () => void
   error: string | null
@@ -29,14 +35,18 @@ function HeartIcon({ filled }: { filled: boolean }) {
   )
 }
 
-/** Slim HUD for community preview: title, like, duplicate, back — no edit tools. */
+/** Slim HUD for community preview: title, like, comments, duplicate, back. */
 export function PreviewHud({
   title,
   likesCount,
+  commentsCount,
   liked,
+  commentsOpen,
   likeDisabled,
+  commentsDisabled,
   duplicateDisabled,
   onLike,
+  onToggleComments,
   onDuplicate,
   onBack,
   error,
@@ -60,6 +70,18 @@ export function PreviewHud({
         >
           <HeartIcon filled={liked} />
           <span>{likesCount}</span>
+        </button>
+        <button
+          type="button"
+          className={`ghost-button gallery-page-action community-comment-button preview-hud-like${commentsOpen ? ' is-open' : ''}`}
+          aria-pressed={commentsOpen}
+          aria-expanded={commentsOpen}
+          aria-label={commentsOpen ? 'Close comments' : `Comments on ${title}`}
+          disabled={commentsDisabled}
+          onClick={onToggleComments}
+        >
+          <CommentIcon className="community-comment-icon" />
+          <span>{commentsCount}</span>
         </button>
         <button
           type="button"
