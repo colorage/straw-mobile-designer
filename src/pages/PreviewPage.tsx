@@ -69,8 +69,6 @@ export function PreviewPage() {
         suppressNextGalleryPersist()
         useStrawMobileStore.getState().loadProject(detail.envelope.project)
         useStrawMobileStore.getState().setProjectName(detail.envelope.name)
-        // Drop undo history that would reach back into the parked draft.
-        useStrawMobileStore.setState({ past: [], future: [] })
         useStrawMobileStore.getState().setPreviewMode(true)
         setTitle(detail.envelope.name)
         setLikesCount(detail.likesCount)

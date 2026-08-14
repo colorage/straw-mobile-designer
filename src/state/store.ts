@@ -407,9 +407,12 @@ interface StrawMobileState {
   finishReelIns: (
     completed: { shapeId: string; position: Vector3Tuple; quaternion: QuatTuple }[],
   ) => void
+  /** Clear the draft and undo/redo (starts a new project). */
   reset: () => void
-  /** Replace the working draft with a gallery / import snapshot. */
-  /** Replace the working design with a saved snapshot (gallery load / import). */
+  /**
+   * Replace the working design with a saved snapshot (gallery load / import).
+   * Clears undo/redo so history never spans projects.
+   */
   loadProject: (snapshot: PersistedMobileState & { slots?: SlotBuffers }) => void
   getStrawCounts: () => StrawCounts
 }
@@ -1446,7 +1449,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
 
       reset: () => {
         if (previewBlocksEdits(get)) return
-        get().pushHistory()
+        // Clearing the draft starts a new project — do not keep the previous
+        // design on the undo stack (undo/redo is per-project only).
         const physicsEpoch = invalidatePhysics(get)
         set((state) => ({
           shapes: [],
@@ -1462,13 +1466,16 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           deferredConnectionIds: [],
           reelPositions: {},
           reelQuaternions: {},
+          past: [],
+          future: [],
           physicsEpoch,
           anchorY: BASE_ANCHOR_Y,
         }))
       },
 
       loadProject: (snapshot) => {
-        get().pushHistory()
+        // Switching projects starts a fresh history — pushing the previous
+        // draft would let Undo pull another project's shapes into this one.
         const physicsEpoch = invalidatePhysics(get)
         set((state) => ({
           shapes: snapshot.shapes,
@@ -1485,6 +1492,8 @@ export const useStrawMobileStore = create<StrawMobileState>()(
           deferredConnectionIds: [],
           reelPositions: {},
           reelQuaternions: {},
+          past: [],
+          future: [],
           physicsEpoch,
           anchorY: BASE_ANCHOR_Y,
         }))
