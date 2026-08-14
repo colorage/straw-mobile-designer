@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '../auth/authStore'
 import {
+  createComment,
+  deleteComment,
+  fetchComments,
   fetchMyLikes,
   fetchPublicProjectDetail,
   isCommunityEnabled,
   likeProject,
   unlikeProject,
+  type CommunityComment,
 } from '../community/communityApi'
 import {
   discardParkedDraft,
@@ -19,6 +23,7 @@ import type { GalleryFileEnvelope } from '../gallery/types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Experience } from '../scene/Experience'
 import { useStrawMobileStore } from '../state/store'
+import { CommentPanel } from '../ui/CommentPanel'
 import { PreviewHud } from '../ui/PreviewHud'
 
 /**
@@ -34,11 +39,18 @@ export function PreviewPage() {
 
   const [title, setTitle] = useState('')
   const [likesCount, setLikesCount] = useState(0)
+  const [commentsCount, setCommentsCount] = useState(0)
+  const [ownerId, setOwnerId] = useState<string | null>(null)
   const [liked, setLiked] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [commentError, setCommentError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [duplicatePending, setDuplicatePending] = useState(false)
   const [likePending, setLikePending] = useState(false)
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  const [comments, setComments] = useState<CommunityComment[] | null>(null)
+  const [commentsLoading, setCommentsLoading] = useState(false)
+  const [commentSubmitting, setCommentSubmitting] = useState(false)
   const envelopeRef = useRef<GalleryFileEnvelope | null>(null)
   /** When true, unmount should not restore the parked draft (Duplicate flow). */
   const skipRestoreRef = useRef(false)
@@ -60,6 +72,11 @@ export function PreviewPage() {
     skipRestoreRef.current = false
     parkDraft()
     suppressNextGalleryPersist()
+    setComments(null)
+    setCommentError(null)
+    setCommentsOpen(false)
+    setCommentsCount(0)
+    setOwnerId(null)
 
     void (async () => {
       try {
@@ -72,6 +89,8 @@ export function PreviewPage() {
         useStrawMobileStore.getState().setPreviewMode(true)
         setTitle(detail.envelope.name)
         setLikesCount(detail.likesCount)
+        setCommentsCount(detail.commentsCount)
+        setOwnerId(detail.owner)
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : 'Could not load this mobile.')
@@ -109,6 +128,30 @@ export function PreviewPage() {
       cancelled = true
     }
   }, [id, userId])
+
+  useEffect(() => {
+    if (!commentsOpen || !id || !isCommunityEnabled) return
+    if (comments !== null) return
+    let cancelled = false
+    setCommentsLoading(true)
+    setCommentError(null)
+    void (async () => {
+      try {
+        const items = await fetchComments(id)
+        if (!cancelled) setComments(items)
+      } catch (err) {
+        if (!cancelled) {
+          setCommentError(err instanceof Error ? err.message : 'Could not load comments.')
+          setComments([])
+        }
+      } finally {
+        if (!cancelled) setCommentsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [commentsOpen, comments, id])
 
   const handleBack = () => {
     navigate('/gallery#community')
@@ -161,6 +204,39 @@ export function PreviewPage() {
     }
   }
 
+  const handleSubmitComment = async (body: string, files: File[]) => {
+    if (!id) return
+    if (!userId) {
+      setCommentError('Sign in to comment.')
+      throw new Error('Sign in to comment.')
+    }
+    setCommentError(null)
+    setCommentSubmitting(true)
+    try {
+      const comment = await createComment(id, body, files)
+      setComments((prev) => [...(prev ?? []), comment])
+      setCommentsCount((count) => count + 1)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not post that comment.'
+      setCommentError(message)
+      throw err instanceof Error ? err : new Error(message)
+    } finally {
+      setCommentSubmitting(false)
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    setCommentError(null)
+    try {
+      await deleteComment(commentId)
+      setComments((prev) => prev?.filter((comment) => comment.id !== commentId) ?? prev)
+      setCommentsCount((count) => Math.max(0, count - 1))
+    } catch (err) {
+      setCommentError(err instanceof Error ? err.message : 'Could not delete that comment.')
+      throw err
+    }
+  }
+
   if (!isCommunityEnabled) {
     return (
       <div className="gallery-page">
@@ -182,17 +258,36 @@ export function PreviewPage() {
           {loading ? (
             <p className="preview-hud-status">Loading preview…</p>
           ) : (
-            <PreviewHud
-              title={title}
-              likesCount={likesCount}
-              liked={liked}
-              likeDisabled={likePending || Boolean(error && !title)}
-              duplicateDisabled={duplicatePending || !envelopeRef.current}
-              onLike={handleToggleLike}
-              onDuplicate={handleDuplicate}
-              onBack={handleBack}
-              error={error}
-            />
+            <>
+              <PreviewHud
+                title={title}
+                likesCount={likesCount}
+                commentsCount={commentsCount}
+                liked={liked}
+                commentsOpen={commentsOpen}
+                likeDisabled={likePending || Boolean(error && !title)}
+                commentsDisabled={Boolean(error && !title)}
+                duplicateDisabled={duplicatePending || !envelopeRef.current}
+                onLike={handleToggleLike}
+                onToggleComments={() => setCommentsOpen((open) => !open)}
+                onDuplicate={handleDuplicate}
+                onBack={handleBack}
+                error={error}
+              />
+              <CommentPanel
+                open={commentsOpen}
+                projectTitle={title}
+                comments={comments}
+                loading={commentsLoading}
+                submitting={commentSubmitting}
+                error={commentError}
+                userId={userId}
+                projectOwnerId={ownerId}
+                onClose={() => setCommentsOpen(false)}
+                onSubmit={handleSubmitComment}
+                onDelete={handleDeleteComment}
+              />
+            </>
           )}
         </div>
       </main>

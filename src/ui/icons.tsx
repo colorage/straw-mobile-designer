@@ -516,6 +516,23 @@ export function TrashIcon({ className, title }: IconProps) {
   )
 }
 
+/** Speech bubble — community comments. */
+export function CommentIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5.5 6.5h13a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H10l-3.5 3v-3H5.5A1.5 1.5 0 0 1 4 16V8a1.5 1.5 0 0 1 1.5-1.5Z"
+      />
+    </svg>
+  )
+}
+
 /** Globe — publish a mobile to the community gallery. */
 export function PublishIcon({ className, title }: IconProps) {
   return (

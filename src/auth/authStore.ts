@@ -1,5 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { create } from 'zustand'
+import { purgeOwnCommentPhotos } from '../community/commentPhotos'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { normalizeUsername, usernameToEmail, validateUsername } from './username'
 
@@ -194,6 +195,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     if (!supabase) return fail('Accounts are unavailable right now.')
     set({ busy: true })
     try {
+      const userId = get().user?.id
+      if (userId) {
+        try {
+          await purgeOwnCommentPhotos(userId)
+        } catch {
+          // Account delete still cascades comment rows; Storage trigger is backup.
+        }
+      }
       const { error } = await supabase.rpc('delete_own_account')
       if (error) {
         return fail(

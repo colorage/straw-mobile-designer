@@ -12,6 +12,7 @@ re-running is safe.
 1. [`migrations/0001_auth_and_projects.sql`](migrations/0001_auth_and_projects.sql)
 2. [`migrations/0002_delete_own_account.sql`](migrations/0002_delete_own_account.sql)
 3. [`migrations/0003_community_gallery.sql`](migrations/0003_community_gallery.sql)
+4. [`migrations/0004_project_comments.sql`](migrations/0004_project_comments.sql)
 
 `0001` creates:
 
@@ -30,6 +31,15 @@ delete their auth account (profiles and projects cascade).
 - `public.project_likes` — one like per user per public project
 - A trigger that keeps denormalized `likes_count` in sync
 - A public-read policy on `profiles` so community cards can show nicknames
+
+`0004` adds comments and photo attachments on published mobiles:
+
+- `public.project_comments` — flat comments (readable by everyone; write = signed-in author)
+- `public.project_comment_photos` — Storage object keys for up to 4 JPEG photos per comment
+- A public `comment-photos` Storage bucket (`{user_id}/{comment_id}/{photo_id}.jpg`)
+- Authors can delete their own comments; project owners can delete any comment on their mobile
+- A trigger that keeps denormalized `comments_count` in sync
+- A trigger that removes Storage objects when photo rows are deleted
 
 ## 2. Auth settings
 
