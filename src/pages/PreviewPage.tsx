@@ -17,6 +17,8 @@ import { suppressNextGalleryPersist } from '../gallery/autoPersist'
 import { useGalleryStore } from '../gallery/galleryStore'
 import type { GalleryFileEnvelope } from '../gallery/types'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { BRAND_NAME } from '../i18n/locales'
+import { useT } from '../i18n/t'
 import { Experience } from '../scene/Experience'
 import { useStrawMobileStore } from '../state/store'
 import { PreviewHud } from '../ui/PreviewHud'
@@ -26,6 +28,7 @@ import { PreviewHud } from '../ui/PreviewHud'
  * Orbit + physics stay on; edit tools and canvas mutations stay off.
  */
 export function PreviewPage() {
+  const t = useT()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const importEnvelope = useGalleryStore((s) => s.importEnvelope)
@@ -43,15 +46,19 @@ export function PreviewPage() {
   /** When true, unmount should not restore the parked draft (Duplicate flow). */
   const skipRestoreRef = useRef(false)
 
-  useDocumentTitle(title ? `${title} · Community · Павучы клуб` : 'Community · Павучы клуб')
+  useDocumentTitle(
+    title
+      ? `${title} · ${t('community.title')} · ${BRAND_NAME}`
+      : `${t('community.title')} · ${BRAND_NAME}`,
+  )
 
   useEffect(() => {
     if (!id || !isCommunityEnabled) {
       setLoading(false)
       setError(
         isCommunityEnabled
-          ? 'Missing community project id.'
-          : 'The community gallery is not configured for this build.',
+          ? 'preview.missingId'
+          : 'community.notConfigured',
       )
       return
     }
@@ -74,7 +81,7 @@ export function PreviewPage() {
         setLikesCount(detail.likesCount)
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Could not load this mobile.')
+          setError(err instanceof Error ? err.message : 'preview.couldNotLoad')
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -125,14 +132,14 @@ export function PreviewPage() {
       suppressNextGalleryPersist()
       const localId = importEnvelope(envelope)
       if (!loadEntry(localId)) {
-        setError('Saved a copy to your gallery, but could not open it in the designer.')
+        setError('preview.savedNotOpen')
         setDuplicatePending(false)
         skipRestoreRef.current = false
         return
       }
       navigate('/')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not duplicate this mobile.')
+      setError(err instanceof Error ? err.message : 'preview.couldNotDuplicate')
       setDuplicatePending(false)
       skipRestoreRef.current = false
     }
@@ -141,7 +148,7 @@ export function PreviewPage() {
   const handleToggleLike = async () => {
     if (!id || likePending) return
     if (!userId) {
-      setError('Sign in to like community mobiles.')
+      setError('community.signInToLike')
       return
     }
     setError(null)
@@ -155,7 +162,7 @@ export function PreviewPage() {
     } catch (err) {
       setLiked(wasLiked)
       setLikesCount((count) => Math.max(0, count + (wasLiked ? 1 : -1)))
-      setError(err instanceof Error ? err.message : 'Could not update the like.')
+      setError(err instanceof Error ? err.message : 'community.couldNotLike')
     } finally {
       setLikePending(false)
     }
@@ -165,9 +172,9 @@ export function PreviewPage() {
     return (
       <div className="gallery-page">
         <div className="gallery-page-empty">
-          <p className="panel-hint">The community gallery is not configured for this build.</p>
+          <p className="panel-hint">{t('community.notConfigured')}</p>
           <button type="button" className="primary-button gallery-page-empty-cta" onClick={handleBack}>
-            Back to gallery
+            {t('preview.back')}
           </button>
         </div>
       </div>
@@ -180,7 +187,7 @@ export function PreviewPage() {
         <Experience />
         <div className="hud-layer">
           {loading ? (
-            <p className="preview-hud-status">Loading preview…</p>
+            <p className="preview-hud-status">{t('preview.loading')}</p>
           ) : (
             <PreviewHud
               title={title}

@@ -1,0 +1,278 @@
+export const en = {
+  'language.label': 'Language',
+  'language.choose': 'Choose language',
+
+  'shapes.straw': 'Straw Line',
+  'shapes.triangle': 'Triangle',
+  'shapes.tetrahedron': '3-Corner Pyramid',
+  'shapes.square': 'Square',
+  'shapes.squarePyramid': '4-Corner Pyramid',
+  'shapes.octahedron': 'Octahedron',
+  'shapes.assembly': 'Assembly',
+
+  'toolbar.shapeTools': 'Shape tools',
+  'toolbar.addShape': 'Add {{name}}',
+  'toolbar.selectionBuffers': 'Selection buffers',
+  'toolbar.storeSlot': 'Store selection in slot {{label}}',
+  'toolbar.pasteSlot': 'Paste slot {{label}} into the scene',
+  'toolbar.emptySlot': 'Slot {{label}} is empty',
+
+  'history.group': 'History',
+  'history.undo': 'Undo',
+  'history.undoTitle': 'Undo (Ctrl/Cmd+Z)',
+  'history.redo': 'Redo',
+  'history.redoTitle': 'Redo (Ctrl/Cmd+Shift+Z)',
+
+  'project.name': 'Project name',
+  'project.rename': 'Rename project',
+  'project.autosavedJustNow': 'Autosaved just now',
+  'project.autosavedMinutes': {
+    one: 'Autosaved 1 minute ago',
+    other: 'Autosaved {{count}} minutes ago',
+  },
+  'project.autosavedHours': {
+    one: 'Autosaved 1 hour ago',
+    other: 'Autosaved {{count}} hours ago',
+  },
+  'project.autosavedDays': {
+    one: 'Autosaved 1 day ago',
+    other: 'Autosaved {{count}} days ago',
+  },
+
+  'hud.openGallery': 'Open gallery',
+  'hud.themeLight': 'Switch to light mode',
+  'hud.themeDark': 'Switch to dark mode',
+  'hud.scannerOff': 'Disable connection scanner',
+  'hud.scannerOn': 'Enable connection scanner',
+  'hud.rigidFloppy': 'Keep closed loops floppy',
+  'hud.rigidFuse': 'Fuse closed loops into rigid pieces',
+  'hud.windOff': 'Turn wind off',
+  'hud.windOn': 'Turn wind on — gentle breeze on hanging pieces',
+
+  'size.toolbar': 'Size and mode tools',
+  'size.group': 'Straw size',
+  'size.modes': 'Interaction modes',
+  'size.threadsTitle': 'Threads mode — click corners to connect shapes',
+  'size.threadsLabel': 'Threads mode — connect shapes',
+  'size.selectExitTitle': 'Exit selection mode — click empty space or press Escape',
+  'size.selectEnterTitle': 'Selection mode — click or drag a rectangle to select',
+  'size.selectDisable': 'Disable selection mode',
+  'size.selectEnable': 'Enable selection mode',
+  'size.scissorsDisableTitle': 'Disable scissors mode (Escape)',
+  'size.scissorsEnableTitle': 'Enable scissors mode — click a straw to cut it',
+  'size.scissorsDisable': 'Disable scissors mode',
+  'size.scissorsEnable': 'Enable scissors mode',
+
+  'inventory.strawsUsed': 'Straws used: {{count}}',
+  'inventory.solid': 'Solid: {{count}}',
+  'inventory.size': 'Size: {{width}} × {{height}} cm',
+
+  'scan.connectionsFound': {
+    one: '1 connection found',
+    other: '{{count}} connections found',
+  },
+  'scan.sleep': 'Time until scanner sleep',
+
+  'bmc.title': 'Buy me a coffee',
+
+  'gallery.eyebrow': 'Straw Mobile Designer',
+  'gallery.title': 'Gallery',
+  'gallery.subtitle': 'Your projects and the community gallery on one screen.',
+  'gallery.projectActions': 'Project actions',
+  'gallery.account': 'Account',
+  'gallery.new': 'New',
+  'gallery.importJson': 'Import JSON',
+  'gallery.backToDesigner': 'Back to designer',
+  'gallery.projects': 'Projects',
+  'gallery.projectsCloudNamed':
+    'Named mobiles saved to {{name}}’s account, available from any browser. Export JSON for a personal backup.',
+  'gallery.projectsCloudYou':
+    'Named mobiles saved to your account, available from any browser. Export JSON for a personal backup.',
+  'gallery.projectsLocal':
+    'Named mobiles saved in this browser. Export JSON to back them up or move between devices.',
+  'gallery.loading': 'Loading your mobiles…',
+  'gallery.empty': 'No saved mobiles yet.',
+  'gallery.emptyHint':
+    'Build something in the designer — your current project is saved here automatically.',
+  'gallery.openDesigner': 'Open designer',
+  'gallery.public': 'Public',
+  'gallery.load': 'Load {{name}}',
+  'gallery.publishing': 'Publishing…',
+  'gallery.publish': 'Publish to community',
+  'gallery.publishingName': 'Publishing {{name}}',
+  'gallery.publishName': 'Publish {{name}}',
+  'gallery.unpublishing': 'Unpublishing…',
+  'gallery.unpublish': 'Unpublish from community',
+  'gallery.unpublishingName': 'Unpublishing {{name}}',
+  'gallery.unpublishName': 'Unpublish {{name}}',
+  'gallery.downloadJson': 'Download JSON',
+  'gallery.downloadName': 'Download {{name}}',
+  'gallery.delete': 'Delete',
+  'gallery.deleteName': 'Delete {{name}}',
+  'gallery.confirmOverwrite':
+    'Replace the current draft with this gallery mobile? Unsaved draft changes will be lost (the autosaved draft will update).',
+  'gallery.confirmNew':
+    'Clear the current draft and start a new mobile? Unsaved draft changes will be lost (the autosaved draft will update).',
+  'gallery.confirmDelete': 'Delete “{{name}}” from the gallery?',
+  'gallery.confirmUnpublish': 'Remove “{{name}}” from the community gallery?',
+  'gallery.couldNotLoad': 'Could not load that mobile.',
+  'gallery.signInToPublish': 'Sign in to publish a mobile to the community gallery.',
+  'gallery.couldNotPublish': 'Could not publish this mobile.',
+  'gallery.couldNotUnpublish': 'Could not unpublish this mobile.',
+  'gallery.importedNotLoad': 'Imported, but could not load into the designer.',
+  'gallery.couldNotImport': 'Could not import that file.',
+  'gallery.loadErrorFallback':
+    'Could not open your account gallery. Your local mobiles are still here.',
+  'gallery.cloudSaveFailed': 'Could not save to your account.',
+
+  'json.invalidExport': 'This file is not a valid straw mobile JSON export.',
+  'json.notDesignerExport': 'This file is not a straw mobile designer export.',
+  'json.unsupportedVersion': 'Unsupported export version.',
+  'json.missingName': 'Export is missing a name.',
+  'json.missingDate': 'Export is missing a saved date.',
+  'json.missingProject': 'Export project data is missing or invalid.',
+  'json.parseFailed': 'Could not parse JSON from this file.',
+
+  'community.title': 'Community',
+  'community.subtitle':
+    'Mobiles published by other builders. Open one to preview it, then duplicate a copy into your projects to remix.',
+  'community.sort': 'Sort community mobiles',
+  'community.recent': 'Recent',
+  'community.mostLiked': 'Most liked',
+  'community.notConfigured': 'The community gallery is not configured for this build.',
+  'community.loading': 'Loading community mobiles…',
+  'community.empty': 'Nothing here yet.',
+  'community.emptyHint': 'Be the first: publish a mobile from your projects above.',
+  'community.emptyHintSignIn':
+    'Be the first: publish a mobile from your projects above (sign in required).',
+  'community.previewName': 'Preview {{name}}',
+  'community.open': 'Open',
+  'community.unlike': 'Unlike {{name}}',
+  'community.like': 'Like {{name}}',
+  'community.couldNotLoad': 'Could not load the community gallery.',
+  'community.signInToLike': 'Sign in to like community mobiles.',
+  'community.couldNotLike': 'Could not update the like.',
+  'community.signInToPublishLike': 'Sign in to publish and like community mobiles.',
+
+  'preview.eyebrow': 'Community preview',
+  'preview.untitled': 'Untitled',
+  'preview.duplicating': 'Duplicating…',
+  'preview.duplicate': 'Duplicate to my gallery',
+  'preview.back': 'Back to gallery',
+  'preview.loading': 'Loading preview…',
+  'preview.missingId': 'Missing community project id.',
+  'preview.couldNotLoad': 'Could not load this mobile.',
+  'preview.savedNotOpen': 'Saved a copy to your gallery, but could not open it in the designer.',
+  'preview.couldNotDuplicate': 'Could not duplicate this mobile.',
+
+  'account.username': 'Username',
+  'account.password': 'Password',
+  'account.nickname': 'Nickname',
+  'account.nicknamePlaceholder': 'Shown in your gallery',
+  'account.usernameHint': '3–20 characters: lowercase letters, numbers, or underscore.',
+  'account.noEmail': 'No email needed.',
+  'account.signIn': 'Sign in',
+  'account.createAccount': 'Create account',
+  'account.or': 'or',
+  'account.continueGoogle': 'Continue with Google',
+  'account.noAccountYet': 'No account yet?',
+  'account.createOne': 'Create one',
+  'account.haveAccount': 'Already have an account?',
+  'account.profile': 'Profile',
+  'account.notClaimed': 'Not claimed yet',
+  'account.usernamePermanent': 'Username is permanent and used to sign in.',
+  'account.saveNickname': 'Save nickname',
+  'account.nicknameSaved': 'Nickname saved.',
+  'account.signInSection': 'Sign-in',
+  'account.googleConnected': 'Google is connected.',
+  'account.connectGoogle': 'Connect Google',
+  'account.session': 'Session',
+  'account.logOut': 'Log out',
+  'account.danger': 'Danger zone',
+  'account.deleteWarning':
+    'Permanently delete your account and every mobile saved to it. This cannot be undone.',
+  'account.deleteAccount': 'Delete account',
+  'account.typeUsername': 'Type {{username}} to confirm deletion.',
+  'account.typeDelete': 'Type delete to confirm deletion.',
+  'account.confirmation': 'Confirmation',
+  'account.cancel': 'Cancel',
+  'account.deleteForever': 'Delete forever',
+  'account.trigger': 'Account',
+  'account.yourAccount': 'Your account',
+  'account.createAnAccount': 'Create an account',
+  'account.close': 'Close',
+  'account.accountLabel': 'Account: {{name}}',
+  'account.confirmUsername': 'Type your username ({{username}}) to confirm.',
+  'account.confirmDeleteWord': 'Type “delete” to confirm.',
+  'account.pickUsernameTitle': 'Pick a username',
+  'account.pickUsernameBody': 'It is how you sign in later and cannot be changed. {{hint}}',
+  'account.save': 'Save',
+  'account.browserOnlyTitle': 'These mobiles live in this browser only',
+  'account.browserOnlyBody':
+    'Clearing site data or switching devices loses them. Open the account menu to create a free account — username and password, no email.',
+  'account.openAccount': 'Open account',
+  'account.movedOne': 'Moved 1 mobile into your account',
+  'account.movedMany': {
+    one: 'Moved 1 mobile into your account',
+    other: 'Moved {{count}} mobiles into your account',
+  },
+  'account.movedBody':
+    'They are saved to {{name}} now and no longer kept in this browser.',
+  'account.yourAccountLower': 'your account',
+  'account.gotIt': 'Got it',
+  'account.couldNotOpenGallery': 'Could not open your account gallery',
+  'account.retry': 'Retry',
+  'account.notSavedTitle': 'Some changes are not saved',
+  'account.profileUnavailable': 'Profile unavailable',
+
+  'auth.unavailable': 'Accounts are unavailable right now.',
+  'auth.accountsUnavailable': 'Accounts are unavailable.',
+  'auth.pickUsername': 'Pick a username.',
+  'auth.badCredentials': 'That username and password do not match an account.',
+  'auth.usernameTaken': 'That username is taken.',
+  'auth.emailDisabled':
+    'Password accounts are turned off for this project. Enable the Email provider in Supabase.',
+  'auth.signupsOff': 'New accounts are turned off for this project.',
+  'auth.googleLinkDisabled':
+    'Connecting Google is turned off for this project. Enable manual linking in Supabase.',
+  'auth.googleAlreadyLinked': 'That Google account is already connected to another account.',
+  'auth.confirmEmail':
+    'Account created but not signed in. Turn off "Confirm email" in Supabase to finish setup.',
+  'auth.couldNotCreate': 'Could not create that account.',
+  'auth.enterUsername': 'Enter your username.',
+  'auth.couldNotSignIn': 'Could not sign in.',
+  'auth.couldNotGoogle': 'Could not start Google sign-in.',
+  'auth.couldNotConnectGoogle': 'Could not connect Google.',
+  'auth.couldNotDelete': 'Could not delete that account.',
+  'auth.signInToNickname': 'Sign in to change your nickname.',
+  'auth.nicknameEmpty': 'Nickname cannot be empty.',
+  'auth.nicknameTooLong': 'Nickname is too long (40 characters max).',
+  'auth.couldNotSaveNickname': 'Could not save that nickname.',
+  'auth.signInFirst': 'Sign in first.',
+  'auth.usernameAlreadySet': 'Your username is already set.',
+  'auth.couldNotSaveUsername': 'Could not save that username.',
+  'auth.profileLoadFailed':
+    'Could not load your profile. The database schema may not be applied yet.',
+  'auth.profileCreateFailed': 'Your profile could not be created. Some changes may not save.',
+
+  'date.justNow': 'just now',
+  'date.minutesAgo': '{{count}}m ago',
+  'date.hoursAgo': '{{count}}h ago',
+  'date.daysAgo': '{{count}}d ago',
+
+  'physics.loadFailed': 'Failed to load the physics engine. Check the browser console and reload.',
+} as const
+
+export type EnMessages = typeof en
+export type MessageKey = keyof EnMessages
+
+export type PluralForms = {
+  one: string
+  few?: string
+  many?: string
+  other: string
+}
+
+type Widen<V> = V extends string ? string : PluralForms
+
+export type Messages = { [K in MessageKey]: Widen<EnMessages[K]> }

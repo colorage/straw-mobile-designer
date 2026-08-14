@@ -60,7 +60,7 @@ function rowToProject(row: CommunityProjectRow): CommunityProject {
 function requireSignedIn(): string {
   const userId = useAuthStore.getState().user?.id
   if (!userId) {
-    throw new Error('Sign in to publish and like community mobiles.')
+    throw new Error('community.signInToPublishLike')
   }
   return userId
 }

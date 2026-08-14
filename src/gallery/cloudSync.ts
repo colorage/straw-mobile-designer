@@ -60,7 +60,7 @@ async function drain(): Promise<void> {
     }
     settle(null)
   } catch (error) {
-    settle(error instanceof Error ? error.message : 'Could not save to your account.')
+    settle(error instanceof Error ? error.message : 'gallery.cloudSaveFailed')
   }
 }
 
