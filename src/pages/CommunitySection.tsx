@@ -196,7 +196,7 @@ export function CommunitySection() {
                     src={item.thumbnailDataUrl}
                     alt=""
                     width={320}
-                    height={200}
+                    height={320}
                     loading="lazy"
                   />
                 </button>

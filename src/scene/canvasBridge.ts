@@ -30,11 +30,13 @@ const _up = new THREE.Vector3()
 const _viewForward = new THREE.Vector3()
 const _worldUp = new THREE.Vector3(0, 1, 0)
 
-const THUMBNAIL_MAX_WIDTH = 320
+const THUMBNAIL_SIZE = 320
 const THUMBNAIL_JPEG_QUALITY = 0.72
 /** Extra margin so the construction fills the frame without clipping edges. */
 const THUMBNAIL_FIT_PADDING = 1.35
 const THUMBNAIL_MIN_DISTANCE = 2
+const THUMBNAIL_FALLBACK_BG = '#11131a'
+const _thumbBg = new THREE.Color()
 
 let camera: THREE.Camera | null = null
 let canvasElement: HTMLCanvasElement | null = null
@@ -204,6 +206,7 @@ function frameCameraForThumbnail(cam: THREE.Camera): () => void {
 /**
  * Capture a framed JPEG data URL of the construction for gallery thumbnails.
  * Uses the default orbit angle and fits the full AABB; restores the live camera after.
+ * Output is a square image (letterboxed to the scene background when needed).
  * Returns null when the canvas bridge is not ready yet.
  */
 export function captureCanvasThumbnail(): string | null {
@@ -218,17 +221,30 @@ export function captureCanvasThumbnail(): string | null {
     const sourceHeight = source.height
     if (sourceWidth <= 0 || sourceHeight <= 0) return null
 
-    const scale = Math.min(1, THUMBNAIL_MAX_WIDTH / sourceWidth)
-    const width = Math.max(1, Math.round(sourceWidth * scale))
-    const height = Math.max(1, Math.round(sourceHeight * scale))
+    const scale = Math.min(
+      1,
+      THUMBNAIL_SIZE / sourceWidth,
+      THUMBNAIL_SIZE / sourceHeight,
+    )
+    const drawWidth = Math.max(1, Math.round(sourceWidth * scale))
+    const drawHeight = Math.max(1, Math.round(sourceHeight * scale))
+    const offsetX = Math.floor((THUMBNAIL_SIZE - drawWidth) / 2)
+    const offsetY = Math.floor((THUMBNAIL_SIZE - drawHeight) / 2)
 
     const offscreen = document.createElement('canvas')
-    offscreen.width = width
-    offscreen.height = height
+    offscreen.width = THUMBNAIL_SIZE
+    offscreen.height = THUMBNAIL_SIZE
     const ctx = offscreen.getContext('2d')
     if (!ctx) return null
 
-    ctx.drawImage(source, 0, 0, width, height)
+    if (scene.background instanceof THREE.Color) {
+      _thumbBg.copy(scene.background)
+    } else {
+      _thumbBg.set(THUMBNAIL_FALLBACK_BG)
+    }
+    ctx.fillStyle = `#${_thumbBg.getHexString()}`
+    ctx.fillRect(0, 0, THUMBNAIL_SIZE, THUMBNAIL_SIZE)
+    ctx.drawImage(source, 0, 0, sourceWidth, sourceHeight, offsetX, offsetY, drawWidth, drawHeight)
     return offscreen.toDataURL('image/jpeg', THUMBNAIL_JPEG_QUALITY)
   } finally {
     restore()
