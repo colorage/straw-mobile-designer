@@ -49,16 +49,12 @@ export function restoreParkedDraft(): void {
   if (!saved) {
     useStrawMobileStore.getState().reset()
     useGalleryStore.getState().clearActive()
-    // Drop the preview snapshot that reset() just pushed onto the undo stack.
-    useStrawMobileStore.setState({ past: [], future: [] })
     return
   }
 
   useStrawMobileStore.getState().loadProject(cloneSnapshot(saved.project))
   useStrawMobileStore.getState().setProjectName(saved.projectName)
   useGalleryStore.setState({ activeGalleryId: saved.activeGalleryId })
-  // loadProject pushHistory'd the preview scene — don't let Undo restore it.
-  useStrawMobileStore.setState({ past: [], future: [] })
 }
 
 /**

@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { STRAW_SIZES, STRAW_SIZE_LABELS, type StrawSize } from '../state/types'
 import { useStrawMobileStore } from '../state/store'
+import { useHelpPanelStore } from './helpPanelStore'
 import {
   ScissorsIcon,
   SelectIcon,
@@ -29,6 +30,7 @@ export function SizeSelector() {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
+      if (useHelpPanelStore.getState().open) return
       const target = event.target as HTMLElement | null
       if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
       if (useStrawMobileStore.getState().activeTool === 'threads') return

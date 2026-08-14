@@ -2,9 +2,18 @@ import { Link } from 'react-router-dom'
 import { flushGalleryPersist } from '../gallery/autoPersist'
 import { useStrawMobileStore } from '../state/store'
 import { useThemeStore } from '../state/themeStore'
-import { FanIcon, GridIcon, MagnetIcon, MoonIcon, RigidLoopIcon, SunIcon } from './icons'
+import { useHelpPanelStore } from './helpPanelStore'
+import {
+  FanIcon,
+  GridIcon,
+  HelpIcon,
+  MagnetIcon,
+  MoonIcon,
+  RigidLoopIcon,
+  SunIcon,
+} from './icons'
 
-/** Top-right controls: wind, rigid-loop, scanner, theme, gallery exit. */
+/** Top-right controls: wind, rigid-loop, scanner, theme, help, gallery exit. */
 export function GalleryExit() {
   const theme = useThemeStore((s) => s.theme)
   const toggleTheme = useThemeStore((s) => s.toggleTheme)
@@ -28,6 +37,9 @@ export function GalleryExit() {
   const windLabel = windEnabled
     ? 'Turn wind off'
     : 'Turn wind on — gentle breeze on hanging pieces'
+
+  const helpOpen = useHelpPanelStore((s) => s.open)
+  const toggleHelp = useHelpPanelStore((s) => s.toggle)
 
   return (
     <div className="hud-cluster hud-top-right">
@@ -69,6 +81,16 @@ export function GalleryExit() {
         onClick={toggleTheme}
       >
         {theme === 'dark' ? <SunIcon className="hud-icon" /> : <MoonIcon className="hud-icon" />}
+      </button>
+      <button
+        type="button"
+        className={`hud-icon-button${helpOpen ? ' is-active' : ''}`}
+        title="Shortcuts (?)"
+        aria-label="Open shortcuts help"
+        aria-pressed={helpOpen}
+        onClick={toggleHelp}
+      >
+        <HelpIcon className="hud-icon" />
       </button>
       <Link
         to="/gallery"

@@ -170,11 +170,6 @@ export function GalleryPage() {
             <button type="button" className="primary-button gallery-page-action" onClick={handleNew}>
               New
             </button>
-            {isCommunityEnabled && (
-              <a href="#community" className="ghost-button gallery-page-action">
-                Community
-              </a>
-            )}
             <button
               type="button"
               className="ghost-button gallery-page-action"
