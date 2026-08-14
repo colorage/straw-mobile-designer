@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuthStore } from '../auth/authStore'
 import { USERNAME_RULE_HINT } from '../auth/username'
 import { reloadAccountGallery, useMigrationStore } from '../gallery/accountSync'
-import { useCloudSyncStore } from '../gallery/cloudSync'
+import { retryCloudSync, useCloudSyncStore } from '../gallery/cloudSync'
 import { useGalleryStore } from '../gallery/galleryStore'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAccountPanelStore } from './accountPanelStore'
@@ -60,6 +60,7 @@ export function AccountNotices() {
   const movedCount = useMigrationStore((s) => s.movedCount)
   const dismissMigration = useMigrationStore((s) => s.dismiss)
   const syncError = useCloudSyncStore((s) => s.error)
+  const syncPending = useCloudSyncStore((s) => s.pending)
   const loadError = useGalleryStore((s) => s.loadError)
 
   if (!isSupabaseConfigured || !ready) return null
@@ -134,6 +135,14 @@ export function AccountNotices() {
             <p className="account-notice-title">Some changes are not saved</p>
             <p className="account-notice-body">{syncError}</p>
           </div>
+          <button
+            type="button"
+            className="ghost-button account-notice-button"
+            onClick={retryCloudSync}
+            disabled={syncPending}
+          >
+            Retry
+          </button>
         </div>
       )}
 

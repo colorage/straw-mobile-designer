@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "verify:fuse": "node scripts/verify-fusable-clusters.mjs"
+    "verify:fuse": "node scripts/verify-fusable-clusters.mjs",
+    "verify:cloud-sync": "node --experimental-strip-types --no-warnings=ExperimentalWarning scripts/verify-cloud-sync-requeue.ts"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.2",
