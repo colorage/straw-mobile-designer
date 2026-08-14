@@ -550,3 +550,22 @@ export function UnpublishIcon({ className, title }: IconProps) {
   )
 }
 
+/** Question mark in a circle — open the shortcuts help panel. */
+export function HelpIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.6 9.4a2.4 2.4 0 1 1 3.5 2.1c-.7.4-1.1.9-1.1 1.7V14"
+      />
+      <circle cx="12" cy="16.6" r="0.9" fill="currentColor" />
+    </svg>
+  )
+}
+

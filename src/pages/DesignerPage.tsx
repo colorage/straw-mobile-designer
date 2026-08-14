@@ -4,10 +4,12 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import { Experience } from '../scene/Experience'
 import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME, screenToWorkbenchPlane } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
+import { EmptyCanvasHint } from '../ui/EmptyCanvasHint'
 import { GalleryExit } from '../ui/GalleryExit'
 import { ModeBar } from '../ui/ModeBar'
 import { OverlapScanSnackbar } from '../ui/OverlapScanSnackbar'
 import { ProjectHeader } from '../ui/ProjectHeader'
+import { ShortcutsHelp } from '../ui/ShortcutsHelp'
 import { SizeSelector } from '../ui/SizeSelector'
 import { StrawInventory } from '../ui/StrawInventory'
 import { Toolbar } from '../ui/Toolbar'
@@ -64,6 +66,8 @@ export function DesignerPage() {
           <SizeSelector />
           <StrawInventory />
           <OverlapScanSnackbar />
+          <EmptyCanvasHint />
+          <ShortcutsHelp />
         </div>
       </main>
     </div>
