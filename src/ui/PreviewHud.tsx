@@ -1,10 +1,18 @@
+import { useT, useTOrRaw } from '../i18n/t'
+import { LanguageSwitcher } from './LanguageSwitcher'
+import { CommentIcon } from './icons'
+
 type PreviewHudProps = {
   title: string
   likesCount: number
+  commentsCount: number
   liked: boolean
+  commentsOpen: boolean
   likeDisabled?: boolean
+  commentsDisabled?: boolean
   duplicateDisabled?: boolean
   onLike: () => void
+  onToggleComments: () => void
   onDuplicate: () => void
   onBack: () => void
   error: string | null
@@ -29,31 +37,41 @@ function HeartIcon({ filled }: { filled: boolean }) {
   )
 }
 
-/** Slim HUD for community preview: title, like, duplicate, back — no edit tools. */
+/** Slim HUD for community preview: title, like, comments, duplicate, back. */
 export function PreviewHud({
   title,
   likesCount,
+  commentsCount,
   liked,
+  commentsOpen,
   likeDisabled,
+  commentsDisabled,
   duplicateDisabled,
   onLike,
+  onToggleComments,
   onDuplicate,
   onBack,
   error,
 }: PreviewHudProps) {
+  const t = useT()
+  const tRaw = useTOrRaw()
+  const displayTitle = title || t('preview.untitled')
+
   return (
     <>
       <div className="hud-cluster hud-top-left preview-hud-title">
-        <p className="preview-hud-eyebrow">Community preview</p>
-        <h1 className="preview-hud-name">{title || 'Untitled'}</h1>
+        <p className="preview-hud-eyebrow">{t('preview.eyebrow')}</p>
+        <h1 className="preview-hud-name">{displayTitle}</h1>
+        <p className="preview-hud-hint">{t('preview.hint')}</p>
       </div>
 
       <div className="hud-cluster hud-top-right preview-hud-actions">
+        <LanguageSwitcher />
         <button
           type="button"
           className={`ghost-button gallery-page-action community-like-button preview-hud-like${liked ? ' is-liked' : ''}`}
           aria-pressed={liked}
-          aria-label={liked ? `Unlike ${title}` : `Like ${title}`}
+          aria-label={liked ? t('community.unlike', { name: displayTitle }) : t('community.like', { name: displayTitle })}
           disabled={likeDisabled}
           onClick={onLike}
         >
@@ -62,18 +80,34 @@ export function PreviewHud({
         </button>
         <button
           type="button"
+          className={`ghost-button gallery-page-action community-comment-button preview-hud-like${commentsOpen ? ' is-open' : ''}`}
+          aria-pressed={commentsOpen}
+          aria-expanded={commentsOpen}
+          aria-label={
+            commentsOpen
+              ? t('comments.close')
+              : t('comments.onMobile', { name: displayTitle })
+          }
+          disabled={commentsDisabled}
+          onClick={onToggleComments}
+        >
+          <CommentIcon className="community-comment-icon" />
+          <span>{commentsCount}</span>
+        </button>
+        <button
+          type="button"
           className="primary-button gallery-page-action"
           disabled={duplicateDisabled}
           onClick={onDuplicate}
         >
-          {duplicateDisabled ? 'Duplicating…' : 'Duplicate to my gallery'}
+          {duplicateDisabled ? t('preview.duplicating') : t('preview.duplicate')}
         </button>
         <button type="button" className="ghost-button gallery-page-action" onClick={onBack}>
-          Back to gallery
+          {t('preview.back')}
         </button>
       </div>
 
-      {error && <p className="preview-hud-error">{error}</p>}
+      {error && <p className="preview-hud-error">{tRaw(error)}</p>}
     </>
   )
 }

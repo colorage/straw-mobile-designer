@@ -516,6 +516,23 @@ export function TrashIcon({ className, title }: IconProps) {
   )
 }
 
+/** Speech bubble — community comments. */
+export function CommentIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M5.5 6.5h13a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H10l-3.5 3v-3H5.5A1.5 1.5 0 0 1 4 16V8a1.5 1.5 0 0 1 1.5-1.5Z"
+      />
+    </svg>
+  )
+}
+
 /** Globe — publish a mobile to the community gallery. */
 export function PublishIcon({ className, title }: IconProps) {
   return (
@@ -546,6 +563,25 @@ export function UnpublishIcon({ className, title }: IconProps) {
         strokeLinecap="round"
         d="M4.5 12h15M12 4.5c2.2 2.4 3.3 5 3.3 7.5S14.2 17.1 12 19.5M12 4.5C9.8 6.9 8.7 9.5 8.7 12s1.1 5.1 3.3 7.5M5.5 5.5l13 13"
       />
+    </svg>
+  )
+}
+
+/** Question mark in a circle — open the shortcuts help panel. */
+export function HelpIcon({ className, title }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden={title ? undefined : true}>
+      {title ? <title>{title}</title> : null}
+      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.75" />
+      <path
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.6 9.4a2.4 2.4 0 1 1 3.5 2.1c-.7.4-1.1.9-1.1 1.7V14"
+      />
+      <circle cx="12" cy="16.6" r="0.9" fill="currentColor" />
     </svg>
   )
 }

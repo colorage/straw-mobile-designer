@@ -1,16 +1,15 @@
+import { useT } from '../i18n/t'
 import { useStrawMobileStore } from '../state/store'
 
 /** Bottom-center snackbar while the overlap proximity scanner is awake. */
 export function OverlapScanSnackbar() {
+  const t = useT()
   const scanUi = useStrawMobileStore((s) => s.overlapScanUi)
 
   if (!scanUi?.active) return null
 
   const { connectionsFound, sleepProgress } = scanUi
-  const label =
-    connectionsFound === 1
-      ? '1 connection found'
-      : `${connectionsFound} connections found`
+  const label = t('scan.connectionsFound', { count: connectionsFound })
 
   return (
     <div className="hud-cluster hud-bottom-center" aria-live="polite">
@@ -22,7 +21,7 @@ export function OverlapScanSnackbar() {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(sleepProgress * 100)}
-          aria-label="Time until scanner sleep"
+          aria-label={t('scan.sleep')}
         >
           <div
             className="hud-scan-snackbar-fill"

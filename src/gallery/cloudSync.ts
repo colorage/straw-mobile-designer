@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { useAuthStore } from '../auth/authStore'
 import { deleteCloudEntry, upsertCloudEntry } from './cloudGallery'
+import { requeueUnsentCloudWrites } from './requeueUnsentCloudWrites'
 import type { GalleryEntry } from './types'
 
 /**
@@ -27,23 +28,26 @@ const pendingUpserts = new Map<string, GalleryEntry>()
 const pendingDeletes = new Set<string>()
 let timer: ReturnType<typeof setTimeout> | null = null
 let inFlight: Promise<void> | null = null
+let draining = false
+
+function publish(error: string | null): void {
+  useCloudSyncStore.setState({
+    pending: timer !== null || draining,
+    error,
+  })
+}
 
 function markPending(): void {
   useCloudSyncStore.setState({ pending: true })
 }
 
-function settle(error: string | null): void {
-  const stillQueued = pendingUpserts.size > 0 || pendingDeletes.size > 0 || timer !== null
-  useCloudSyncStore.setState({ pending: stillQueued, error })
-}
-
-async function drain(): Promise<void> {
+async function drainOnce(): Promise<boolean> {
   const userId = useAuthStore.getState().user?.id
   if (!userId) {
     pendingUpserts.clear()
     pendingDeletes.clear()
-    settle(null)
-    return
+    publish(null)
+    return false
   }
 
   const upserts = [...pendingUpserts.values()]
@@ -51,17 +55,52 @@ async function drain(): Promise<void> {
   pendingUpserts.clear()
   pendingDeletes.clear()
 
+  let upsertIndex = 0
+  let deleteIndex = 0
   try {
-    for (const entry of upserts) {
-      await upsertCloudEntry(entry, userId)
+    for (; upsertIndex < upserts.length; upsertIndex++) {
+      await upsertCloudEntry(upserts[upsertIndex], userId)
     }
-    for (const id of deletes) {
-      await deleteCloudEntry(id)
+    for (; deleteIndex < deletes.length; deleteIndex++) {
+      await deleteCloudEntry(deletes[deleteIndex])
     }
-    settle(null)
+    return true
   } catch (error) {
-    settle(error instanceof Error ? error.message : 'Could not save to your account.')
+    // Keep the failed item and anything not yet sent so Retry / the next
+    // edit can flush them. Newer upserts or deletes that arrived in flight
+    // already sit on the maps and must not be overwritten.
+    requeueUnsentCloudWrites(
+      pendingUpserts,
+      pendingDeletes,
+      upserts.slice(upsertIndex),
+      deletes.slice(deleteIndex),
+    )
+    publish(error instanceof Error ? error.message : 'gallery.cloudSaveFailed')
+    return false
   }
+}
+
+async function drain(): Promise<void> {
+  draining = true
+  markPending()
+  try {
+    while (pendingUpserts.size > 0 || pendingDeletes.size > 0) {
+      const ok = await drainOnce()
+      if (!ok) return
+    }
+    publish(null)
+  } finally {
+    draining = false
+    publish(useCloudSyncStore.getState().error)
+  }
+}
+
+function kickDrain(): Promise<void> {
+  if (inFlight) return inFlight
+  inFlight = drain().finally(() => {
+    inFlight = null
+  })
+  return inFlight
 }
 
 function schedule(): void {
@@ -69,7 +108,7 @@ function schedule(): void {
   if (timer !== null) clearTimeout(timer)
   timer = setTimeout(() => {
     timer = null
-    inFlight = drain()
+    void kickDrain()
   }, CLOUD_SYNC_DEBOUNCE_MS)
 }
 
@@ -93,11 +132,16 @@ export async function flushCloudSync(): Promise<void> {
   }
   if (inFlight) await inFlight
   if (pendingUpserts.size === 0 && pendingDeletes.size === 0) {
-    settle(useCloudSyncStore.getState().error)
+    publish(useCloudSyncStore.getState().error)
     return
   }
-  inFlight = drain()
-  await inFlight
+  await kickDrain()
+}
+
+/** Re-send writes that failed, keeping the unsaved banner until they land. */
+export function retryCloudSync(): void {
+  markPending()
+  void flushCloudSync()
 }
 
 export function discardCloudQueue(): void {
@@ -107,5 +151,6 @@ export function discardCloudQueue(): void {
   }
   pendingUpserts.clear()
   pendingDeletes.clear()
+  draining = false
   useCloudSyncStore.setState({ pending: false, error: null })
 }

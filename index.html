@@ -70,6 +70,26 @@
           }
         }
       } catch (e) {}
+      try {
+        var localeRaw = localStorage.getItem('straw-mobile-designer/locale')
+        if (localeRaw) {
+          var localeParsed = JSON.parse(localeRaw)
+          var locale = localeParsed && localeParsed.state && localeParsed.state.locale
+          var htmlLang = {
+            en: 'en',
+            ru: 'ru',
+            be: 'be',
+            uk: 'uk',
+            pl: 'pl',
+            da: 'da',
+            nb: 'nb',
+            sv: 'sv',
+            fi: 'fi',
+            is: 'is',
+          }
+          if (locale && htmlLang[locale]) document.documentElement.lang = htmlLang[locale]
+        }
+      } catch (e) {}
     </script>
   </head>
   <body>

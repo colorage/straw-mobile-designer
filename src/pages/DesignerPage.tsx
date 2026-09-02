@@ -1,13 +1,16 @@
 import type { DragEvent } from 'react'
 import { PRIMITIVE_GENERATORS, type PrimitiveKind } from '../geometry/primitives'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
+import { BRAND_NAME } from '../i18n/locales'
 import { Experience } from '../scene/Experience'
 import { SHAPE_DRAG_MIME, SHAPE_DRAG_TEXT_MIME, screenToWorkbenchPlane } from '../scene/canvasBridge'
 import { useStrawMobileStore } from '../state/store'
+import { EmptyCanvasHint } from '../ui/EmptyCanvasHint'
 import { GalleryExit } from '../ui/GalleryExit'
 import { ModeBar } from '../ui/ModeBar'
 import { OverlapScanSnackbar } from '../ui/OverlapScanSnackbar'
 import { ProjectHeader } from '../ui/ProjectHeader'
+import { ShortcutsHelp } from '../ui/ShortcutsHelp'
 import { SizeSelector } from '../ui/SizeSelector'
 import { StrawInventory } from '../ui/StrawInventory'
 import { Toolbar } from '../ui/Toolbar'
@@ -27,7 +30,7 @@ function readDraggedShapeKind(dataTransfer: DataTransfer): PrimitiveKind | null 
 }
 
 export function DesignerPage() {
-  useDocumentTitle('Павучы клуб')
+  useDocumentTitle(BRAND_NAME)
   const addShape = useStrawMobileStore((s) => s.addShape)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
 
@@ -64,6 +67,8 @@ export function DesignerPage() {
           <SizeSelector />
           <StrawInventory />
           <OverlapScanSnackbar />
+          <EmptyCanvasHint />
+          <ShortcutsHelp />
         </div>
       </main>
     </div>

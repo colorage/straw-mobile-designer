@@ -56,8 +56,10 @@ export function SelectableShape({
   const removeShape = useStrawMobileStore((s) => s.removeShape)
   const cutAssemblyEdge = useStrawMobileStore((s) => s.cutAssemblyEdge)
   const activeTool = useStrawMobileStore((s) => s.activeTool)
+  const isPreviewMode = useStrawMobileStore((s) => s.isPreviewMode)
   const isScissors = activeTool === 'scissors'
   const cutsPerStraw = isScissors && shape.kind === 'assembly'
+  const canEdit = !isPreviewMode
 
   const handleBodyClick = (event: ThreeEvent<MouseEvent>) => {
     event.stopPropagation()
@@ -78,7 +80,7 @@ export function SelectableShape({
       <group position={shape.position} quaternion={shape.quaternion}>
         <ShapeGroup
           shape={shape}
-          interactive={activeTool !== 'scissors'}
+          interactive={canEdit && activeTool !== 'scissors'}
           onVertexClick={onVertexClick}
           isVertexPending={isVertexPending}
           isVertexSuggested={isVertexSuggested}
@@ -86,29 +88,33 @@ export function SelectableShape({
           isVertexMoveTarget={isVertexMoveTarget}
           isEdgeMoveTarget={isEdgeMoveTarget}
           selected={isSelected}
-          scissorsHover={isScissors}
-          onBodyClick={handleBodyClick}
+          scissorsHover={canEdit && isScissors}
+          onBodyClick={canEdit ? handleBodyClick : undefined}
           onEdgeClick={
-            cutsPerStraw
-              ? (edgeIndex) => cutAssemblyEdge(shape.id, edgeIndex)
-              : activeTool === 'select'
-                ? onEdgeSelect
-                : undefined
+            canEdit
+              ? cutsPerStraw
+                ? (edgeIndex) => cutAssemblyEdge(shape.id, edgeIndex)
+                : activeTool === 'select'
+                  ? onEdgeSelect
+                  : undefined
+              : undefined
           }
           onVertexDragStart={
-            activeTool === 'select'
+            canEdit && activeTool === 'select'
               ? (vertexIndex, event) =>
                   startFreeOrHangDrag(shape, 'vertex', vertexIndex, null, event)
               : undefined
           }
           onEdgeDragStart={
-            activeTool === 'select'
+            canEdit && activeTool === 'select'
               ? (edgeIndex, event) => startFreeOrHangDrag(shape, 'edge', null, edgeIndex, event)
               : undefined
           }
         />
       </group>
-      {showCentroidCube && activeTool === 'select' && <CentroidMoveCube shape={shape} />}
+      {canEdit && showCentroidCube && activeTool === 'select' && (
+        <CentroidMoveCube shape={shape} />
+      )}
     </>
   )
 }

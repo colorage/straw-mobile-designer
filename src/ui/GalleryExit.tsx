@@ -1,33 +1,41 @@
 import { Link } from 'react-router-dom'
 import { flushGalleryPersist } from '../gallery/autoPersist'
+import { useT } from '../i18n/t'
 import { useStrawMobileStore } from '../state/store'
 import { useThemeStore } from '../state/themeStore'
-import { FanIcon, GridIcon, MagnetIcon, MoonIcon, RigidLoopIcon, SunIcon } from './icons'
+import { useHelpPanelStore } from './helpPanelStore'
+import { LanguageSwitcher } from './LanguageSwitcher'
+import {
+  FanIcon,
+  GridIcon,
+  HelpIcon,
+  MagnetIcon,
+  MoonIcon,
+  RigidLoopIcon,
+  SunIcon,
+} from './icons'
 
-/** Top-right controls: wind, rigid-loop, scanner, theme, gallery exit. */
+/** Top-right controls: wind, rigid-loop, scanner, theme, language, help, gallery exit. */
 export function GalleryExit() {
+  const t = useT()
   const theme = useThemeStore((s) => s.theme)
   const toggleTheme = useThemeStore((s) => s.toggleTheme)
-  const nextTheme = theme === 'dark' ? 'light' : 'dark'
-  const themeLabel = nextTheme === 'light' ? 'Switch to light mode' : 'Switch to dark mode'
+  const themeLabel = theme === 'dark' ? t('hud.themeLight') : t('hud.themeDark')
 
   const scannerEnabled = useStrawMobileStore((s) => s.overlapScannerEnabled)
   const toggleOverlapScanner = useStrawMobileStore((s) => s.toggleOverlapScanner)
-  const scannerLabel = scannerEnabled
-    ? 'Disable connection scanner'
-    : 'Enable connection scanner'
+  const scannerLabel = scannerEnabled ? t('hud.scannerOff') : t('hud.scannerOn')
 
   const rigidLoopsEnabled = useStrawMobileStore((s) => s.rigidLoopsEnabled)
   const toggleRigidLoops = useStrawMobileStore((s) => s.toggleRigidLoops)
-  const rigidLoopsLabel = rigidLoopsEnabled
-    ? 'Keep closed loops floppy'
-    : 'Fuse closed loops into rigid pieces'
+  const rigidLoopsLabel = rigidLoopsEnabled ? t('hud.rigidFloppy') : t('hud.rigidFuse')
 
   const windEnabled = useStrawMobileStore((s) => s.windEnabled)
   const toggleWind = useStrawMobileStore((s) => s.toggleWind)
-  const windLabel = windEnabled
-    ? 'Turn wind off'
-    : 'Turn wind on — gentle breeze on hanging pieces'
+  const windLabel = windEnabled ? t('hud.windOff') : t('hud.windOn')
+
+  const helpOpen = useHelpPanelStore((s) => s.open)
+  const toggleHelp = useHelpPanelStore((s) => s.toggle)
 
   return (
     <div className="hud-cluster hud-top-right">
@@ -70,11 +78,22 @@ export function GalleryExit() {
       >
         {theme === 'dark' ? <SunIcon className="hud-icon" /> : <MoonIcon className="hud-icon" />}
       </button>
+      <LanguageSwitcher />
+      <button
+        type="button"
+        className={`hud-icon-button${helpOpen ? ' is-active' : ''}`}
+        title={t('hud.shortcutsTitle')}
+        aria-label={t('hud.shortcutsLabel')}
+        aria-pressed={helpOpen}
+        onClick={toggleHelp}
+      >
+        <HelpIcon className="hud-icon" />
+      </button>
       <Link
         to="/gallery"
         className="hud-icon-button hud-exit-link"
-        title="Open gallery"
-        aria-label="Open gallery"
+        title={t('hud.openGallery')}
+        aria-label={t('hud.openGallery')}
         onClick={() => {
           flushGalleryPersist()
         }}

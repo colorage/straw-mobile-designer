@@ -1,24 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { useGalleryStore } from '../gallery/galleryStore'
+import { useT } from '../i18n/t'
 import { useStrawMobileStore } from '../state/store'
 
-function formatAutosavedAgo(lastSavedAt: number, now: number): string {
+function formatAutosavedAgo(lastSavedAt: number, now: number, t: ReturnType<typeof useT>): string {
   const seconds = Math.max(0, Math.floor((now - lastSavedAt) / 1000))
-  if (seconds < 45) return 'Autosaved just now'
+  if (seconds < 45) return t('project.autosavedJustNow')
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) {
-    return minutes <= 1 ? 'Autosaved 1 minute ago' : `Autosaved ${minutes} minutes ago`
-  }
+  if (minutes < 60) return t('project.autosavedMinutes', { count: Math.max(1, minutes) })
   const hours = Math.floor(minutes / 60)
-  if (hours < 24) {
-    return hours === 1 ? 'Autosaved 1 hour ago' : `Autosaved ${hours} hours ago`
-  }
+  if (hours < 24) return t('project.autosavedHours', { count: hours })
   const days = Math.floor(hours / 24)
-  return days === 1 ? 'Autosaved 1 day ago' : `Autosaved ${days} days ago`
+  return t('project.autosavedDays', { count: days })
 }
 
 /** Top-left project name (click to rename) and relative autosave status. */
 export function ProjectHeader() {
+  const t = useT()
   const projectName = useStrawMobileStore((s) => s.projectName)
   const lastSavedAt = useStrawMobileStore((s) => s.lastSavedAt)
   const setProjectName = useStrawMobileStore((s) => s.setProjectName)
@@ -65,7 +63,7 @@ export function ProjectHeader() {
           ref={inputRef}
           className="hud-project-input"
           value={draft}
-          aria-label="Project name"
+          aria-label={t('project.name')}
           maxLength={80}
           onChange={(event) => setDraft(event.target.value)}
           onBlur={commit}
@@ -84,12 +82,12 @@ export function ProjectHeader() {
           type="button"
           className="hud-project-name"
           onClick={() => setEditing(true)}
-          title="Rename project"
+          title={t('project.rename')}
         >
           {projectName}
         </button>
       )}
-      <p className="hud-autosave">{formatAutosavedAgo(lastSavedAt, now)}</p>
+      <p className="hud-autosave">{formatAutosavedAgo(lastSavedAt, now, t)}</p>
     </div>
   )
 }

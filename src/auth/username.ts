@@ -8,16 +8,16 @@ const SYNTHETIC_EMAIL_DOMAIN = 'users.spider.siaroza.com'
 
 export const USERNAME_PATTERN = /^[a-z0-9_]{3,20}$/
 
-export const USERNAME_RULE_HINT = '3–20 characters: lowercase letters, numbers, or underscore.'
+export const USERNAME_RULE_HINT = 'account.usernameHint'
 
 export function normalizeUsername(raw: string): string {
   return raw.trim().toLowerCase()
 }
 
-/** Returns null when valid, otherwise a message safe to show in the form. */
+/** Returns null when valid, otherwise a catalog key safe to show in the form. */
 export function validateUsername(raw: string): string | null {
   const username = normalizeUsername(raw)
-  if (!username) return 'Pick a username.'
+  if (!username) return 'auth.pickUsername'
   if (!USERNAME_PATTERN.test(username)) return USERNAME_RULE_HINT
   return null
 }

@@ -1,5 +1,6 @@
 import type { Session, User } from '@supabase/supabase-js'
 import { create } from 'zustand'
+import { purgeOwnCommentPhotos } from '../community/commentPhotos'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { normalizeUsername, usernameToEmail, validateUsername } from './username'
 
@@ -45,23 +46,23 @@ function fail(message: string): AuthResult {
 function describeAuthError(message: string): string {
   const lower = message.toLowerCase()
   if (lower.includes('invalid login credentials')) {
-    return 'That username and password do not match an account.'
+    return 'auth.badCredentials'
   }
   if (lower.includes('user already registered') || lower.includes('already been registered')) {
-    return 'That username is taken.'
+    return 'auth.usernameTaken'
   }
   if (lower.includes('email logins are disabled') || lower.includes('email signups are disabled')) {
-    return 'Password accounts are turned off for this project. Enable the Email provider in Supabase.'
+    return 'auth.emailDisabled'
   }
   if (lower.includes('signups not allowed')) {
-    return 'New accounts are turned off for this project.'
+    return 'auth.signupsOff'
   }
   if (lower.includes('password')) return message
   if (lower.includes('manual linking is disabled')) {
-    return 'Connecting Google is turned off for this project. Enable manual linking in Supabase.'
+    return 'auth.googleLinkDisabled'
   }
   if (lower.includes('identity is already linked')) {
-    return 'That Google account is already connected to another account.'
+    return 'auth.googleAlreadyLinked'
   }
   return message
 }
@@ -94,7 +95,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   busy: false,
 
   signUp: async (username, password, nickname) => {
-    if (!supabase) return fail('Accounts are unavailable right now.')
+    if (!supabase) return fail('auth.unavailable')
     const invalid = validateUsername(username)
     if (invalid) return fail(invalid)
     const handle = normalizeUsername(username)
@@ -109,22 +110,20 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       })
       if (error) return fail(describeAuthError(error.message))
       if (!data.session) {
-        return fail(
-          'Account created but not signed in. Turn off "Confirm email" in Supabase to finish setup.',
-        )
+        return fail('auth.confirmEmail')
       }
       return ok()
     } catch (error) {
-      return fail(toMessage(error, 'Could not create that account.'))
+      return fail(toMessage(error, 'auth.couldNotCreate'))
     } finally {
       set({ busy: false })
     }
   },
 
   signIn: async (username, password) => {
-    if (!supabase) return fail('Accounts are unavailable right now.')
+    if (!supabase) return fail('auth.unavailable')
     const handle = normalizeUsername(username)
-    if (!handle) return fail('Enter your username.')
+    if (!handle) return fail('auth.enterUsername')
 
     set({ busy: true })
     try {
@@ -135,14 +134,14 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       if (error) return fail(describeAuthError(error.message))
       return ok()
     } catch (error) {
-      return fail(toMessage(error, 'Could not sign in.'))
+      return fail(toMessage(error, 'auth.couldNotSignIn'))
     } finally {
       set({ busy: false })
     }
   },
 
   signInWithGoogle: async () => {
-    if (!supabase) return fail('Accounts are unavailable right now.')
+    if (!supabase) return fail('auth.unavailable')
     set({ busy: true })
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -157,12 +156,12 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return ok()
     } catch (error) {
       set({ busy: false })
-      return fail(toMessage(error, 'Could not start Google sign-in.'))
+      return fail(toMessage(error, 'auth.couldNotGoogle'))
     }
   },
 
   linkGoogle: async () => {
-    if (!supabase) return fail('Accounts are unavailable right now.')
+    if (!supabase) return fail('auth.unavailable')
     set({ busy: true })
     try {
       const { error } = await supabase.auth.linkIdentity({
@@ -176,7 +175,7 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       return ok()
     } catch (error) {
       set({ busy: false })
-      return fail(toMessage(error, 'Could not connect Google.'))
+      return fail(toMessage(error, 'auth.couldNotConnectGoogle'))
     }
   },
 
@@ -191,20 +190,28 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   },
 
   deleteAccount: async () => {
-    if (!supabase) return fail('Accounts are unavailable right now.')
+    if (!supabase) return fail('auth.unavailable')
     set({ busy: true })
     try {
+      const userId = get().user?.id
+      if (userId) {
+        try {
+          await purgeOwnCommentPhotos(userId)
+        } catch {
+          // Account delete still cascades comment rows; Storage trigger is backup.
+        }
+      }
       const { error } = await supabase.rpc('delete_own_account')
       if (error) {
         return fail(
-          describeAuthError(error.message) || 'Could not delete that account.',
+          describeAuthError(error.message) || 'auth.couldNotDelete',
         )
       }
       // The auth user is gone; clear the local session without calling the server.
       await supabase.auth.signOut({ scope: 'local' })
       return ok()
     } catch (error) {
-      return fail(toMessage(error, 'Could not delete that account.'))
+      return fail(toMessage(error, 'auth.couldNotDelete'))
     } finally {
       set({ busy: false })
     }
@@ -212,10 +219,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
 
   setNickname: async (nickname) => {
     const { profile } = get()
-    if (!supabase || !profile) return fail('Sign in to change your nickname.')
+    if (!supabase || !profile) return fail('auth.signInToNickname')
     const trimmed = nickname.trim()
-    if (!trimmed) return fail('Nickname cannot be empty.')
-    if (trimmed.length > 40) return fail('Nickname is too long (40 characters max).')
+    if (!trimmed) return fail('auth.nicknameEmpty')
+    if (trimmed.length > 40) return fail('auth.nicknameTooLong')
     if (trimmed === profile.nickname) return ok()
 
     const previous = profile
@@ -226,15 +233,15 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
       .eq('id', profile.id)
     if (error) {
       set({ profile: previous })
-      return fail('Could not save that nickname.')
+      return fail('auth.couldNotSaveNickname')
     }
     return ok()
   },
 
   claimUsername: async (username) => {
     const { profile } = get()
-    if (!supabase || !profile) return fail('Sign in first.')
-    if (profile.username) return fail('Your username is already set.')
+    if (!supabase || !profile) return fail('auth.signInFirst')
+    if (profile.username) return fail('auth.usernameAlreadySet')
     const invalid = validateUsername(username)
     if (invalid) return fail(invalid)
     const handle = normalizeUsername(username)
@@ -246,8 +253,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
         .update({ username: handle })
         .eq('id', profile.id)
       // 23505: unique violation on profiles.username.
-      if (error?.code === '23505') return fail('That username is taken.')
-      if (error) return fail('Could not save that username.')
+      if (error?.code === '23505') return fail('auth.usernameTaken')
+      if (error) return fail('auth.couldNotSaveUsername')
       set({ profile: { ...profile, username: handle } })
       return ok()
     } finally {
@@ -272,7 +279,7 @@ async function loadProfile(user: User): Promise<void> {
   if (error) {
     useAuthStore.setState({
       profile: null,
-      profileError: 'Could not load your profile. The database schema may not be applied yet.',
+      profileError: 'auth.profileLoadFailed',
     })
     return
   }
@@ -298,7 +305,7 @@ async function loadProfile(user: User): Promise<void> {
   if (insertError) {
     useAuthStore.setState({
       profile: { ...seeded, username: null },
-      profileError: 'Your profile could not be created. Some changes may not save.',
+      profileError: 'auth.profileCreateFailed',
     })
     return
   }

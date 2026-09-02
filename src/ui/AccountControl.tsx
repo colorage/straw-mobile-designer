@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '../auth/authStore'
-import { USERNAME_RULE_HINT } from '../auth/username'
 import { flushCloudSync } from '../gallery/cloudSync'
+import { useT, useTOrRaw } from '../i18n/t'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { useAccountPanelStore } from './accountPanelStore'
 import { UserIcon } from './icons'
@@ -19,6 +19,8 @@ function useDismissOnEscape(open: boolean, close: () => void) {
 
 /** Sign-in / create-account form, including the Google option. */
 function AuthForm({ mode, onSwitchMode }: { mode: 'signIn' | 'signUp'; onSwitchMode: () => void }) {
+  const t = useT()
+  const tRaw = useTOrRaw()
   const signIn = useAuthStore((s) => s.signIn)
   const signUp = useAuthStore((s) => s.signUp)
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle)
@@ -52,7 +54,7 @@ function AuthForm({ mode, onSwitchMode }: { mode: 'signIn' | 'signUp'; onSwitchM
   return (
     <form className="account-form" onSubmit={handleSubmit}>
       <label className="account-field">
-        <span className="account-field-label">Username</span>
+        <span className="account-field-label">{t('account.username')}</span>
         <input
           ref={usernameRef}
           className="account-input"
@@ -65,7 +67,7 @@ function AuthForm({ mode, onSwitchMode }: { mode: 'signIn' | 'signUp'; onSwitchM
       </label>
 
       <label className="account-field">
-        <span className="account-field-label">Password</span>
+        <span className="account-field-label">{t('account.password')}</span>
         <input
           className="account-input"
           type="password"
@@ -78,37 +80,39 @@ function AuthForm({ mode, onSwitchMode }: { mode: 'signIn' | 'signUp'; onSwitchM
       {mode === 'signUp' && (
         <>
           <label className="account-field">
-            <span className="account-field-label">Nickname</span>
+            <span className="account-field-label">{t('account.nickname')}</span>
             <input
               className="account-input"
               value={nickname}
               onChange={(event) => setNickname(event.target.value)}
-              placeholder={username || 'Shown in your gallery'}
+              placeholder={username || t('account.nicknamePlaceholder')}
               maxLength={40}
             />
           </label>
-          <p className="account-hint">{USERNAME_RULE_HINT} No email needed.</p>
+          <p className="account-hint">
+            {t('account.usernameHint')} {t('account.noEmail')}
+          </p>
         </>
       )}
 
-      {error && <p className="gallery-error account-error">{error}</p>}
+      {error && <p className="gallery-error account-error">{tRaw(error)}</p>}
 
       <button type="submit" className="primary-button account-submit" disabled={busy}>
-        {mode === 'signIn' ? 'Sign in' : 'Create account'}
+        {mode === 'signIn' ? t('account.signIn') : t('account.createAccount')}
       </button>
 
       <div className="account-divider">
-        <span>or</span>
+        <span>{t('account.or')}</span>
       </div>
 
       <button type="button" className="ghost-button" onClick={handleGoogle} disabled={busy}>
-        Continue with Google
+        {t('account.continueGoogle')}
       </button>
 
       <p className="account-hint account-switch">
-        {mode === 'signIn' ? 'No account yet?' : 'Already have an account?'}{' '}
+        {mode === 'signIn' ? t('account.noAccountYet') : t('account.haveAccount')}{' '}
         <button type="button" className="account-link" onClick={onSwitchMode}>
-          {mode === 'signIn' ? 'Create one' : 'Sign in'}
+          {mode === 'signIn' ? t('account.createOne') : t('account.signIn')}
         </button>
       </p>
     </form>
@@ -117,6 +121,8 @@ function AuthForm({ mode, onSwitchMode }: { mode: 'signIn' | 'signUp'; onSwitchM
 
 /** Nickname, username, connected providers, sign-out, and delete for the current user. */
 function ProfileForm({ onClose }: { onClose: () => void }) {
+  const t = useT()
+  const tRaw = useTOrRaw()
   const profile = useAuthStore((s) => s.profile)
   const user = useAuthStore((s) => s.user)
   const busy = useAuthStore((s) => s.busy)
@@ -148,7 +154,7 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
     setError(null)
     setStatus(null)
     const result = await setNickname(draftNickname)
-    if (result.ok) setStatus('Nickname saved.')
+    if (result.ok) setStatus('account.nicknameSaved')
     else setError(result.message)
   }
 
@@ -185,8 +191,8 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
     if (!confirmReady) {
       setError(
         profile?.username
-          ? `Type your username (${profile.username}) to confirm.`
-          : 'Type “delete” to confirm.',
+          ? t('account.confirmUsername', { username: profile.username })
+          : t('account.confirmDeleteWord'),
       )
       return
     }
@@ -203,11 +209,11 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
     <div className="account-form account-profile">
       <section className="account-section" aria-labelledby="account-section-profile">
         <h3 id="account-section-profile" className="account-section-title">
-          Profile
+          {t('account.profile')}
         </h3>
         <form onSubmit={handleSaveNickname}>
           <label className="account-field">
-            <span className="account-field-label">Nickname</span>
+            <span className="account-field-label">{t('account.nickname')}</span>
             <input
               className="account-input"
               value={draftNickname}
@@ -216,41 +222,41 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
             />
           </label>
           <label className="account-field">
-            <span className="account-field-label">Username</span>
+            <span className="account-field-label">{t('account.username')}</span>
             <input
               className="account-input account-input-readonly"
-              value={profile?.username ? `@${profile.username}` : 'Not claimed yet'}
+              value={profile?.username ? `@${profile.username}` : t('account.notClaimed')}
               readOnly
               disabled
               tabIndex={-1}
             />
           </label>
           <p className="account-hint account-hint-tight">
-            Username is permanent and used to sign in.
+            {t('account.usernamePermanent')}
           </p>
           <button type="submit" className="primary-button account-submit" disabled={busy}>
-            Save nickname
+            {t('account.saveNickname')}
           </button>
         </form>
-        {status && <p className="account-hint account-status">{status}</p>}
+        {status && <p className="account-hint account-status">{tRaw(status)}</p>}
       </section>
 
       <section className="account-section" aria-labelledby="account-section-signin">
         <h3 id="account-section-signin" className="account-section-title">
-          Sign-in
+          {t('account.signInSection')}
         </h3>
         {googleLinked ? (
-          <p className="account-hint account-hint-tight">Google is connected.</p>
+          <p className="account-hint account-hint-tight">{t('account.googleConnected')}</p>
         ) : (
           <button type="button" className="ghost-button" onClick={handleLinkGoogle} disabled={busy}>
-            Connect Google
+            {t('account.connectGoogle')}
           </button>
         )}
       </section>
 
       <section className="account-section" aria-labelledby="account-section-session">
         <h3 id="account-section-session" className="account-section-title">
-          Session
+          {t('account.session')}
         </h3>
         <button
           type="button"
@@ -258,18 +264,18 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
           onClick={handleSignOut}
           disabled={busy}
         >
-          Log out
+          {t('account.logOut')}
         </button>
       </section>
 
       <section className="account-section account-section-danger" aria-labelledby="account-section-danger">
         <h3 id="account-section-danger" className="account-section-title">
-          Danger zone
+          {t('account.danger')}
         </h3>
         {!confirmingDelete ? (
           <>
             <p className="account-hint account-hint-tight">
-              Permanently delete your account and every mobile saved to it. This cannot be undone.
+              {t('account.deleteWarning')}
             </p>
             <button
               type="button"
@@ -277,24 +283,18 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
               onClick={handleStartDelete}
               disabled={busy}
             >
-              Delete account
+              {t('account.deleteAccount')}
             </button>
           </>
         ) : (
           <form className="account-delete-confirm" onSubmit={handleDeleteAccount}>
             <p className="account-hint account-hint-tight">
-              {profile?.username ? (
-                <>
-                  Type <strong>{profile.username}</strong> to confirm deletion.
-                </>
-              ) : (
-                <>
-                  Type <strong>delete</strong> to confirm deletion.
-                </>
-              )}
+              {profile?.username
+                ? t('account.typeUsername', { username: profile.username })
+                : t('account.typeDelete')}
             </p>
             <label className="account-field">
-              <span className="account-field-label">Confirmation</span>
+              <span className="account-field-label">{t('account.confirmation')}</span>
               <input
                 ref={deleteInputRef}
                 className="account-input"
@@ -312,27 +312,28 @@ function ProfileForm({ onClose }: { onClose: () => void }) {
                 onClick={handleCancelDelete}
                 disabled={busy}
               >
-                Cancel
+                {t('account.cancel')}
               </button>
               <button
                 type="submit"
                 className="ghost-button account-danger-button"
                 disabled={busy || !confirmReady}
               >
-                Delete forever
+                {t('account.deleteForever')}
               </button>
             </div>
           </form>
         )}
       </section>
 
-      {error && <p className="gallery-error account-error">{error}</p>}
+      {error && <p className="gallery-error account-error">{tRaw(error)}</p>}
     </div>
   )
 }
 
 /** Header control: opens sign-in for guests, the profile panel when signed in. */
 export function AccountControl() {
+  const t = useT()
   const ready = useAuthStore((s) => s.ready)
   const user = useAuthStore((s) => s.user)
   const profile = useAuthStore((s) => s.profile)
@@ -358,10 +359,14 @@ export function AccountControl() {
   }
 
   const signedIn = Boolean(user)
-  const nickname = profile?.nickname?.trim() || 'Account'
-  const label = signedIn ? nickname : 'Sign in'
+  const nickname = profile?.nickname?.trim() || t('account.trigger')
+  const label = signedIn ? nickname : t('account.signIn')
   const dialogTitle =
-    panel === 'profile' ? 'Your account' : panel === 'signUp' ? 'Create an account' : 'Sign in'
+    panel === 'profile'
+      ? t('account.yourAccount')
+      : panel === 'signUp'
+        ? t('account.createAnAccount')
+        : t('account.signIn')
 
   return (
     <>
@@ -369,7 +374,7 @@ export function AccountControl() {
         type="button"
         className={`account-trigger${signedIn ? ' is-signed-in' : ''}`}
         onClick={() => open(signedIn ? 'profile' : 'signIn')}
-        aria-label={signedIn ? `Account: ${nickname}` : 'Sign in'}
+        aria-label={signedIn ? t('account.accountLabel', { name: nickname }) : t('account.signIn')}
         title={label}
       >
         <UserIcon className="account-trigger-icon" />
@@ -398,7 +403,7 @@ export function AccountControl() {
                 type="button"
                 className="account-close"
                 onClick={close}
-                aria-label="Close"
+                aria-label={t('account.close')}
               >
                 ×
               </button>
